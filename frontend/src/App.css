@@ -1,0 +1,874 @@
+/* Stile dell'applicazione. I selettori sugli elementi nudi (input, button,
+   table) sono sempre annidati sotto una classe: lasciati globali si
+   scontrerebbero con le pagine che aggiungeremo.
+
+   Tre regole tengono insieme tutto il file:
+   - l'elevazione indica contenimento, non decorazione: solo le schede di
+     contenuto e il foglio d'accesso portano un'ombra;
+   - il raggio cresce con la superficie, dai 10px di un campo ai 22px di un
+     foglio;
+   - il teal resta l'unico colore di segnale, e quando deve tingere una
+     superficie lo fa diluito (--azione-velo), non con un grigio. */
+
+/* --- pezzi condivisi ------------------------------------------------------ */
+
+.azienda {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.sommario {
+  margin-top: 0.625rem;
+  color: var(--inchiostro-tenue);
+}
+
+.sommario strong {
+  color: var(--inchiostro);
+  font-weight: 500;
+}
+
+.nota {
+  margin-top: 0.375rem;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* L'errore è un pannello, non un filetto: deve fermare l'occhio prima che la
+   mano torni sul pulsante. Il rosso resta quello della palette, all'8% per
+   il fondo e pieno per il testo. */
+.errore {
+  padding: 0.75rem 0.9375rem;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--errore-velo);
+  color: var(--errore);
+}
+
+/* --- schermata a colonna: accesso, attesa, messaggi ---------------------- */
+
+.pagina {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2.5rem 1.25rem;
+}
+
+/* Il foglio: accesso, verifica della sessione e «non autorizzato» condividono
+   queste classi, quindi condividono anche la forma. È l'unica superficie che
+   porta l'ombra piena, perché è l'unica che sta sopra la pagina invece che
+   dentro di essa. */
+.colonna {
+  width: 100%;
+  max-width: 25rem;
+  padding: 2.5rem 2.25rem;
+  background-color: var(--superficie);
+  border-radius: var(--raggio-foglio);
+  box-shadow: var(--ombra-foglio);
+}
+
+.colonna h1 {
+  margin-top: 0.125rem;
+  font-size: var(--scala-titolo);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-titolo);
+  line-height: 1.1;
+}
+
+/* --- campi e pulsanti ---------------------------------------------------- */
+
+/* Solo l'impaginazione è condivisa. La scheda la prende il .modulo e non il
+   form dell'accesso, che è già dentro un foglio: una scheda dentro una
+   scheda non direbbe niente di nuovo. */
+.colonna form,
+.modulo {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.colonna form {
+  margin-top: 2rem;
+}
+
+.modulo {
+  max-width: 34rem;
+  margin-top: 1.5rem;
+  padding: 1.75rem;
+  background-color: var(--superficie);
+  border-radius: var(--raggio-carta);
+  box-shadow: var(--ombra-carta);
+}
+
+.campo {
+  display: grid;
+  gap: 0.375rem;
+  border: none;
+  padding: 0;
+}
+
+.campo label,
+.campo legend {
+  font-size: var(--scala-piccola);
+  font-weight: 500;
+  padding: 0;
+}
+
+.campo input[type='email'],
+.campo input[type='password'],
+.campo input[type='date'],
+.campo input:not([type]),
+.campo select,
+.campo textarea {
+  background-color: var(--campo-fondo);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-controllo);
+  transition:
+    border-color var(--transizione),
+    box-shadow var(--transizione),
+    background-color var(--transizione);
+}
+
+.campo input[type='email'],
+.campo input[type='password'],
+.campo input[type='date'],
+.campo input:not([type]),
+.campo select {
+  height: 2.875rem;
+  padding: 0 0.75rem;
+}
+
+.campo textarea {
+  padding: 0.5625rem 0.75rem;
+  resize: vertical;
+}
+
+/* L'anello morbido al focus è il segnale di «stai scrivendo qui». Non
+   sostituisce il contorno da tastiera, che resta in index.css. */
+.campo input:focus,
+.campo select:focus,
+.campo textarea:focus {
+  background-color: var(--superficie);
+  border-color: var(--azione);
+  box-shadow: 0 0 0 3px var(--azione-velo);
+}
+
+.campo input:disabled,
+.campo select:disabled,
+.campo textarea:disabled {
+  color: var(--inchiostro-tenue);
+  opacity: 0.7;
+}
+
+/* Una scelta è una riga da toccare, non un'etichetta accanto a un pallino:
+   prende tutta la larghezza e si accende al passaggio. */
+.scelta {
+  display: flex;
+  gap: 0.625rem;
+  align-items: baseline;
+  padding: 0.5rem 0.75rem;
+  margin-left: -0.75rem;
+  border-radius: var(--raggio-controllo);
+  font-size: var(--scala-base);
+  font-weight: 400;
+  cursor: pointer;
+  transition: background-color var(--transizione);
+}
+
+.scelta:hover {
+  background-color: var(--azione-velo);
+}
+
+.scelta em {
+  color: var(--inchiostro-tenue);
+  font-style: normal;
+}
+
+.colonna button,
+.modulo button {
+  height: 2.875rem;
+  border: 1px solid var(--azione);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--azione);
+  color: #fff;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--ombra-premuto);
+  transition:
+    background-color var(--transizione),
+    transform var(--transizione);
+}
+
+.colonna button:hover:not(:disabled),
+.modulo button:hover:not(:disabled) {
+  background-color: var(--azione-premuta);
+  border-color: var(--azione-premuta);
+}
+
+/* La pressione si sente: il pulsante cede di un soffio sotto il dito. */
+.colonna button:active:not(:disabled),
+.modulo button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.colonna button:disabled,
+.modulo button:disabled {
+  opacity: 0.55;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* --- barra in alto -------------------------------------------------------- */
+
+/* Resta appesa in alto mentre l'elenco scorre, e lascia intravedere ciò che
+   le passa sotto: è il modo in cui un'interfaccia di sistema dice «questo
+   livello non fa parte del contenuto». */
+.barra {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.75rem 1.5rem;
+  border-bottom: 1px solid var(--riga-tenue);
+  background-color: var(--superficie);
+}
+
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .barra {
+    background-color: var(--superficie-velata);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+}
+
+.barra-marchio {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.barra-marchio a {
+  color: var(--inchiostro);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-base);
+  text-decoration: none;
+}
+
+.barra-voci {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.barra-voci a {
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--raggio-pillola);
+  color: var(--inchiostro);
+  text-decoration: none;
+  transition:
+    background-color var(--transizione),
+    color var(--transizione);
+}
+
+.barra-voci a:hover {
+  background-color: var(--azione-velo);
+  color: var(--azione);
+}
+
+/* Dove si è adesso: il velo fermo, non quello del passaggio del mouse. */
+.barra-voci a.attivo {
+  background-color: var(--azione-velo-fermo);
+  color: var(--azione);
+  font-weight: 500;
+}
+
+/* Uscire non è l'azione principale: non prende il colore di segnale. */
+.barra-utente {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.barra-utente button {
+  height: 2rem;
+  padding: 0 0.875rem;
+  background-color: var(--campo-fondo);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-pillola);
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  cursor: pointer;
+  transition:
+    border-color var(--transizione),
+    background-color var(--transizione);
+}
+
+.barra-utente button:hover {
+  border-color: var(--riga);
+  background-color: var(--carta);
+}
+
+/* --- pagine interne ------------------------------------------------------- */
+
+.pagina-larga {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+}
+
+/* Nessun filetto sotto il titolo: il bordo della scheda che segue fa già
+   quel lavoro, e due separatori a sedici pixel di distanza sono rumore. */
+.testata {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.testata h1 {
+  font-size: var(--scala-sezione);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-titolo);
+}
+
+.testata a {
+  color: var(--azione);
+  font-size: var(--scala-base);
+}
+
+.testata a.azione {
+  padding: 0.5rem 1.125rem;
+  background-color: var(--azione);
+  border-radius: var(--raggio-pillola);
+  color: #fff;
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: var(--ombra-premuto);
+  transition:
+    background-color var(--transizione),
+    transform var(--transizione);
+}
+
+.testata a.azione:hover {
+  background-color: var(--azione-premuta);
+}
+
+.testata a.azione:active {
+  transform: scale(0.985);
+}
+
+.pagina-larga .sommario,
+.pagina-larga .errore {
+  margin-top: 1.5rem;
+}
+
+/* --- tabella -------------------------------------------------------------- */
+
+/* La scheda che contiene l'elenco. Il ritaglio arrotondato agli angoli e lo
+   scorrimento orizzontale sul telefono vengono dallo stesso overflow. */
+.scheda-tabella {
+  margin-top: 1.5rem;
+  background-color: var(--superficie);
+  border-radius: var(--raggio-carta);
+  box-shadow: var(--ombra-carta);
+  overflow-x: auto;
+}
+
+.tabella {
+  width: 100%;
+  min-width: 38rem;
+  border-collapse: collapse;
+  font-size: var(--scala-base);
+}
+
+.tabella th {
+  padding: 0.8125rem 0.875rem;
+  background-color: var(--carta);
+  border-bottom: 1px solid var(--riga);
+  text-align: left;
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tabella td {
+  padding: 0.8125rem 0.875rem;
+  border-bottom: 1px solid var(--riga-tenue);
+  vertical-align: baseline;
+}
+
+/* L'ultima riga non ha bisogno di un filetto: finisce la scheda. */
+.tabella tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tabella th:first-child,
+.tabella td:first-child {
+  padding-left: 1.25rem;
+}
+
+.tabella th:last-child,
+.tabella td:last-child {
+  padding-right: 1.25rem;
+}
+
+.tabella tbody tr {
+  transition: background-color var(--transizione);
+}
+
+.tabella tbody tr:hover {
+  background-color: var(--azione-velo);
+}
+
+/* Annullare e cancellare non sono azioni da fare per sbaglio: i pulsanti
+   restano discreti e la conferma avviene nella riga stessa. */
+.tabella .azioni {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.tabella .azioni button {
+  height: 1.875rem;
+  padding: 0 0.75rem;
+  background-color: var(--campo-fondo);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-pillola);
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    border-color var(--transizione),
+    color var(--transizione);
+}
+
+.tabella .azioni button:hover:not(:disabled) {
+  border-color: var(--riga);
+  background-color: var(--superficie);
+}
+
+.tabella .azioni button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tabella .conferma {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  font-size: var(--scala-piccola);
+  color: var(--errore);
+}
+
+.tabella .conferma button {
+  border-color: var(--errore);
+  background-color: transparent;
+  color: var(--errore);
+}
+
+.tabella .conferma button:hover:not(:disabled) {
+  border-color: var(--errore);
+  background-color: var(--errore);
+  color: #fff;
+}
+
+/* Un collegamento fra le azioni si veste come i pulsanti accanto: a chi
+   guarda non interessa che uno porti altrove e l'altro agisca sulla riga. */
+.tabella .azioni a {
+  height: 1.875rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.75rem;
+  background-color: var(--campo-fondo);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-pillola);
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  text-decoration: none;
+  transition:
+    background-color var(--transizione),
+    border-color var(--transizione);
+}
+
+.tabella .azioni a:hover {
+  border-color: var(--riga);
+  background-color: var(--superficie);
+}
+
+/* --- permessi di una persona ---------------------------------------------- */
+
+.gruppo-permessi {
+  margin-top: 2rem;
+}
+
+/* La categoria è un'etichetta di struttura, non un titolo da leggere: resta
+   piccola e tenue, e il peso visivo va ai permessi. */
+.gruppo-permessi h2 {
+  margin-bottom: 0.625rem;
+  font-size: var(--scala-base);
+  font-weight: 600;
+  color: var(--inchiostro-tenue);
+}
+
+.cella-casella {
+  width: 2.75rem;
+}
+
+.codice-permesso {
+  display: block;
+  font-weight: 500;
+}
+
+/* L'origine tinge la riga col colore che già significa quella cosa altrove:
+   il segnale per ciò che è stato aggiunto, il mattone per ciò che è stato
+   toglito. Nessuna tinta nuova. */
+.origine {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--raggio-pillola);
+  font-size: var(--scala-piccola);
+  white-space: nowrap;
+}
+
+.origine-ruolo {
+  color: var(--inchiostro-tenue);
+}
+
+.origine-aggiunto {
+  background-color: var(--azione-velo-fermo);
+  color: var(--azione-premuta);
+}
+
+.origine-togliato {
+  background-color: var(--errore-velo);
+  color: var(--errore);
+}
+
+/* --- dettaglio di un lavoro ----------------------------------------------- */
+
+.scheda-lavoro {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem;
+  background-color: var(--superficie);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-carta);
+  box-shadow: var(--ombra-carta);
+}
+
+.scheda-lavoro .nota {
+  margin-top: 0.5rem;
+}
+
+/* Il titolo di sezione dentro una testata resta piu' piccolo dell'h1 della
+   pagina: e' una gerarchia, non due titoli. */
+.testata h2 {
+  font-size: var(--scala-sezione);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-titolo);
+}
+
+/* Gli assegnatari sono pastiglie, e il menu per aggiungerne uno sta sulla
+   stessa riga: l'azione vive dove vive l'informazione. */
+.assegnatari {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: center;
+}
+
+.assegnatari .origine {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.assegnatari .togli {
+  padding: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  border: none;
+  border-radius: var(--raggio-pillola);
+  color: inherit;
+  font-size: var(--scala-base);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.assegnatari .togli:hover:not(:disabled) {
+  background-color: var(--azione-velo-fermo);
+}
+
+.assegnatari select {
+  height: 1.875rem;
+  padding: 0 0.5rem;
+  background-color: var(--campo-fondo);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-pillola);
+  font-size: var(--scala-piccola);
+}
+
+/* --- schermi stretti ------------------------------------------------------ */
+
+@media (max-width: 40rem) {
+  .barra {
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .barra-utente {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .pagina-larga {
+    padding: 1.5rem 1rem 2.5rem;
+  }
+
+  .testata {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.875rem;
+  }
+
+  .colonna {
+    padding: 2rem 1.5rem;
+  }
+
+  .modulo {
+    padding: 1.25rem;
+  }
+}
+
+/* --- monte ore ------------------------------------------------------------ */
+
+/* La scheda delle ore ha la stessa elevazione di quella del lavoro: sono due
+   facce dello stesso oggetto, non due livelli di gerarchia. */
+.scheda-ore {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem 1.25rem;
+  background-color: var(--superficie);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-carta);
+  box-shadow: var(--ombra-carta);
+}
+
+.scheda-ore .testata {
+  margin-bottom: 0.75rem;
+}
+
+.scheda-ore .modulo,
+.scheda-ore .scheda-tabella {
+  margin-top: 1rem;
+}
+
+/* Le cifre si leggono in fila, e si avvolgono sugli schermi stretti invece di
+   stringersi: un numero compresso si legge peggio di un numero a capo. */
+.cifre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+}
+
+.cifra {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.cifra-etichetta {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.cifra-valore {
+  font-size: var(--scala-sezione);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-titolo);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Le ore libere sono il numero su cui si decide: prendono il colore di
+   segnale, e sono le uniche. Tutto il resto della scheda e' contesto. */
+.cifra-forte .cifra-valore {
+  color: var(--azione);
+}
+
+/* Le ore nelle righe di tabella allineate in colonna: cifre di larghezza
+   fissa, cosi' i totali si confrontano a occhio. */
+.ore-riga {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabella .ore-entrata,
+.tabella .ore-uscita {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tabella .ore-entrata {
+  color: var(--azione);
+}
+
+/* Le ore che escono non sono un errore — un rilascio e' una cosa giusta —
+   quindi restano in inchiostro tenue invece di prendere il rosso. */
+.tabella .ore-uscita {
+  color: var(--inchiostro-tenue);
+}
+
+/* Lo sforamento e' un problema, e prende lo stesso velo delle rimozioni. */
+.origine-sforamento {
+  background-color: var(--errore-velo);
+  color: var(--errore);
+}
+
+/* Una richiesta in attesa non e' ne' buona ne' cattiva notizia: resta neutra
+   finche' qualcuno non decide. */
+.origine-attesa {
+  background-color: var(--carta);
+  color: var(--inchiostro-tenue);
+}
+
+/* --- avvisi --------------------------------------------------------------- */
+
+/* Diverso da .errore: qui non e' andato storto niente, c'e' una cosa da
+   sapere. Per questo prende il velo del colore di segnale e non quello
+   dell'errore. */
+.avviso {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: var(--azione-velo);
+  border-radius: var(--raggio-controllo);
+  color: var(--azione-premuta);
+  font-size: var(--scala-base);
+}
+
+/* --- azioni secondarie ---------------------------------------------------- */
+
+/* Il pulsante di contorno: la stessa forma di quello pieno, senza il peso.
+   Serve dove l'azione e' disponibile ma non e' quella che la pagina
+   suggerisce. */
+button.secondario {
+  height: 2.25rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--superficie);
+  color: var(--azione);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    border-color var(--transizione);
+}
+
+button.secondario:hover:not(:disabled) {
+  background-color: var(--azione-velo);
+  border-color: var(--azione);
+}
+
+button.secondario:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* L'azione dentro una cella: deve stare su una riga di tabella senza
+   allargarla. */
+button.minuscolo {
+  margin-top: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  color: var(--azione);
+  font-size: var(--scala-piccola);
+  cursor: pointer;
+  transition: background-color var(--transizione);
+}
+
+button.minuscolo:hover:not(:disabled) {
+  background-color: var(--azione-velo);
+}
+
+button.minuscolo:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Due pulsanti affiancati in fondo a un modulo: confermare e desistere. */
+.modulo .azioni {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.modulo .azioni button {
+  width: auto;
+}
+
+.modulo .azioni button.secondario {
+  height: 2.875rem;
+  padding: 0 1rem;
+  background-color: var(--superficie);
+  border-color: var(--riga);
+  color: var(--azione);
+  box-shadow: none;
+}
+
+/* --- moduli in riga ------------------------------------------------------- */
+
+/* Il modulo dell'allocazione vive in una riga di tabella, sotto la task a cui
+   si stanno dando le ore: staccarlo in un riquadro a parte perderebbe il
+   collegamento con la riga. */
+.modulo-riga {
+  margin: 0;
+  padding: 0.875rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-start;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.modulo-riga .campo {
+  min-width: 12rem;
+  flex: 1 1 12rem;
+}
+
+.modulo-riga .azioni {
+  padding-top: 1.5rem;
+}
+
+.modulo-riga .azioni button,
+.modulo-riga .azioni button.secondario {
+  height: 2.25rem;
+  padding: 0 0.875rem;
+}
+
+/* Il selettore della data in testata: etichetta e campo sulla stessa riga,
+   perche' e' un comando della pagina e non un dato da compilare. */
+.campo-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* I tipi di giornata sono quattro scelte brevi: in colonna sprecherebbero
+   mezza schermata. */
+.scelte-riga {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+}

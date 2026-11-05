@@ -1,0 +1,27 @@
+# Fine riga normalizzati: nel repository i file di testo stanno sempre con LF,
+# nella copia di lavoro ciascuno ha quelli del suo sistema.
+#
+# Serve perche' il progetto si sviluppa su Windows: senza questa riga il
+# risultato dipende dal `core.autocrlf` di chi committa, e basta un
+# collaboratore con una configurazione diversa per vedere diff di file interi
+# in cui non e' cambiato niente.
+#
+# `backend/.gitattributes` ha le sue regole per mvnw e *.cmd, e restano valide:
+# il file piu' vicino al percorso ha la precedenza.
+* text=auto eol=lf
+
+# Gli script per Windows vogliono CRLF o cmd.exe non li esegue.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binari: Git non deve toccarli ne' provare a mostrarne il diff.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.jar binary
+*.pdf binary

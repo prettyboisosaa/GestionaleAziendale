@@ -1,0 +1,411 @@
+package com.anitia.backend.lavoro;
+
+import com.anitia.backend.ore.MovimentoOre;
+import com.anitia.backend.ore.MovimentoOreRepository;
+import com.anitia.backend.ore.RigaMovimento;
+import com.anitia.backend.sicurezza.Permessi;
+import com.anitia.backend.task.TaskRepository;
+import com.anitia.backend.task.TaskRepository.OrePerLavoro;
+import com.anitia.backend.utente.Utente;
+import com.anitia.backend.utente.UtenteRepository;
+import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+@Service
+public class ServizioLavori {
+
+    /** Il permesso che un utente deve avere per poter fare il responsabile. */
+    static final String PERMESSO_RESPONSABILE = "LAVORI_MODIFICA_PROPRI";
+
+    private static final String VISUALIZZA_TUTTI = "LAVORI_VISUALIZZA_TUTTI";
+    private static final String VISUALIZZA_PROPRI = "LAVORI_VISUALIZZA_PROPRI";
+    private static final String MONTE_GESTISCI = "ORE_MONTE_GESTISCI";
+
+    private final LavoroRepository lavori;
+    private final UtenteRepository utenti;
+    private final TaskRepository task;
+    private final MovimentoOreRepository movimenti;
+
+    ServizioLavori(LavoroRepository lavori, UtenteRepository utenti, TaskRepository task,
+                   MovimentoOreRepository movimenti) {
+        this.lavori = lavori;
+        this.utenti = utenti;
+        this.task = task;
+        this.movimenti = movimenti;
+    }
+
+    /**
+     * I lavori che chi chiede ha diritto di vedere: tutti con
+     * {@code LAVORI_VISUALIZZA_TUTTI}, altrimenti quelli di cui è
+     * responsabile.
+     *
+     * <p>«Propri» vuol dire quello che dice la descrizione del permesso: i
+     * lavori di cui è responsabile <strong>o in cui ha task assegnate</strong>.
+     * Si raccolgono prima gli id dalle due fonti e poi si caricano i lavori in
+     * una volta, così il responsabile arriva con un {@code JOIN FETCH} e non
+     * una query per riga.
+     */
+    @Transactional(readOnly = true)
+    public List<RigaLavoro> elenco(UserDetails chiLoChiede) {
+        if (Permessi.ha(chiLoChiede, VISUALIZZA_TUTTI)) {
+            return conOre(lavori.trovaTutti());
+        }
+
+        Optional<Utente> utente = utenti.findByEmail(chiLoChiede.getUsername());
+        if (utente.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> propri = idPropri(utente.get().getId());
+
+        // IN con una lista vuota non e' SQL valido.
+        if (propri.isEmpty()) {
+            return List.of();
+        }
+
+        return conOre(lavori.trovaConId(propri));
+    }
+
+    /**
+     * Attacca a ciascun lavoro la situazione delle sue ore.
+     *
+     * <p>Due query per tutto l'elenco, non due per riga: con
+     * {@code open-in-view} disattivato e una ventina di lavori, la variante
+     * ingenua sarebbe quaranta interrogazioni per una schermata sola.
+     */
+    private List<RigaLavoro> conOre(List<Lavoro> elenco) {
+        if (elenco.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> id = elenco.stream().map(Lavoro::getId).toList();
+        Map<Long, BigDecimal> allocate = perLavoro(task.sommaOreAllocatePerLavoro(id));
+        Map<Long, BigDecimal> consumate = perLavoro(task.sommaOreConsumatePerLavoro(id));
+
+        return elenco.stream()
+                .map(lavoro -> RigaLavoro.da(lavoro,
+                        ore(allocate, lavoro.getId()),
+                        ore(consumate, lavoro.getId())))
+                .toList();
+    }
+
+    private static Map<Long, BigDecimal> perLavoro(Collection<OrePerLavoro> righe) {
+        return righe.stream().collect(
+                Collectors.toMap(OrePerLavoro::getLavoroId, OrePerLavoro::getOre));
+    }
+
+    /**
+     * Zero e non null quando il lavoro non compare fra i risultati: un lavoro
+     * senza task ha davvero zero ore allocate, e le somme raggruppate
+     * omettono le righe vuote.
+     */
+    private static BigDecimal ore(Map<Long, BigDecimal> somme, Long idLavoro) {
+        return somme.getOrDefault(idLavoro, BigDecimal.ZERO);
+    }
+
+    /**
+     * Il lavoro, se chi chiede ha diritto di vederlo: 404 se non esiste, 403
+     * se non gli compete.
+     *
+     * <p>È la stessa regola di {@link #elenco(UserDetails)}, estratta qui
+     * perché la usa anche il servizio delle task: duplicarla vorrebbe dire
+     * poterla cambiare in un posto e non nell'altro.
+     */
+    @Transactional(readOnly = true)
+    public Lavoro lavoroVisibile(UserDetails chiLoChiede, Long idLavoro) {
+        Lavoro lavoro = trova(idLavoro);
+
+        if (Permessi.ha(chiLoChiede, VISUALIZZA_TUTTI)) {
+            return lavoro;
+        }
+
+        boolean suo = Permessi.ha(chiLoChiede, VISUALIZZA_PROPRI)
+                && utenti.findByEmail(chiLoChiede.getUsername())
+                        .map(utente -> idPropri(utente.getId()).contains(idLavoro))
+                        .orElse(false);
+
+        if (!suo) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Questo lavoro non ti compete.");
+        }
+        return lavoro;
+    }
+
+    @Transactional(readOnly = true)
+    public RigaLavoro dettaglio(UserDetails chiLoChiede, Long idLavoro) {
+        return conOre(lavoroVisibile(chiLoChiede, idLavoro));
+    }
+
+    /**
+     * Vero se chi chiede è il responsabile del lavoro, cioè il suo PM.
+     *
+     * <p>Sta qui, e non ricopiata nei servizi che la usano, perché è la
+     * seconda metà di tre permessi diversi — {@code LAVORI_MODIFICA_PROPRI},
+     * {@code TASK_GESTISCI_PROPRI}, {@code ORE_ALLOCA_PROPRI} — e tre copie
+     * della stessa regola di sicurezza sono tre occasioni di correggerne una
+     * sola.
+     *
+     * <p>Il confronto è sull'email e non sull'id perché è l'unica cosa che lo
+     * {@link UserDetails} porta con sé: risalire all'id costerebbe una query
+     * a ogni controllo.
+     */
+    public boolean eResponsabile(UserDetails chiLoChiede, Lavoro lavoro) {
+        Utente responsabile = lavoro.getResponsabile();
+        return responsabile != null
+                && responsabile.getEmail().equalsIgnoreCase(chiLoChiede.getUsername());
+    }
+
+    /**
+     * Lo storico delle ore del lavoro: ogni variazione con autore, data e
+     * motivo.
+     *
+     * <p>Per leggerlo basta poter vedere il lavoro. Non c'è un permesso
+     * dedicato di sola lettura sulle ore, e non è una dimenticanza: andrebbe
+     * concesso a tutti quelli che vedono i lavori, cioè non distinguerebbe
+     * niente.
+     */
+    @Transactional(readOnly = true)
+    public List<RigaMovimento> storicoMovimenti(UserDetails chiLoChiede, Long idLavoro) {
+        lavoroVisibile(chiLoChiede, idLavoro);
+        return movimenti.trovaDelLavoro(idLavoro).stream().map(RigaMovimento::da).toList();
+    }
+
+    /**
+     * Cambia il monte ore del lavoro, registrando il movimento che spiega la
+     * variazione.
+     *
+     * <p>Il monte ore <strong>non può scendere sotto la somma delle ore già
+     * allocate</strong>: quelle ore sono impegni presi su task esistenti, e
+     * tagliarle qui le farebbe sparire senza che nessuno chiuda o riduca
+     * niente. Chi vuole ridurre il budget deve prima liberare le task.
+     *
+     * <p>La riga del lavoro resta bloccata per tutta la transazione: fra la
+     * lettura della somma allocata e la scrittura del nuovo monte ore ci
+     * starebbe altrimenti un'allocazione di qualcun altro, e il controllo
+     * risulterebbe superato per un valore che nel frattempo è cambiato.
+     */
+    @Transactional
+    public RigaLavoro cambiaMonteOre(UserDetails chiLoChiede, Long idLavoro,
+                                     BigDecimal nuovoValore, String motivo) {
+        // Il permesso di vedere il lavoro prima di tutto: senza, l'esistenza
+        // stessa del lavoro non va rivelata.
+        lavoroVisibile(chiLoChiede, idLavoro);
+
+        Lavoro lavoro = lavori.bloccaPerAggiornamento(idLavoro).orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Lavoro non trovato."));
+
+        BigDecimal allocate = task.sommaOreAllocate(idLavoro);
+        if (nuovoValore.compareTo(allocate) < 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Il lavoro " + lavoro.getCodice() + " ha già " + allocate
+                            + " ore allocate alle task: il monte ore non può scendere a "
+                            + nuovoValore + ". Chiudi o riduci delle task, poi riprova.");
+        }
+
+        BigDecimal precedente = lavoro.getMonteOre();
+        if (precedente != null && precedente.compareTo(nuovoValore) == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Il monte ore del lavoro " + lavoro.getCodice() + " è già " + nuovoValore
+                            + ".");
+        }
+
+        Utente autore = autore(chiLoChiede);
+        lavoro.cambiaMonteOre(nuovoValore);
+
+        // Un lavoro che non aveva budget non sta subendo una modifica: il suo
+        // monte ore viene fissato adesso, e questo e' il movimento da cui si
+        // rileggera' la stima iniziale.
+        movimenti.save(precedente == null
+                ? MovimentoOre.monteIniziale(lavoro, nuovoValore, motivo, autore)
+                : MovimentoOre.modificaMonte(lavoro, nuovoValore.subtract(precedente), motivo,
+                        autore, null));
+
+        return conOre(lavoro);
+    }
+
+    /** La situazione delle ore di un lavoro solo, con le sue due somme. */
+    private RigaLavoro conOre(Lavoro lavoro) {
+        return RigaLavoro.da(lavoro,
+                task.sommaOreAllocate(lavoro.getId()),
+                task.sommaOreConsumate(lavoro.getId()));
+    }
+
+    /**
+     * Gli id dei lavori «propri»: quelli di cui è responsabile e quelli in cui
+     * ha task assegnate, come dice la descrizione del permesso.
+     */
+    private Set<Long> idPropri(Long utenteId) {
+        Set<Long> propri = new LinkedHashSet<>(lavori.trovaIdDiResponsabile(utenteId));
+        propri.addAll(lavori.trovaIdConTaskAssegnate(utenteId));
+        return propri;
+    }
+
+    @Transactional(readOnly = true)
+    public List<CandidatoResponsabile> responsabiliPossibili() {
+        return utenti.trovaConPermesso(PERMESSO_RESPONSABILE).stream()
+                .map(CandidatoResponsabile::da)
+                .toList();
+    }
+
+    /**
+     * Annulla un lavoro: non si farà, ma la riga resta. È l'operazione da
+     * usare su qualunque lavoro che abbia già delle task, perché cancellarlo
+     * porterebbe via anche le dichiarazioni già inviate.
+     */
+    @Transactional
+    public RigaLavoro annulla(Long idLavoro) {
+        Lavoro lavoro = trova(idLavoro);
+
+        if (lavoro.getStato() == StatoLavoro.ANNULLATO) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Il lavoro " + lavoro.getCodice() + " è già annullato.");
+        }
+        if (lavoro.getStato() == StatoLavoro.CHIUSO) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Il lavoro " + lavoro.getCodice() + " è concluso: un lavoro chiuso "
+                            + "non si annulla.");
+        }
+
+        lavoro.annulla();
+        // Nessun save(): l'entità è gestita dalla transazione, e Hibernate
+        // scrive l'UPDATE al commit. La colonna versione protegge da due
+        // modifiche contemporanee.
+        //
+        // Le ore allocate alle task NON si rilasciano qui: le task del lavoro
+        // restano nello stato in cui sono, e il residuo torna nel pool quando
+        // ciascuna viene chiusa o annullata. Rilasciarle in blocco renderebbe
+        // il monte ore libero di un lavoro che non si farà, cioè un numero
+        // senza significato.
+        return conOre(lavoro);
+    }
+
+    /**
+     * Cancella davvero il lavoro, ma solo se è una bozza senza task: è
+     * l'unico caso in cui nessuna altra riga lo referenzia, e serve a
+     * correggere una bozza creata per errore. In tutti gli altri casi la
+     * strada è {@link #annulla(Long)}.
+     */
+    @Transactional
+    public void elimina(Long idLavoro) {
+        Lavoro lavoro = trova(idLavoro);
+
+        if (lavoro.getStato() != StatoLavoro.BOZZA) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Si può cancellare solo un lavoro in bozza. Il lavoro "
+                            + lavoro.getCodice() + " va annullato.");
+        }
+
+        long quante = task.countByLavoroId(idLavoro);
+        if (quante > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Il lavoro " + lavoro.getCodice() + " ha " + quante
+                            + " task e non può essere cancellato: annullalo, così lo storico "
+                            + "delle assegnazioni e delle dichiarazioni resta.");
+        }
+
+        lavori.delete(lavoro);
+    }
+
+    private Lavoro trova(Long idLavoro) {
+        return lavori.findById(idLavoro).orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "Lavoro non trovato."));
+    }
+
+    private Utente autore(UserDetails chiLoChiede) {
+        return utenti.findByEmail(chiLoChiede.getUsername()).orElseThrow(
+                () -> new IllegalStateException(
+                        "Utente collegato non trovato: " + chiLoChiede.getUsername()));
+    }
+
+    @Transactional
+    public RigaLavoro crea(UserDetails chiLoChiede, RichiestaNuovoLavoro richiesta) {
+        // I due vincoli del database, ricontrollati qui solo per poter dire
+        // cosa non va: ck_lavoro_date e ck_lavoro_stato.
+        if (richiesta.dataFinePrevista().isBefore(richiesta.dataInizio())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "La data di fine prevista non può precedere quella di inizio.");
+        }
+        if (richiesta.stato() == StatoLavoro.CHIUSO) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Un lavoro non può essere creato già chiuso.");
+        }
+        // Creare un lavoro e fissarne il budget sono due poteri distinti: il
+        // @PreAuthorize sulla rotta verifica il primo, questo il secondo.
+        // Senza il controllo, chi può creare lavori deciderebbe anche quante
+        // ore costano.
+        if (richiesta.monteOre() != null && !Permessi.ha(chiLoChiede, MONTE_GESTISCI)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Non hai il permesso di fissare il monte ore: crea il lavoro senza, "
+                            + "e lo imposterà un amministratore.");
+        }
+
+        Utente responsabile = scegliResponsabile(richiesta);
+        String emailAutore = chiLoChiede.getUsername();
+        Utente autore = utenti.findByEmail(emailAutore).orElseThrow(
+                () -> new IllegalStateException("Utente collegato non trovato: " + emailAutore));
+
+        String codice = "LAV-%03d".formatted(lavori.ultimoProgressivo() + 1);
+
+        try {
+            Lavoro creato = lavori.saveAndFlush(Lavoro.nuovo(codice, richiesta.nome(),
+                    richiesta.descrizione(), richiesta.dataInizio(),
+                    richiesta.dataFinePrevista(), richiesta.stato(), richiesta.monteOre(),
+                    responsabile, autore));
+
+            // Il monte ore iniziale va registrato come movimento, altrimenti
+            // la prima modifica dell'admin lo sovrascriverebbe senza lasciare
+            // modo di risalire alla stima di partenza — che e' proprio il
+            // confronto che serve a fine lavoro.
+            if (richiesta.monteOre() != null && richiesta.monteOre().signum() > 0) {
+                movimenti.save(MovimentoOre.monteIniziale(creato, richiesta.monteOre(),
+                        "Monte ore fissato alla creazione del lavoro", autore));
+            }
+
+            // Appena creato: nessuna task, quindi nessuna ora allocata o
+            // consumata. Le due query di conOre darebbero zero, e si evitano.
+            return RigaLavoro.da(creato, BigDecimal.ZERO, BigDecimal.ZERO);
+        } catch (DataIntegrityViolationException eccezione) {
+            // uk_lavoro_codice. Fra il calcolo del progressivo e questo INSERT
+            // due creazioni contemporanee possono scegliere lo stesso codice,
+            // e la garanzia vera e' il vincolo. Ritentare qui non si puo': la
+            // transazione e' gia' segnata per il rollback. Se un giorno
+            // servisse, la via e' una tabella di contatori.
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Il codice " + codice + " è appena stato assegnato a un altro lavoro. Riprova.");
+        }
+    }
+
+    /**
+     * Il responsabile scelto, se è fra quelli ammessi. Nullo solo per una
+     * bozza senza responsabile.
+     */
+    private Utente scegliResponsabile(RichiestaNuovoLavoro richiesta) {
+        if (richiesta.responsabileId() == null) {
+            if (richiesta.stato() == StatoLavoro.ATTIVO) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Un lavoro attivo deve avere un responsabile: scegline uno, "
+                                + "oppure salvalo come bozza.");
+            }
+            return null;
+        }
+
+        return utenti.trovaConPermesso(PERMESSO_RESPONSABILE).stream()
+                .filter(utente -> utente.getId().equals(richiesta.responsabileId()))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "L'utente scelto non può essere responsabile di un lavoro: "
+                                + "non ne ha il permesso, oppure non è attivo."));
+    }
+}

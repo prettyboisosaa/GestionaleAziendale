@@ -1,0 +1,127 @@
+/* Fondamenta: variabili, azzeramento degli stili del browser, testo. */
+
+:root {
+  /* Inchiostro su carta fredda: il mondo dei registri di lavoro, non quello
+     delle pagine promozionali. Un solo colore di segnale, per le azioni.
+     Questi otto valori non cambiano: cambia come vengono disposti nello
+     spazio e nella profondità. */
+  --inchiostro: #15303d;
+  --inchiostro-tenue: #4a6670;
+  --carta: #eef1f0;
+  --superficie: #fdfdfc;
+  --riga: #c5d1d1;
+  --azione: #0f6e6e;
+  --azione-premuta: #0b5353;
+  --errore: #8c2f26;
+
+  /* Derivati degli stessi colori, non tinte nuove. Il velo è il modo di
+     tingere una superficie senza introdurre un grigio: è il colore di
+     segnale diluito, non una tacca di nero. */
+  --azione-velo: rgb(15 110 110 / 9%);
+  --azione-velo-fermo: rgb(15 110 110 / 14%);
+  --errore-velo: rgb(140 47 38 / 8%);
+  --superficie-velata: rgb(253 253 252 / 72%);
+  --campo-fondo: #f6f8f7;
+  --riga-tenue: rgb(197 209 209 / 55%);
+
+  /* L'inchiostro scomposto, per tingere le ombre. */
+  --inchiostro-rgb: 21 48 61;
+
+  /* Il raggio cresce con la superficie che arrotonda: un valore unico su
+     tutto è il segno più riconoscibile di un modello preconfezionato. */
+  --raggio-controllo: 10px;
+  --raggio-carta: 16px;
+  --raggio-foglio: 22px;
+  --raggio-pillola: 980px;
+
+  /* Due livelli di elevazione, perché ci sono due cose da dire: «questo è un
+     blocco di contenuto» e «questo è un foglio sopra la pagina». Le ombre
+     sono tinte d'inchiostro, mai di grigio neutro: è ciò che le tiene dentro
+     questa palette invece di farle sembrare incollate sopra. */
+  --ombra-carta:
+    0 1px 2px rgb(var(--inchiostro-rgb) / 5%),
+    0 4px 12px -2px rgb(var(--inchiostro-rgb) / 7%);
+  --ombra-foglio:
+    0 2px 4px rgb(var(--inchiostro-rgb) / 5%),
+    0 12px 32px -6px rgb(var(--inchiostro-rgb) / 12%),
+    0 32px 64px -24px rgb(var(--inchiostro-rgb) / 10%);
+  --ombra-premuto: 0 1px 2px rgb(var(--inchiostro-rgb) / 8%);
+
+  /* Una sola famiglia, quella del sistema operativo: su uno strumento che si
+     apre ogni mattina il testo deve comparire subito, senza aspettare un
+     carattere dalla rete. La personalità sta nella scala e nella
+     tracciatura, non nella famiglia. */
+  --testo:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text',
+    'Segoe UI', system-ui, Roboto, Helvetica, Arial, sans-serif;
+
+  --scala-piccola: 0.8125rem;
+  --scala-base: 0.9375rem;
+  --scala-media: 1.0625rem;
+  --scala-sezione: 1.5rem;
+  --scala-titolo: 2rem;
+
+  /* La tracciatura ottica: il testo grande si stringe, quello piccolo no.
+     È questo, più del carattere, a dare al testo l'aria di un'interfaccia
+     di sistema. */
+  --tracciatura-titolo: -0.022em;
+  --tracciatura-base: -0.01em;
+
+  --transizione: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--carta);
+  color: var(--inchiostro);
+  font-family: var(--testo);
+  font-size: var(--scala-base);
+  letter-spacing: var(--tracciatura-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+input,
+button,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+/* Le caselle di scelta prendono il colore di segnale invece del blu del
+   browser: è l'unico punto dove il teal compare senza che lo si disegni. */
+input[type='radio'],
+input[type='checkbox'] {
+  accent-color: var(--azione);
+}
+
+/* Il contorno del focus da tastiera non va mai rimosso: è l'unico modo di
+   sapere dove si è per chi non usa il mouse. */
+:focus-visible {
+  outline: 2px solid var(--azione);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

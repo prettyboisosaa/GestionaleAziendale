@@ -1,0 +1,55 @@
+services:
+
+  db:
+    image: mysql:8.4
+    container_name: gestionale-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: gestionale
+      MYSQL_USER: gestionale
+      MYSQL_PASSWORD: gestionale_dev
+      MYSQL_ROOT_PASSWORD: root_dev
+      TZ: Europe/Rome
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./.data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: gestionale-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: db
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+
+  backend:
+    build: ./backend
+    container_name: gestionale-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/gestionale?useSSL=false&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=gestionale
+      - SPRING_DATASOURCE_PASSWORD=gestionale_dev
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: gestionale-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

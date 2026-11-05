@@ -1,0 +1,33 @@
+# Questo file copre la radice del progetto. `backend/` e `frontend/` hanno un
+# .gitignore proprio, che si occupa di target/, node_modules/, dist/ e delle
+# cartelle degli editor: qui non si ripetono.
+
+# Datadir di MySQL piu' eventuali backup: oltre 200 MB di dati locali, e sono
+# il database di sviluppo di questa macchina. Mai da versionare.
+.data/
+
+# Repository Maven locale, creato dal setup Docker del backend: circa 40 MB di
+# artefatti scaricabili. Non e' codice del progetto.
+backend/.m2/
+
+# Configurazioni degli editor alla radice. Quelle dentro backend/ e frontend/
+# le ignorano i rispettivi .gitignore.
+.idea/
+.vscode/
+*.iml
+
+# Rumore di sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Log e file temporanei
+*.log
+*.tmp
+*.bak
+
+# Variabili d'ambiente: oggi non ce ne sono, ma se un domani servisse un .env
+# per le credenziali di produzione non deve finire nel repository per errore.
+.env
+.env.*
+!.env.example
