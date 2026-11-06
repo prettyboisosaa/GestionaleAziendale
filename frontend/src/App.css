@@ -974,3 +974,247 @@ button.minuscolo:disabled {
   gap: 0.4rem;
   cursor: pointer;
 }
+
+/* --- dashboard: le card dei conteggi ------------------------------------- */
+
+/* Quattro numeri in riga, che su schermo stretto diventano due per riga: sono
+   la risposta di cinque secondi alla domanda «cosa mi sta per scappare?». */
+.card-riga {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 700px) {
+  .card-riga {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Sono pulsanti, non riquadri: ognuna applica il suo filtro alla lista. Lo
+   dice anche il cursore, oltre ad aria-pressed. */
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--transizione), box-shadow var(--transizione);
+}
+
+.card:hover {
+  border-color: var(--inchiostro-tenue);
+}
+
+/* La card scelta si segna col suo stesso colore, non con un riempimento: il
+   colore dice gia' di che gruppo si tratta. */
+.card-attiva {
+  border-color: var(--tinta-stato, var(--azione));
+  box-shadow: var(--ombra-premuto), inset 0 0 0 1px var(--tinta-stato, var(--azione));
+}
+
+.card-valore {
+  font-size: var(--scala-titolo);
+  font-weight: 620;
+  letter-spacing: var(--tracciatura-titolo);
+  line-height: 1.1;
+  color: var(--tinta-stato, var(--inchiostro));
+}
+
+.card-etichetta {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* Le card riusano i modificatori di tinta degli stati. */
+.card-annullato {
+  --tinta-stato: var(--stato-annullato);
+}
+
+.card-attesa {
+  --tinta-stato: var(--stato-attesa);
+}
+
+.card-attivo {
+  --tinta-stato: var(--stato-attivo);
+}
+
+.card-in-corso {
+  --tinta-stato: var(--stato-in-corso);
+}
+
+/* --- dashboard: la barra dei filtri -------------------------------------- */
+
+.filtro button {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+  cursor: pointer;
+  transition: all var(--transizione);
+}
+
+.filtro button:hover {
+  border-color: var(--inchiostro-tenue);
+  color: var(--inchiostro);
+}
+
+.filtro button.filtro-scelto {
+  border-color: var(--azione);
+  background-color: var(--azione-velo);
+  color: var(--azione);
+  font-weight: 560;
+}
+
+/* Il filtro per giorno nasce dal calendario, non dalla barra: si distingue
+   perche' e' l'unico che si toglie, e lo dice la crocetta. */
+.filtro button.filtro-giorno {
+  border-color: var(--azione);
+  background-color: var(--azione-velo-fermo);
+  color: var(--azione);
+}
+
+.nota-conflitto {
+  color: var(--stato-annullato);
+}
+
+/* --- dashboard: il calendario -------------------------------------------- */
+
+/* FullCalendar porta il suo foglio di stile. Invece di combatterlo si
+   riempiono le sue variabili con la tavolozza del gestionale: cosi' la
+   griglia e' sua, i colori sono nostri, e un cambio di tema li muove
+   entrambi. */
+.scheda-calendario {
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+
+  --fc-border-color: var(--riga-tenue);
+  --fc-page-bg-color: var(--superficie);
+  --fc-neutral-bg-color: var(--campo-fondo);
+  --fc-today-bg-color: var(--azione-velo);
+  --fc-list-event-hover-bg-color: var(--azione-velo);
+  --fc-event-border-color: transparent;
+}
+
+.scheda-calendario .fc {
+  font-size: var(--scala-piccola);
+}
+
+.scheda-calendario .fc .fc-toolbar-title {
+  font-size: var(--scala-media);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-base);
+}
+
+/* I pulsanti del calendario non devono sembrare di un'altra applicazione. */
+.scheda-calendario .fc .fc-button-primary {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--superficie);
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+  text-transform: none;
+  box-shadow: none;
+}
+
+.scheda-calendario .fc .fc-button-primary:hover {
+  border-color: var(--inchiostro-tenue);
+  background-color: var(--campo-fondo);
+  color: var(--inchiostro);
+}
+
+.scheda-calendario .fc .fc-button-primary:not(:disabled).fc-button-active,
+.scheda-calendario .fc .fc-button-primary:not(:disabled):active {
+  border-color: var(--azione);
+  background-color: var(--azione-velo-fermo);
+  color: var(--azione);
+}
+
+.scheda-calendario .fc .fc-button-primary:focus-visible {
+  outline: 2px solid var(--azione);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.scheda-calendario .fc-daygrid-day-number,
+.scheda-calendario .fc-col-header-cell-cushion {
+  color: var(--inchiostro-tenue);
+  text-decoration: none;
+}
+
+/* Gli eventi prendono il colore del loro stato, con lo stesso velo dei badge:
+   il calendario e le pillole della lista raccontano la stessa cosa, e devono
+   somigliarsi. */
+.scheda-calendario .evento {
+  padding: 0 0.3em;
+  border-radius: var(--raggio-controllo);
+  border-left: 3px solid var(--tinta-stato, var(--inchiostro-tenue));
+  background-color: color-mix(in srgb, var(--tinta-stato, var(--inchiostro-tenue)) 15%, transparent);
+  color: var(--inchiostro);
+  cursor: pointer;
+}
+
+.scheda-calendario .evento-attivo {
+  --tinta-stato: var(--stato-attivo);
+}
+
+.scheda-calendario .evento-in-corso {
+  --tinta-stato: var(--stato-in-corso);
+}
+
+.scheda-calendario .evento-completato {
+  --tinta-stato: var(--stato-completato);
+}
+
+/* Le assenze approvate sono un blocco pieno, quelle in attesa tratteggiate:
+   la differenza si vede senza leggere, ed e' quella fra «sono via» e «forse
+   saro' via». */
+.scheda-calendario .evento-assenza {
+  --tinta-stato: var(--assenza);
+}
+
+.scheda-calendario .evento-approvata {
+  --tinta-stato: var(--assenza);
+  background-color: color-mix(in srgb, var(--assenza) 22%, transparent);
+}
+
+.scheda-calendario .evento-in-attesa {
+  --tinta-stato: var(--assenza);
+  border-left-style: dashed;
+  background-color: color-mix(in srgb, var(--assenza) 9%, transparent);
+}
+
+/* Le festivita' tingono la cella invece di occupare una riga: sono lo sfondo
+   della giornata, non una cosa da fare. */
+.scheda-calendario .evento-festivita.fc-bg-event {
+  background-color: var(--campo-fondo);
+  opacity: 1;
+}
+
+.scheda-calendario .evento-festivita.fc-bg-event .fc-event-title {
+  padding: 0.2em 0.4em;
+  color: var(--inchiostro-tenue);
+  font-style: normal;
+  font-size: var(--scala-piccola);
+}
+
+/* Il conflitto fra una scadenza e un giorno di ferie: e' il collegamento piu'
+   utile fra i due moduli, e deve saltare all'occhio. */
+.scheda-calendario .evento-conflitto {
+  outline: 2px solid var(--stato-annullato);
+  outline-offset: -2px;
+}

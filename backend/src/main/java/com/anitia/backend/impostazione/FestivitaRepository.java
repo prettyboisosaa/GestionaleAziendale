@@ -16,4 +16,14 @@ public interface FestivitaRepository extends JpaRepository<Festivita, Long> {
      */
     @Query("SELECT f.data FROM Festivita f WHERE f.data BETWEEN :da AND :a")
     List<LocalDate> dateTra(@Param("da") LocalDate da, @Param("a") LocalDate a);
+
+    /**
+     * Le chiusure in un intervallo, questa volta intere.
+     *
+     * <p>Al calendario, a differenza di chi conta i giorni lavorativi, serve
+     * anche come si chiamano: «Natale» scritto nella cella dice perché quel
+     * giorno è grigio, mentre una casella grigia e muta no.
+     */
+    @Query("SELECT f FROM Festivita f WHERE f.data BETWEEN :da AND :a ORDER BY f.data")
+    List<Festivita> trovaTra(@Param("da") LocalDate da, @Param("a") LocalDate a);
 }

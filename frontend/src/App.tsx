@@ -14,6 +14,7 @@ import PaginaNuovoLavoro from './lavoro/PaginaNuovoLavoro'
 import PaginaLavoro from './lavoro/PaginaLavoro'
 import PaginaGiornata from './dichiarazione/PaginaGiornata'
 import PaginaRichiesteOre from './ore/PaginaRichiesteOre'
+import PaginaDashboard from './dashboard/PaginaDashboard'
 import PaginaMieAssenze from './assenza/PaginaMieAssenze'
 import PaginaAssenze from './assenza/PaginaAssenze'
 import './App.css'
@@ -100,12 +101,29 @@ export default function App() {
   const utente = stato.utente
   // Dove si atterra: i lavori sono la pagina di lavoro quotidiana, ma chi non
   // li vede non deve finire su una schermata di «non autorizzato».
-  const iniziale = ha(utente, ...VISUALIZZA_LAVORI) ? '/lavori' : '/utenti'
+  // Dove si atterra. La dashboard viene prima di tutto, perché risponde alla
+  // domanda con cui si apre la giornata — cosa devo fare oggi — mentre
+  // l'elenco dei lavori risponde a una domanda che ci si pone dopo. Chi non ha
+  // task assegnate non ha una dashboard da guardare, e per quelli l'ordine di
+  // prima resta intatto.
+  const iniziale = ha(utente, 'TASK_VISUALIZZA_ASSEGNATE')
+    ? '/dashboard'
+    : ha(utente, ...VISUALIZZA_LAVORI)
+      ? '/lavori'
+      : '/utenti'
 
   return (
     <BrowserRouter>
       <Intestazione utente={utente} onEsci={esci} />
       <Routes>
+        <Route
+          path="/dashboard"
+          element={
+            <Protetta utente={utente} permesso="TASK_VISUALIZZA_ASSEGNATE">
+              <PaginaDashboard utente={utente} />
+            </Protetta>
+          }
+        />
         <Route
           path="/lavori"
           element={

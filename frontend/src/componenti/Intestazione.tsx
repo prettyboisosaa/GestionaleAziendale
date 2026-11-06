@@ -24,6 +24,17 @@ export default function Intestazione({ utente, onEsci }: Proprieta) {
       {/* NavLink invece di Link: segna da sé la voce della pagina aperta, così
           la barra dice anche dove si è e non solo dove si può andare. */}
       <nav className="barra-voci">
+        {/* Prima voce perché è la pagina di atterraggio: la barra racconta
+            l'ordine in cui si attraversa il gestionale, e si comincia da
+            «cosa devo fare oggi». */}
+        {ha(utente, 'TASK_VISUALIZZA_ASSEGNATE') && (
+          <NavLink
+            to="/dashboard"
+            className={({ isActive }) => (isActive ? 'attivo' : undefined)}
+          >
+            Oggi
+          </NavLink>
+        )}
         {ha(utente, 'LAVORI_VISUALIZZA_TUTTI', 'LAVORI_VISUALIZZA_PROPRI') && (
           <NavLink to="/lavori" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
             Lavori
