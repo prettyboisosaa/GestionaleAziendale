@@ -121,7 +121,7 @@ class AutenticazioneControllerTest {
                         .content(corpo(EMAIL, "sbagliata")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.detail")
-                        .value("Email o password non corretti, oppure utenza non attiva."));
+                        .value("Email o password non corretti."));
     }
 
     @Test
@@ -136,7 +136,7 @@ class AutenticazioneControllerTest {
                 // Lo stesso messaggio: dalla risposta non si capisce se
                 // l'indirizzo e' registrato.
                 .andExpect(jsonPath("$.detail")
-                        .value("Email o password non corretti, oppure utenza non attiva."));
+                        .value("Email o password non corretti."));
     }
 
     @Test
