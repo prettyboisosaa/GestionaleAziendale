@@ -14,6 +14,8 @@ import PaginaNuovoLavoro from './lavoro/PaginaNuovoLavoro'
 import PaginaLavoro from './lavoro/PaginaLavoro'
 import PaginaGiornata from './dichiarazione/PaginaGiornata'
 import PaginaRichiesteOre from './ore/PaginaRichiesteOre'
+import PaginaMieAssenze from './assenza/PaginaMieAssenze'
+import PaginaAssenze from './assenza/PaginaAssenze'
 import './App.css'
 
 const VISUALIZZA_LAVORI = ['LAVORI_VISUALIZZA_TUTTI', 'LAVORI_VISUALIZZA_PROPRI']
@@ -141,6 +143,22 @@ export default function App() {
           element={
             <Protetta utente={utente} permesso={RICHIESTE_ORE}>
               <PaginaRichiesteOre utente={utente} />
+            </Protetta>
+          }
+        />
+        <Route
+          path="/assenze"
+          element={
+            <Protetta utente={utente} permesso="ASSENZE_RICHIEDI">
+              <PaginaMieAssenze />
+            </Protetta>
+          }
+        />
+        <Route
+          path="/richieste-assenza"
+          element={
+            <Protetta utente={utente} permesso="ASSENZE_GESTISCI">
+              <PaginaAssenze />
             </Protetta>
           }
         />

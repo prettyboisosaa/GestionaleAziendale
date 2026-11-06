@@ -55,6 +55,17 @@ public class Lavoro {
     private StatoLavoro stato;
 
     /**
+     * Quando e' stato annullato, nullo se non lo e'. Il vincolo
+     * { ck_lavoro_annullato} tiene i due campi d'accordo: la data c'e'
+     * se e solo se lo stato e' { ANNULLATO}.
+     *
+     * <p>Non si ricava da { aggiornatoIl}, che cambia a ogni modifica
+     * successiva e dopo la prima racconterebbe quella.
+     */
+    @Column(name = "annullato_il")
+    private LocalDateTime annullatoIl;
+
+    /**
      * Il budget di ore del lavoro, da distribuire fra le sue task.
      *
      * <p><strong>Nullo vuol dire «non ancora fissato»</strong>, non «zero».
@@ -145,6 +156,7 @@ public class Lavoro {
      */
     public void annulla() {
         this.stato = StatoLavoro.ANNULLATO;
+        this.annullatoIl = LocalDateTime.now();
     }
 
     public Long getId() {
@@ -173,6 +185,11 @@ public class Lavoro {
 
     public StatoLavoro getStato() {
         return stato;
+    }
+
+    /** Nullo se il lavoro non e' annullato. */
+    public LocalDateTime getAnnullatoIl() {
+        return annullatoIl;
     }
 
     /** Nullo se il monte ore non è ancora stato fissato. */

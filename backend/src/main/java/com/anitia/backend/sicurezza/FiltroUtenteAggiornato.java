@@ -77,7 +77,15 @@ final class FiltroUtenteAggiornato extends OncePerRequestFilter {
             return false;
         }
 
-        if (!aggiornato.isEnabled()) {
+        // Il controllo e. su attivo e non su isEnabled(): lo UserDetails esce
+        // sempre abilitato, perche. marcarlo disabilitato farebbe rifiutare il
+        // login prima della verifica della password. Vedi UtenteCollegato.
+        //
+        // E. questo controllo a far cadere subito le sessioni aperte di chi
+        // viene disattivato: senza, il suo cookie resterebbe valido fino alla
+        // scadenza. Non costa una query in piu., perche. l utente e. appena
+        // stato riletto qui sopra.
+        if (!UtenteCollegato.ammesso(aggiornato)) {
             return false;
         }
 

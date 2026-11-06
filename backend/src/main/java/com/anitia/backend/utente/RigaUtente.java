@@ -15,6 +15,8 @@ public record RigaUtente(Long id,
                          String cognome,
                          String email,
                          boolean attivo,
+                         /** Quando è stato disattivato; null se è attivo. */
+                         LocalDateTime disattivatoIl,
                          LocalDateTime creatoIl,
                          List<String> ruoli,
                          /** Quanti permessi ha in tutto, ruoli e scostamenti insieme. */
@@ -22,6 +24,7 @@ public record RigaUtente(Long id,
 
     static RigaUtente da(Utente utente, List<String> ruoli, int permessi) {
         return new RigaUtente(utente.getId(), utente.getNome(), utente.getCognome(),
-                utente.getEmail(), utente.isAttivo(), utente.getCreatoIl(), ruoli, permessi);
+                utente.getEmail(), utente.isAttivo(), utente.getDisattivatoIl(),
+                utente.getCreatoIl(), ruoli, permessi);
     }
 }

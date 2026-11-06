@@ -58,9 +58,11 @@ public class ServizioLavori {
      * una query per riga.
      */
     @Transactional(readOnly = true)
-    public List<RigaLavoro> elenco(UserDetails chiLoChiede) {
+    public List<RigaLavoro> elenco(UserDetails chiLoChiede, boolean includiAnnullati) {
         if (Permessi.ha(chiLoChiede, VISUALIZZA_TUTTI)) {
-            return conOre(lavori.trovaTutti());
+            return conOre(includiAnnullati
+                    ? lavori.trovaTutti()
+                    : lavori.trovaTuttiNonAnnullati());
         }
 
         Optional<Utente> utente = utenti.findByEmail(chiLoChiede.getUsername());
@@ -75,7 +77,9 @@ public class ServizioLavori {
             return List.of();
         }
 
-        return conOre(lavori.trovaConId(propri));
+        return conOre(includiAnnullati
+                ? lavori.trovaConId(propri)
+                : lavori.trovaConIdNonAnnullati(propri));
     }
 
     /**
@@ -272,9 +276,9 @@ public class ServizioLavori {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Il lavoro " + lavoro.getCodice() + " è già annullato.");
         }
-        if (lavoro.getStato() == StatoLavoro.CHIUSO) {
+        if (lavoro.getStato() == StatoLavoro.COMPLETATO) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Il lavoro " + lavoro.getCodice() + " è concluso: un lavoro chiuso "
+                    "Il lavoro " + lavoro.getCodice() + " è concluso: un lavoro completato "
                             + "non si annulla.");
         }
 
@@ -282,13 +286,26 @@ public class ServizioLavori {
         // Nessun save(): l'entità è gestita dalla transazione, e Hibernate
         // scrive l'UPDATE al commit. La colonna versione protegge da due
         // modifiche contemporanee.
+
+        // La risposta si costruisce PRIMA dell'aggiornamento in blocco qui
+        // sotto, che svuota il contesto di persistenza e lascerebbe il lavoro
+        // staccato: leggerne il responsabile, che è pigro, fallirebbe. Le due
+        // somme non cambiano comunque, perché annullare le task ne toccherà
+        // lo stato e non le ore.
+        RigaLavoro risposta = conOre(lavoro);
+
+        // Tutte le task del lavoro diventano annullate, comprese quelle
+        // completate: un lavoro che non si farà non lascia dietro di sé task
+        // ancora aperte, né risultati da esibire. Le ore già registrate dai
+        // dipendenti restano dove sono, nello storico e nei report, perché
+        // sono lavoro svolto davvero.
         //
-        // Le ore allocate alle task NON si rilasciano qui: le task del lavoro
-        // restano nello stato in cui sono, e il residuo torna nel pool quando
-        // ciascuna viene chiusa o annullata. Rilasciarle in blocco renderebbe
-        // il monte ore libero di un lavoro che non si farà, cioè un numero
-        // senza significato.
-        return conOre(lavoro);
+        // Le ore allocate e non consumate NON tornano nel pool: il monte ore
+        // libero di un lavoro annullato è un numero senza significato, e
+        // restituirlo lo farebbe sembrare disponibile per altro.
+        task.annullaTutteDelLavoro(idLavoro);
+
+        return risposta;
     }
 
     /**
@@ -337,7 +354,7 @@ public class ServizioLavori {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "La data di fine prevista non può precedere quella di inizio.");
         }
-        if (richiesta.stato() == StatoLavoro.CHIUSO) {
+        if (richiesta.stato() == StatoLavoro.COMPLETATO) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Un lavoro non può essere creato già chiuso.");
         }

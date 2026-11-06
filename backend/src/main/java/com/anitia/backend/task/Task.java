@@ -121,9 +121,9 @@ public class Task {
         task.dataInizio = dataInizio;
         task.scadenza = scadenza;
         task.stimaOre = stimaOre;
-        // Il database ha DEFAULT 'DA_FARE', ma JPA scrive comunque la colonna
+        // Il database ha DEFAULT 'ATTIVO', ma JPA scrive comunque la colonna
         // nell'INSERT: il valore va impostato qui.
-        task.stato = StatoTask.DA_FARE;
+        task.stato = StatoTask.ATTIVO;
         // Stesso discorso per il DEFAULT 0 di ore_allocate. Una task nasce
         // senza budget: le ore gliele alloca il PM dal pool del lavoro, in un
         // secondo momento e con un movimento che lo registra.

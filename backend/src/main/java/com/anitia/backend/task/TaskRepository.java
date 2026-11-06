@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,6 +21,33 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * <p>Il nome attraversa la relazione: {@code lavoro.id}.
      */
     long countByLavoroId(Long lavoroId);
+
+    /**
+     * Porta ad {@code ANNULLATO} tutte le task del lavoro che non lo sono
+     * ancora, comprese quelle completate: annullare un lavoro annulla tutto
+     * quello che gli sta sotto, perche' una task completata di un lavoro che
+     * non si fara' non e' un risultato da esibire.
+     *
+     * <p>Aggiornamento in blocco e non un ciclo sulle entita': un lavoro
+     * grosso ha decine di task, e caricarle tutte per cambiare una colonna
+     * vorrebbe dire altrettante SELECT e altrettante UPDATE.
+     *
+     * <p>Il prezzo e' che un UPDATE cosi' non passa dal ciclo di vita di JPA:
+     * non incrementa {@code versione} e non aggiorna le entita' gia' in
+     * memoria. Da qui {@code flushAutomatically}, che manda al database le
+     * modifiche pendenti prima di questa, e {@code clearAutomatically}, che
+     * svuota il contesto dopo: senza, una task letta prima nella stessa
+     * transazione sovrascriverebbe lo stato appena impostato.
+     *
+     * <p>Le ore residue non si rilasciano: il monte ore libero di un lavoro
+     * che non si fara' e' un numero senza significato, e restituirlo al pool
+     * lo farebbe sembrare disponibile.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Task t SET t.stato = com.anitia.backend.task.StatoTask.ANNULLATO "
+         + "WHERE t.lavoro.id = :lavoroId "
+         + "  AND t.stato <> com.anitia.backend.task.StatoTask.ANNULLATO")
+    int annullaTutteDelLavoro(@Param("lavoroId") Long lavoroId);
 
     List<Task> findByLavoroIdOrderByDataInizioAscIdAsc(Long lavoroId);
 
@@ -180,6 +208,11 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * volta qui, così la tendina della dichiarazione non può proporre una
      * task che il servizio poi rifiuterebbe.
      *
+     * <p>Il lavoro deve essere aperto quanto la task: una task attiva dentro
+     * un lavoro completato o annullato non e' selezionabile, e proporla nella
+     * tendina vorrebbe dire far scegliere qualcosa che il servizio poi
+     * rifiuta.
+     *
      * <p>{@code a.rimossa_il IS NULL} e non la colonna generata
      * {@code attiva}: quella serve al vincolo di unicità e vale NULL quando
      * l'assegnazione è stata rimossa. Query nativa perché
@@ -192,7 +225,8 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
                  + "JOIN lavoro l ON l.id = t.lavoro_id "
                  + "JOIN assegnazione_task a ON a.task_id = t.id "
                  + "WHERE a.utente_id = :utenteId AND a.rimossa_il IS NULL "
-                 + "  AND t.stato IN ('DA_FARE', 'IN_CORSO') "
+                 + "  AND t.stato IN ('ATTIVO', 'IN_CORSO') "
+                 + "  AND l.stato IN ('ATTIVO', 'IN_CORSO') "
                  + "ORDER BY l.codice, t.titolo",
             nativeQuery = true)
     List<TaskAperta> trovaAperteAssegnateA(@Param("utenteId") Long utenteId);

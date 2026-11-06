@@ -114,6 +114,6 @@ public record MiaTask(Long taskId,
      * che si può ancora recuperare, e su quelle non c'è più niente da fare.
      */
     private static boolean aperta(Task task) {
-        return task.getStato() == StatoTask.DA_FARE || task.getStato() == StatoTask.IN_CORSO;
+        return task.getStato().aperta();
     }
 }

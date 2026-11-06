@@ -22,20 +22,14 @@ import type { RigaMovimento, RigaRichiestaOre } from '../ore/api'
 import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
-
-const STATI_TASK: Record<StatoTask, string> = {
-  DA_FARE: 'Da fare',
-  IN_CORSO: 'In corso',
-  COMPLETATA: 'Completata',
-  ANNULLATA: 'Annullata',
-}
-
-const STATI_LAVORO: Record<RigaLavoro['stato'], string> = {
-  BOZZA: 'Bozza',
-  ATTIVO: 'Attivo',
-  CHIUSO: 'Chiuso',
-  ANNULLATO: 'Annullato',
-}
+import { Pillola } from '../componenti/Stato'
+import {
+  apertaTask,
+  ETICHETTA_LAVORO,
+  ETICHETTA_TASK,
+  PASSAGGI_TASK,
+  tinta,
+} from '../stato/stati'
 
 const STATI_RICHIESTA: Record<RigaRichiestaOre['stato'], string> = {
   IN_ATTESA: 'In attesa',
@@ -51,11 +45,32 @@ const TIPI_MOVIMENTO: Record<RigaMovimento['tipo'], string> = {
   RILASCIO: 'Ore rilasciate',
 }
 
-/** Gli stati verso cui una task aperta può essere portata. */
-const PASSAGGI: StatoTask[] = ['DA_FARE', 'IN_CORSO', 'COMPLETATA', 'ANNULLATA']
+// Le etichette e i passaggi vengono da `stato/stati`, dove stanno insieme ai
+// colori: tre schermate mostrano gli stessi stati, e tre mappe scritte a mano
+// sono tre occasioni di rinominarne due su tre.
+const STATI_TASK = ETICHETTA_TASK
+const STATI_LAVORO = ETICHETTA_LAVORO
+const PASSAGGI = PASSAGGI_TASK
 
 function data(iso: string): string {
   return new Date(iso).toLocaleDateString('it-IT')
+}
+
+/**
+ * Le task aperte prima, quelle chiuse sotto, e dentro i due gruppi l'ordine
+ * che arriva dal server — data di inizio.
+ *
+ * Le chiuse non si nascondono: una task completata ieri deve restare visibile
+ * oggi, e un'annullata racconta perché il lavoro si è fermato. Ma non devono
+ * stare in mezzo a quelle su cui c'è ancora da fare qualcosa.
+ *
+ * `toSorted` e non `sort`: l'elenco arriva dallo stato di React, e ordinarlo
+ * sul posto lo muterebbe.
+ */
+function ordinaTask(elenco: RigaTask[]): RigaTask[] {
+  return elenco.toSorted(
+    (uno, altro) => Number(!apertaTask(uno.stato)) - Number(!apertaTask(altro.stato)),
+  )
 }
 
 /**
@@ -331,7 +346,8 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
       {lavoro !== null && (
         <div className="scheda-lavoro">
           <p>
-            <strong>{STATI_LAVORO[lavoro.stato]}</strong> · responsabile{' '}
+            <Pillola tinta={tinta(lavoro.stato)}>{STATI_LAVORO[lavoro.stato]}</Pillola> ·
+            responsabile{' '}
             {lavoro.responsabile ?? 'da assegnare'} · {data(lavoro.dataInizio)} –{' '}
             {data(lavoro.dataFinePrevista)}
           </p>
@@ -548,12 +564,15 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
                 </tr>
               </thead>
               <tbody>
-                {task.map((singola) => {
-                  const aperta =
-                    singola.stato === 'DA_FARE' || singola.stato === 'IN_CORSO'
+                {ordinaTask(task).map((singola) => {
+                  const aperta = apertaTask(singola.stato)
                   return (
                     <Fragment key={singola.id}>
-                      <tr>
+                      <tr
+                        className={
+                          singola.stato === 'ANNULLATO' ? 'riga-annullata' : undefined
+                        }
+                      >
                         <td>
                           <span className="codice-permesso">{singola.titolo}</span>
                           {singola.descrizione !== null && (
@@ -614,7 +633,9 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
                               ))}
                             </select>
                           ) : (
-                            STATI_TASK[singola.stato]
+                            <Pillola tinta={tinta(singola.stato)}>
+                              {STATI_TASK[singola.stato]}
+                            </Pillola>
                           )}
                         </td>
                         <td className="assegnatari">
@@ -759,10 +780,7 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
               >
                 <option value="">Nessuna — le ore restano nel pool</option>
                 {(task ?? [])
-                  .filter(
-                    (singola) =>
-                      singola.stato === 'DA_FARE' || singola.stato === 'IN_CORSO',
-                  )
+                  .filter((singola) => apertaTask(singola.stato))
                   .map((singola) => (
                     <option key={singola.id} value={singola.id}>
                       {singola.titolo}

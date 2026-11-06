@@ -39,18 +39,29 @@ public record Giornata(LocalDate data,
                         * rifiuterebbe.
                         */
                        boolean modificabile,
+                       /**
+                        * Vero se per quel giorno la persona ha un'assenza approvata,
+                        * ferie o permesso. È un <strong>avviso</strong>, non un
+                        * divieto: registrare ore in un giorno di assenza resta
+                        * permesso, perché chi ha lavorato comunque deve poterlo
+                        * dichiarare, ma è il genere di cosa che conviene far notare
+                        * prima del salvataggio.
+                        */
+                       boolean assenzaApprovata,
                        List<RigaVoce> voci,
                        List<TaskDichiarabile> taskDisponibili) {
 
     /** Una giornata che nel database non c'è ancora: nessuna voce, nessun totale. */
     static Giornata vuota(LocalDate data, BigDecimal oreMassime, boolean modificabile,
+                          boolean assenzaApprovata,
                           List<TaskDichiarabile> taskDisponibili) {
         return new Giornata(data, null, TipoGiornata.LAVORATA, StatoDichiarazione.BOZZA, null,
-                BigDecimal.ZERO, oreMassime, oreMassime, modificabile, List.of(),
-                taskDisponibili);
+                BigDecimal.ZERO, oreMassime, oreMassime, modificabile, assenzaApprovata,
+                List.of(), taskDisponibili);
     }
 
     static Giornata da(Dichiarazione dichiarazione, BigDecimal oreMassime, boolean modificabile,
+                       boolean assenzaApprovata,
                        List<TaskDichiarabile> taskDisponibili) {
         BigDecimal totali = dichiarazione.oreTotali();
         BigDecimal residue = oreMassime.subtract(totali);
@@ -67,6 +78,7 @@ public record Giornata(LocalDate data,
                 // una residua negativa non direbbe niente di utile.
                 residue.signum() < 0 ? BigDecimal.ZERO : residue,
                 modificabile,
+                assenzaApprovata,
                 dichiarazione.getVoci().stream().map(RigaVoce::da).toList(),
                 taskDisponibili);
     }

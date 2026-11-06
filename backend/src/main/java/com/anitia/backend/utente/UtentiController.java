@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -51,6 +52,23 @@ class UtentiController {
     public RigaUtente crea(@Valid @RequestBody RichiestaNuovoUtente richiesta,
                            Authentication autenticazione) {
         return servizio.crea(richiesta, autenticazione.getName());
+    }
+
+    /**
+     * Disattiva o riattiva un utente. Il corpo è
+     * {@code {"attivo": false}} oppure {@code {"attivo": true}}.
+     *
+     * <p>{@code PATCH} e non {@code PUT}: cambia un campo solo e lascia gli
+     * altri dove sono. {@code UTENTI_DISATTIVA} è un permesso a sé, distinto
+     * da {@code UTENTI_MODIFICA}, perché chiudere un'utenza non è modificare
+     * un dato: toglie l'accesso al gestionale.
+     */
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasAuthority('UTENTI_DISATTIVA')")
+    public RigaUtente cambiaAttivazione(@PathVariable Long id,
+                                        @Valid @RequestBody RichiestaAttivazione richiesta,
+                                        Authentication autenticazione) {
+        return servizio.cambiaAttivazione(id, richiesta.attivo(), autenticazione.getName());
     }
 
     /**

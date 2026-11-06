@@ -206,6 +206,16 @@ export default function PaginaGiornata() {
                 passato. Per una rettifica serve un amministratore.
               </p>
             )}
+
+            {/* Un avviso e non un blocco: chi ha un'assenza approvata e ha
+                lavorato comunque deve poterlo dichiarare. Serve a far notare
+                la contraddizione prima del salvataggio, non a impedirlo. */}
+            {giorno.assenzaApprovata && (
+              <p className="avviso" role="status">
+                Per questo giorno hai un'assenza approvata. Se hai lavorato
+                comunque puoi registrare le ore: controlla solo che sia giusto.
+              </p>
+            )}
           </section>
 
           {giorno.tipoGiornata !== 'LAVORATA' ? (

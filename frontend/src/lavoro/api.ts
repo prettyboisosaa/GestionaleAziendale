@@ -1,6 +1,11 @@
 import { chiama, chiedi, messaggioErrore, postJson } from '../api/http'
+import type { StatoLavoro } from '../stato/stati'
 
-export type StatoLavoro = 'BOZZA' | 'ATTIVO' | 'CHIUSO' | 'ANNULLATO'
+// Gli stati vivono in `stato/stati`, insieme alle loro etichette e ai loro
+// colori: tenerli qui vorrebbe dire una seconda lista da aggiornare quando ne
+// nasce uno. Si riesporta perché le pagine importano il tipo da questo modulo
+// insieme a `RigaLavoro`.
+export type { StatoLavoro }
 
 export type RigaLavoro = {
   id: number
@@ -10,6 +15,8 @@ export type RigaLavoro = {
   dataInizio: string
   dataFinePrevista: string
   stato: StatoLavoro
+  /** Quando è stato annullato; null se non lo è. */
+  annullatoIl: string | null
   /** «Cognome Nome», oppure null se è una bozza senza responsabile. */
   responsabile: string | null
   /**
@@ -50,8 +57,14 @@ export type NuovoLavoro = {
   monteOre: number | null
 }
 
-export function elencoLavori(): Promise<RigaLavoro[]> {
-  return chiedi<RigaLavoro[]>('/api/lavori')
+/**
+ * I lavori visibili. Gli annullati restano fuori, perché l'elenco serve a
+ * lavorare e un lavoro che non si farà sarebbe rumore; con
+ * `includiAnnullati` rientrano, in fondo alla lista, per consultarli.
+ */
+export function elencoLavori(includiAnnullati = false): Promise<RigaLavoro[]> {
+  const query = includiAnnullati ? '?includi_annullati=true' : ''
+  return chiedi<RigaLavoro[]>('/api/lavori' + query)
 }
 
 /** Un singolo lavoro. 403 se non compete a chi chiede. */
@@ -90,6 +103,10 @@ export function creaLavoro(dati: NuovoLavoro): Promise<RigaLavoro> {
  * Annulla il lavoro: la riga resta nel database con lo stato cambiato. È la
  * via per qualunque lavoro che abbia delle task, perché cancellarlo
  * porterebbe via anche le dichiarazioni già inviate.
+ *
+ * Annulla anche **tutte le sue task**, comprese quelle completate, e lo toglie
+ * dagli elenchi e dai selettori della registrazione ore. Le ore già registrate
+ * restano nello storico e nei report, perché sono lavoro svolto davvero.
  */
 export function annullaLavoro(id: number): Promise<RigaLavoro> {
   return chiedi<RigaLavoro>(`/api/lavori/${id}/annulla`, { method: 'POST' })

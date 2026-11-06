@@ -1,7 +1,9 @@
 package com.anitia.backend.dichiarazione;
 
 import com.anitia.backend.dichiarazione.DichiarazioneRepository.OrePerGiorno;
+import com.anitia.backend.assenza.ServizioAssenze;
 import com.anitia.backend.impostazione.ServizioCalendario;
+import com.anitia.backend.lavoro.Lavoro;
 import com.anitia.backend.impostazione.ServizioImpostazioni;
 import com.anitia.backend.sicurezza.Permessi;
 import com.anitia.backend.task.StatoTask;
@@ -61,15 +63,17 @@ public class ServizioDichiarazioni {
     private final UtenteRepository utenti;
     private final ServizioImpostazioni impostazioni;
     private final ServizioCalendario calendario;
+    private final ServizioAssenze assenze;
 
     ServizioDichiarazioni(DichiarazioneRepository dichiarazioni, TaskRepository task,
                           UtenteRepository utenti, ServizioImpostazioni impostazioni,
-                          ServizioCalendario calendario) {
+                          ServizioCalendario calendario, ServizioAssenze assenze) {
         this.dichiarazioni = dichiarazioni;
         this.task = task;
         this.utenti = utenti;
         this.impostazioni = impostazioni;
         this.calendario = calendario;
+        this.assenze = assenze;
     }
 
     /**
@@ -295,12 +299,27 @@ public class ServizioDichiarazioni {
      * tendina non può proporre qualcosa che poi viene rifiutato.
      */
     private void vietaSeNonPuoRegistrareSu(Utente io, Task destinazione) {
-        boolean aperta = destinazione.getStato() == StatoTask.DA_FARE
-                || destinazione.getStato() == StatoTask.IN_CORSO;
-        if (!aperta) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "La task «" + destinazione.getTitolo() + "» non è più aperta: non accetta "
-                            + "registrazioni di ore.");
+        // 422 e non 409: la richiesta è ben formata, è il valore scelto che
+        // non è selezionabile. Il codice in testa al messaggio è quello che
+        // il frontend riconosce per mostrare l'avviso giusto senza dover
+        // interpretare il testo.
+        if (!destinazione.getStato().aperta()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "TASK_NON_SELEZIONABILE: la task «" + destinazione.getTitolo()
+                            + "» è " + destinazione.getStato().etichetta()
+                            + " e non accetta registrazioni di ore.");
+        }
+
+        // Anche il lavoro deve essere aperto: una task attiva dentro un
+        // lavoro completato o annullato non è selezionabile. Senza questo
+        // controllo, annullare un lavoro lascerebbe registrabili le sue task
+        // che fossero rimaste aperte.
+        Lavoro lavoro = destinazione.getLavoro();
+        if (!lavoro.getStato().selezionabile()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "LAVORO_CHIUSO: il lavoro " + lavoro.getCodice() + " è "
+                            + lavoro.getStato().etichetta()
+                            + " e non accetta registrazioni di ore.");
         }
 
         boolean assegnata = task.trovaAperteAssegnateA(io.getId()).stream()
@@ -349,12 +368,16 @@ public class ServizioDichiarazioni {
                 .map(TaskDichiarabile::da)
                 .toList();
 
+        // Una lettura sola per tutta la giornata: se ne cava un avviso, non
+        // un divieto, quindi non serve ripeterla a ogni scrittura.
+        boolean assente = assenze.assenteIl(io.getId(), data);
+
         Optional<Dichiarazione> esistente = dichiarazioni.trovaDelGiorno(io.getId(), data);
         return esistente
                 .map(giorno -> Giornata.da(giorno, massime,
-                        modificabile(data, giorno.getStato()), disponibili))
+                        modificabile(data, giorno.getStato()), assente, disponibili))
                 .orElseGet(() -> Giornata.vuota(data, massime,
-                        modificabile(data, StatoDichiarazione.BOZZA), disponibili));
+                        modificabile(data, StatoDichiarazione.BOZZA), assente, disponibili));
     }
 
     /**

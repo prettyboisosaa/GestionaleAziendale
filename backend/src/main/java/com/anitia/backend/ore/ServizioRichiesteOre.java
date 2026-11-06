@@ -80,8 +80,7 @@ public class ServizioRichiesteOre {
         Lavoro lavoro = lavori.lavoroVisibile(chiLoChiede, idLavoro);
         vietaSeNonPuoRichiedere(chiLoChiede, lavoro);
 
-        if (lavoro.getStato() == StatoLavoro.CHIUSO
-                || lavoro.getStato() == StatoLavoro.ANNULLATO) {
+        if (lavoro.getStato().chiuso()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Il lavoro " + lavoro.getCodice() + " non è più in corso: non ha senso "
                             + "chiedere ore per lui.");
@@ -92,8 +91,7 @@ public class ServizioRichiesteOre {
             destinazione = task.findByIdAndLavoroId(richiesta.taskId(), idLavoro).orElseThrow(
                     () -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                             "Task non trovata in questo lavoro."));
-            if (destinazione.getStato() == StatoTask.COMPLETATA
-                    || destinazione.getStato() == StatoTask.ANNULLATA) {
+            if (destinazione.getStato().finale()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "La task «" + destinazione.getTitolo() + "» non è più aperta: le ore "
                                 + "concesse non potrebbero esserle allocate.");

@@ -1,6 +1,11 @@
 import { chiama, chiedi, messaggioErrore, postJson } from '../api/http'
 
-export type StatoTask = 'DA_FARE' | 'IN_CORSO' | 'COMPLETATA' | 'ANNULLATA'
+import type { StatoTask } from '../stato/stati'
+
+// Come per i lavori: gli stati stanno in `stato/stati` con le loro etichette e
+// i loro colori, e si riesportano qui perché le pagine li importano insieme a
+// `RigaTask`.
+export type { StatoTask }
 
 export type Assegnatario = {
   utenteId: number
@@ -65,7 +70,7 @@ export function creaTask(idLavoro: number, dati: NuovaTask): Promise<RigaTask> {
 /**
  * Cambia lo stato della task.
  *
- * Portandola a `COMPLETATA` o `ANNULLATA`, le ore stanziate e non consumate
+ * Portandola a `COMPLETATO` o `ANNULLATO`, le ore stanziate e non consumate
  * tornano nel pool del lavoro: dopo questa chiamata il riepilogo delle ore va
  * ricaricato, perché le ore libere sono cambiate.
  *

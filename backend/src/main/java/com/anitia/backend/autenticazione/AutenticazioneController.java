@@ -2,6 +2,7 @@ package com.anitia.backend.autenticazione;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.anitia.backend.sicurezza.UtenteCollegato;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -38,7 +39,10 @@ import org.springframework.web.server.ResponseStatusException;
 class AutenticazioneController {
 
     private static final String CREDENZIALI_RIFIUTATE =
-            "Email o password non corretti, oppure utenza non attiva.";
+            "Email o password non corretti.";
+
+    private static final String DISATTIVATO =
+            "UTENTE_DISATTIVATO: Account disattivato. Contatta l'amministratore.";
 
     private final AuthenticationManager gestoreAutenticazione;
     private final SecurityContextRepository contestoSicurezza;
@@ -62,10 +66,20 @@ class AutenticazioneController {
                     UsernamePasswordAuthenticationToken.unauthenticated(
                             credenziali.email(), credenziali.password()));
         } catch (AuthenticationException eccezione) {
-            // Lo stesso messaggio per password sbagliata, email inesistente e
-            // utenza disattivata: dalla risposta non si deve capire quali
-            // indirizzi sono registrati.
+            // Lo stesso messaggio per password sbagliata ed email
+            // inesistente: dalla risposta non si deve capire quali indirizzi
+            // sono registrati.
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, CREDENZIALI_RIFIUTATE);
+        }
+
+        // Le credenziali sono giuste: solo adesso si guarda se l'utenza e'
+        // aperta, e si puo' dire perche' l'accesso non passa. L'ordine e' la
+        // ragione per cui ServizioDettagliUtente non marca l'utente come
+        // disabilitato: Spring Security controllerebbe il flag prima della
+        // password, e chi tira a indovinare un indirizzo scoprirebbe
+        // dall'errore quali account esistono.
+        if (!UtenteCollegato.ammesso((UserDetails) autenticazione.getPrincipal())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, DISATTIVATO);
         }
 
         // Protezione dal session fixation: se il browser arrivava con una

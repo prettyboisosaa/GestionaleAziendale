@@ -49,6 +49,65 @@ public class ServizioUtenti {
     }
 
     /**
+     * Disattiva o riattiva un utente.
+     *
+     * <p>La riga non viene mai cancellata: il nome di chi ha creato un
+     * lavoro, chiuso una task o registrato delle ore compare nello storico, e
+     * cancellarlo lo renderebbe illeggibile. Un utente disattivato resta
+     * visibile nell'elenco, col suo badge, e si riattiva dallo stesso
+     * interruttore.
+     *
+     * <p><strong>Nessuno può disattivare se stesso.</strong> Chi lo facesse
+     * perderebbe l'accesso nella richiesta successiva — il filtro rilegge
+     * {@code attivo} a ogni chiamata — e se fosse l'ultimo amministratore
+     * attivo non resterebbe nessuno a riaprirgli l'utenza.
+     *
+     * @param emailAutore chi sta agendo, per impedirgli di spegnersi da solo
+     */
+    @Transactional
+    public RigaUtente cambiaAttivazione(Long id, boolean attivo, String emailAutore) {
+        Utente utente = utenti.findById(id).orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utente non trovato."));
+
+        if (utente.getEmail().equalsIgnoreCase(emailAutore)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Non puoi cambiare lo stato della tua utenza: chiedi a un altro "
+                            + "amministratore.");
+        }
+        if (utente.isAttivo() == attivo) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "L'utenza di " + utente.getCognome() + " " + utente.getNome()
+                            + " è già " + (attivo ? "attiva" : "disattivata") + ".");
+        }
+
+        if (attivo) {
+            utente.riattiva();
+        } else {
+            utente.disattiva();
+        }
+
+        // Nessun save(): l'entità è gestita dalla transazione. Le sessioni
+        // aperte di chi viene disattivato cadono da sole alla richiesta
+        // successiva, perché FiltroUtenteAggiornato rilegge attivo dal
+        // database a ogni chiamata.
+        return riga(utente);
+    }
+
+    /** Un utente solo, con i suoi ruoli e il conteggio dei permessi. */
+    private RigaUtente riga(Utente utente) {
+        List<String> ruoliSuoi = utenti.trovaRuoliAssegnati().stream()
+                .filter(assegnato -> assegnato.getUtenteId().equals(utente.getId()))
+                .map(RuoloAssegnato::getNome)
+                .toList();
+        int quanti = utenti.contaPermessiEffettivi().stream()
+                .filter(conteggio -> conteggio.getUtenteId().equals(utente.getId()))
+                .findFirst()
+                .map(ConteggioPermessi::getQuanti)
+                .orElse(0);
+        return RigaUtente.da(utente, ruoliSuoi, quanti);
+    }
+
+    /**
      * Crea l'utente e gli assegna i ruoli scelti.
      *
      * @param emailAutore chi sta creando, per registrarlo in

@@ -18,14 +18,23 @@ Servono **Docker Desktop** e un **JDK 25 o superiore**. Node 20+ per il
 frontend.
 
 ```bash
-# 1. Il database (dalla radice del progetto)
-docker compose up -d db
-
-# 2. Il backend — attendere che il container sia "healthy"
+# 1. Il backend (dalla radice del progetto)
 cd backend && ./mvnw spring-boot:run
 
-# 3. Il frontend, in un altro terminale
+# 2. Il frontend, in un altro terminale
 cd frontend && npm install && npm run dev
+```
+
+Il database non va avviato a mano: all'avvio il backend tira su da solo i
+servizi del `docker-compose.yml` e **aspetta che MySQL sia sano** prima di
+connettersi (`spring.docker.compose.*` in `application.properties`). Basta che
+Docker Desktop sia in esecuzione.
+
+Su Windows, se `./mvnw` si lamenta di `JAVA_HOME`, c'è `backend\avvia.ps1`: cerca
+un JDK, lo imposta per la durata del comando e avvia il backend.
+
+```powershell
+cd backend; .\avvia.ps1
 ```
 
 L'applicazione è su **http://localhost:5173**. Vite inoltra `/api` al backend
@@ -40,32 +49,75 @@ sulla 8080, quindi non serve configurare CORS.
 
 ### Se il backend non parte
 
-Il caso più frequente è **il database spento**: Flyway è la prima cosa che
-tocca il database, non ottiene la connessione e il contesto Spring fallisce con
-`Communications link failure` / `Connection refused`. La cura è
-`docker compose up -d db`, e attendere che il container risulti `healthy`:
+- **`Unable to obtain connection from database: Communications link failure`**
+  — il database non risponde. Flyway è la prima cosa che tocca il database, e
+  se non ottiene la connessione il contesto Spring fallisce. Da quando il
+  backend avvia il compose da sé questo non dovrebbe più capitare: se capita,
+  Docker Desktop non è partito. Per controllare il database a mano:
 
-```bash
-docker inspect -f '{{.State.Health.Status}}' gestionale-db
-```
+  ```bash
+  docker compose up -d db
+  docker inspect -f '{{.State.Health.Status}}' gestionale-db
+  ```
 
-Gli altri due casi:
+- **`Detected failed migration to version N`** — una migrazione si è rotta a
+  metà, e Flyway blocca l'avvio finché la cosa non è sistemata. Il motivo vero
+  sta nel log del tentativo precedente, non in questo messaggio. Lo stato si
+  legge così:
+
+  ```bash
+  docker exec gestionale-db mysql -uroot -proot_dev -D gestionale \
+    -e "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank;"
+  ```
+
+  La riga con `success = 0` è quella fallita. Attenzione: le migrazioni che
+  l'hanno preceduta **sono già applicate**, quindi il database resta a metà
+  strada — schema nuovo e codice che se lo aspetta diverso. Su un database di
+  sviluppo la via più pulita è ricostruirlo (vedi «ripartire da un database
+  pulito» più sotto); in alternativa si corregge la migrazione e si cancella
+  la riga fallita dallo storico, così Flyway la rifà.
+
+- **500 su operazioni che prima funzionavano, con `Check constraint ... is
+  violated` nei log** — il database è a uno schema più avanzato del codice che
+  risponde. Il caso tipico è un container `gestionale-backend` costruito prima
+  dell'ultima migrazione: `docker compose --profile app up -d --build backend`,
+  dove il `--build` non è opzionale, oppure lo si spegne e si lavora dall'IDE.
 
 - **`Port 8080 was already in use`** — c'è già un'istanza del backend in
   esecuzione, spesso avviata da IntelliJ o rimasta appesa. Su Windows:
   `netstat -ano | findstr :8080` per trovare il PID, poi `taskkill /PID <pid> /F`.
+  Attenzione anche al container `gestionale-backend`: se è su occupa la 8080.
+  Si spegne con `docker compose --profile app stop backend`.
 - **`JAVA_HOME is not defined correctly`** — succede solo da riga di comando;
-  IntelliJ usa l'SDK del progetto e non ne ha bisogno. Va impostata sul
-  percorso del JDK, per esempio
-  `C:\Users\<utente>\.jdks\openjdk-27.0.1.0.3`.
+  IntelliJ usa l'SDK del progetto e non ne ha bisogno. Si risolve con
+  `backend\avvia.ps1`, oppure impostando la variabile sul percorso del JDK, per
+  esempio `C:\Users\<utente>\.jdks\openjdk-27.0.1.0.3`.
+- **Container di un progetto compose diverso** — se i container esistono ma
+  appartengono a un altro progetto (tipico dopo aver rinominato la cartella),
+  `docker compose up` va in conflitto sul nome: `Conflict. The container name
+  "/gestionale-db" is already in use`. Si controlla a quale progetto
+  appartengono, e si rimuovono:
+
+  ```bash
+  docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' gestionale-db
+  docker rm gestionale-db gestionale-phpmyadmin
+  ```
+
+  I dati di sviluppo vivono nel bind mount `.data/mysql` della cartella da cui
+  il container è stato creato: rimuovere il container non li cancella, ma un
+  container ricreato da un'altra cartella parte da un database vuoto (che
+  Flyway ripopola).
 
 ### Tutto in Docker
 
-`docker-compose.yml` definisce anche `backend` e `frontend`, per far girare lo
-stack intero senza strumenti locali:
+`docker-compose.yml` definisce anche `backend` e `frontend`, sotto il profilo
+`app`. Un semplice `docker compose up -d` avvia **solo** `db` e `phpmyadmin`,
+cioè l'infrastruttura che serve al backend lanciato in locale: così nessun
+container litiga con l'applicazione locale sulla porta 8080. Per lo stack
+intero, senza strumenti locali:
 
 ```bash
-docker compose up -d --build
+docker compose --profile app up -d --build
 ```
 
 In quel caso il frontend è sulla porta 80. Per lo sviluppo quotidiano conviene

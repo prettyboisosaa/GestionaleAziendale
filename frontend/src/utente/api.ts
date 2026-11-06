@@ -1,4 +1,4 @@
-import { chiama, chiedi, messaggioErrore, postJson } from '../api/http'
+import { chiama, chiedi, messaggioErrore, patchJson, postJson } from '../api/http'
 
 export type RigaUtente = {
   id: number
@@ -6,6 +6,8 @@ export type RigaUtente = {
   cognome: string
   email: string
   attivo: boolean
+  /** Quando è stato disattivato; null se è attivo. */
+  disattivatoIl: string | null
   creatoIl: string
   ruoli: string[]
   /** Quanti permessi ha in tutto, ruoli e scostamenti insieme. */
@@ -39,6 +41,20 @@ export function elencoUtenti(): Promise<RigaUtente[]> {
 
 export function creaUtente(dati: NuovoUtente): Promise<RigaUtente> {
   return chiedi<RigaUtente>('/api/utenti', postJson(dati))
+}
+
+/**
+ * Disattiva o riattiva un utente.
+ *
+ * La riga non si cancella mai: il nome di chi ha creato un lavoro o registrato
+ * delle ore compare nello storico, e cancellarlo lo renderebbe illeggibile. Un
+ * utente disattivato resta nell'elenco, col suo badge, non entra più nei
+ * selettori di assegnazione e perde subito le sessioni aperte.
+ *
+ * Il server risponde 409 a chi prova a cambiare lo stato della propria utenza.
+ */
+export function cambiaAttivazione(id: number, attivo: boolean): Promise<RigaUtente> {
+  return chiedi<RigaUtente>(`/api/utenti/${id}`, patchJson({ attivo }))
 }
 
 /** Tutto il catalogo, con l'origine di ciascun permesso per questa persona. */

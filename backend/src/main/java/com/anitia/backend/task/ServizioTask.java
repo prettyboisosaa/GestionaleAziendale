@@ -80,8 +80,8 @@ public class ServizioTask {
      * non è una dimenticanza: la lettura è filtrata sull'id di chi chiede,
      * quindi non esiste un modo di farla parlare delle task di un altro.
      *
-     * <p>Ci sono <strong>tutti</strong> gli stati, anche {@code COMPLETATA} e
-     * {@code ANNULLATA}. Una task chiusa ieri deve restare visibile oggi:
+     * <p>Ci sono <strong>tutti</strong> gli stati, anche {@code COMPLETATO} e
+     * {@code ANNULLATO}. Una task chiusa ieri deve restare visibile oggi:
      * farla sparire il giorno dopo averla finita toglierebbe alla persona la
      * traccia del proprio lavoro.
      */
@@ -138,8 +138,7 @@ public class ServizioTask {
         Map<LocalDate, List<SegnoTask>> perGiorno = new HashMap<>();
         for (AssegnazioneTask assegnazione : assegnazioni.trovaAttiveDiUtente(mio)) {
             Task singola = assegnazione.getTask();
-            if (singola.getStato() != StatoTask.DA_FARE
-                    && singola.getStato() != StatoTask.IN_CORSO) {
+            if (!singola.getStato().aperta()) {
                 continue;
             }
             segna(perGiorno, singola, singola.getDataInizio(), TipoSegno.INIZIO, da, a);
@@ -198,7 +197,11 @@ public class ServizioTask {
 
         List<Utente> candidati;
         if (Permessi.ha(chiLoChiede, GESTISCI_TUTTI)) {
-            candidati = utenti.findAll();
+            // Solo gli utenti attivi: assegnare una task a un'utenza chiusa
+            // vorrebbe dire affidarla a qualcuno che non puo' entrare a
+            // farla. Le assegnazioni gia' esistenti restano dove sono, e
+            // trovaTeamDi filtra attivo per conto suo.
+            candidati = utenti.findAll().stream().filter(Utente::isAttivo).toList();
         } else {
             Long mio = idDi(chiLoChiede);
             candidati = mio == null ? List.of() : utenti.trovaTeamDi(mio);
@@ -215,8 +218,7 @@ public class ServizioTask {
         Lavoro lavoro = lavori.lavoroVisibile(chiLoChiede, idLavoro);
         vietaSeNonPuoGestire(chiLoChiede, lavoro);
 
-        if (lavoro.getStato() == StatoLavoro.CHIUSO
-                || lavoro.getStato() == StatoLavoro.ANNULLATO) {
+        if (lavoro.getStato().chiuso()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Il lavoro " + lavoro.getCodice() + " non è più in corso: "
                             + "non accetta nuove task.");
@@ -303,12 +305,12 @@ public class ServizioTask {
         StatoTask attuale = daCambiare.getStato();
         if (attuale == nuovoStato) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "La task «" + daCambiare.getTitolo() + "» è già " + etichetta(nuovoStato)
+                    "La task «" + daCambiare.getTitolo() + "» è già " + nuovoStato.etichetta()
                             + ".");
         }
-        if (attuale == StatoTask.COMPLETATA || attuale == StatoTask.ANNULLATA) {
+        if (attuale.finale()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "La task «" + daCambiare.getTitolo() + "» è " + etichetta(attuale)
+                    "La task «" + daCambiare.getTitolo() + "» è " + attuale.etichetta()
                             + " e non si riapre: le sue ore residue sono già tornate nel pool "
                             + "del lavoro. Crea una task nuova.");
         }
@@ -318,7 +320,7 @@ public class ServizioTask {
         // Nella stessa transazione, quindi sotto lo stesso lock sulla riga del
         // lavoro che rilasciaResiduo acquisisce: le ore liberate non possono
         // essere lette a metà da un'allocazione concorrente.
-        if (nuovoStato == StatoTask.COMPLETATA || nuovoStato == StatoTask.ANNULLATA) {
+        if (nuovoStato.finale()) {
             ore.rilasciaResiduo(daCambiare, autore(chiLoChiede));
         }
 
@@ -388,16 +390,6 @@ public class ServizioTask {
                         + "dei lavori di cui sei responsabile.");
     }
 
-    /** Come si chiama uno stato nei messaggi d'errore. */
-    private static String etichetta(StatoTask stato) {
-        return switch (stato) {
-            case DA_FARE -> "da fare";
-            case IN_CORSO -> "in corso";
-            case COMPLETATA -> "completata";
-            case ANNULLATA -> "annullata";
-        };
-    }
-
     /**
      * Il {@code @PreAuthorize} sul controller verifica che uno dei due permessi
      * ci sia; qui si verifica la parte che un'annotazione non può esprimere,
@@ -423,9 +415,9 @@ public class ServizioTask {
     private static int posizione(StatoTask stato) {
         return switch (stato) {
             case IN_CORSO -> 0;
-            case DA_FARE -> 1;
-            case COMPLETATA -> 2;
-            case ANNULLATA -> 3;
+            case ATTIVO -> 1;
+            case COMPLETATO -> 2;
+            case ANNULLATO -> 3;
         };
     }
 

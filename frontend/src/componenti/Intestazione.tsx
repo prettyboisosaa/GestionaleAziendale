@@ -45,6 +45,24 @@ export default function Intestazione({ utente, onEsci }: Proprieta) {
             Richieste ore
           </NavLink>
         )}
+        {ha(utente, 'ASSENZE_RICHIEDI') && (
+          <NavLink to="/assenze" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
+            Assenze
+          </NavLink>
+        )}
+        {/* Due voci distinte e non una pagina che si comporta in due modi come
+            «Richieste ore»: qui le righe non sono le stesse. Il dipendente vede
+            le proprie, l'amministratore quelle di tutti, e fonderle vorrebbe
+            dire una tabella con una colonna che a metà degli utenti non dice
+            niente. */}
+        {ha(utente, 'ASSENZE_GESTISCI') && (
+          <NavLink
+            to="/richieste-assenza"
+            className={({ isActive }) => (isActive ? 'attivo' : undefined)}
+          >
+            Richieste assenza
+          </NavLink>
+        )}
         {ha(utente, 'UTENTI_VISUALIZZA') && (
           <NavLink to="/utenti" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
             Utenti

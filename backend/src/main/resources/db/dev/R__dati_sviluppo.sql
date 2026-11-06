@@ -18,14 +18,17 @@
 -- e cancellarli, invece di rimetterli qui.
 -- =====================================================================
 
-INSERT INTO utente (id, nome, cognome, email, password_hash, attivo) VALUES
-    (1, 'Anna',   'Amministratore', 'admin@gestionale.local',         '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE),
-    (2, 'Laura',  'Bianchi',        'laura.bianchi@gestionale.local', '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE),
-    (3, 'Marco',  'Rossi',          'marco.rossi@gestionale.local',   '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE),
-    (4, 'Giulia', 'Verdi',          'giulia.verdi@gestionale.local',  '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE),
-    (5, 'Luca',   'Russo',          'luca.russo@gestionale.local',    '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE),
-    (6, 'Sara',   'Colombo',        'sara.colombo@gestionale.local',  '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE),
-    (7, 'Paolo',  'Ferrari',        'paolo.ferrari@gestionale.local', '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', FALSE)
+-- Paolo Ferrari e' il disattivato di prova, e porta la sua data: dalla V11 il
+-- vincolo ck_utente_disattivato pretende che un'utenza chiusa dica quando lo
+-- e' stata. Negli altri la data e' NULL, come per chiunque sia attivo.
+INSERT INTO utente (id, nome, cognome, email, password_hash, attivo, disattivato_il) VALUES
+    (1, 'Anna',   'Amministratore', 'admin@gestionale.local',         '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE,  NULL),
+    (2, 'Laura',  'Bianchi',        'laura.bianchi@gestionale.local', '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE,  NULL),
+    (3, 'Marco',  'Rossi',          'marco.rossi@gestionale.local',   '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE,  NULL),
+    (4, 'Giulia', 'Verdi',          'giulia.verdi@gestionale.local',  '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE,  NULL),
+    (5, 'Luca',   'Russo',          'luca.russo@gestionale.local',    '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE,  NULL),
+    (6, 'Sara',   'Colombo',        'sara.colombo@gestionale.local',  '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', TRUE,  NULL),
+    (7, 'Paolo',  'Ferrari',        'paolo.ferrari@gestionale.local', '{bcrypt}$2a$10$oC8srOGqrc3iS7pVZXUXNeozTt.rCaDmaXND7K0HWne.kKEjwp4aq', FALSE, '2026-11-05 09:00:00')
 ON DUPLICATE KEY UPDATE id = id;
 
 -- Ruoli: 1 = Amministratore, 2 = Project Manager, 3 = Dipendente

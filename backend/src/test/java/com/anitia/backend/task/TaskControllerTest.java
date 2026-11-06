@@ -91,7 +91,7 @@ class TaskControllerTest {
         return new RigaTask(7L, "Analisi requisiti", null,
                 LocalDate.of(2027, 1, 1), LocalDate.of(2027, 2, 1),
                 new BigDecimal("8.00"), new BigDecimal("8.00"), BigDecimal.ZERO, false,
-                StatoTask.DA_FARE,
+                StatoTask.ATTIVO,
                 List.of(new Assegnatario(4L, "Giulia", "Verdi")));
     }
 

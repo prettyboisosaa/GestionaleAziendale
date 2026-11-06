@@ -94,7 +94,7 @@ class DichiarazioniControllerTest {
     private static Giornata vuota() {
         return new Giornata(LocalDate.of(2026, 11, 2), null, TipoGiornata.LAVORATA,
                 StatoDichiarazione.BOZZA, null, BigDecimal.ZERO, new BigDecimal("8.00"),
-                new BigDecimal("8.00"), true, List.of(),
+                new BigDecimal("8.00"), true, false, List.of(),
                 List.of(new TaskDichiarabile(2L, "Sviluppo area riservata", 1L, "LAV-001",
                         "Portale clienti")));
     }
@@ -103,7 +103,7 @@ class DichiarazioniControllerTest {
     private static Giornata conSeiOre() {
         return new Giornata(LocalDate.of(2026, 11, 2), 1L, TipoGiornata.LAVORATA,
                 StatoDichiarazione.BOZZA, null, new BigDecimal("6.00"), new BigDecimal("8.00"),
-                new BigDecimal("2.00"), true,
+                new BigDecimal("2.00"), true, false,
                 List.of(new RigaVoce(1L, 2L, "Sviluppo area riservata", "LAV-001", 1L,
                         new BigDecimal("6.00"), "Pagina di login")),
                 List.of());

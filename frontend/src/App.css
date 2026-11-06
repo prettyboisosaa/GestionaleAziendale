@@ -872,3 +872,105 @@ button.minuscolo:disabled {
   flex-wrap: wrap;
   gap: 0.25rem 1.5rem;
 }
+
+/* --- stati ---------------------------------------------------------------- */
+
+/* Il badge a pillola: fondo al 13% del colore, testo pieno. Non una riga né
+   una scheda colorata per intero — il colore dice lo stato, non deve
+   ridipingere il contenuto. */
+.pillola {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15em 0.6em;
+  border-radius: var(--raggio-pillola);
+  font-size: var(--scala-piccola);
+  font-weight: 590;
+  letter-spacing: 0;
+  white-space: nowrap;
+
+  /* La tinta arriva dal modificatore qui sotto. Il valore di ripiego serve a
+     non lasciare una pillola invisibile se un giorno comparisse uno stato
+     senza la sua classe. */
+  background-color: color-mix(in srgb, var(--tinta-stato, var(--inchiostro-tenue)) 13%, transparent);
+  color: var(--tinta-stato, var(--inchiostro-tenue));
+}
+
+/* Il punto negli elenchi: dice lo stato senza occupare una colonna. Sempre
+   accanto a un titolo, mai da solo. */
+.punto {
+  display: inline-block;
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.5em;
+  border-radius: 50%;
+  background-color: var(--tinta-stato, var(--inchiostro-tenue));
+  vertical-align: 0.05em;
+}
+
+/* Una variabile per tinta, invece di ripetere fondo e testo in ogni
+   combinazione: le due regole qui sopra restano uniche, e ogni stato nuovo
+   costa una riga. */
+.pillola-attivo,
+.punto-attivo {
+  --tinta-stato: var(--stato-attivo);
+}
+
+.pillola-in-corso,
+.punto-in-corso {
+  --tinta-stato: var(--stato-in-corso);
+}
+
+.pillola-completato,
+.punto-completato {
+  --tinta-stato: var(--stato-completato);
+}
+
+.pillola-annullato,
+.punto-annullato {
+  --tinta-stato: var(--stato-annullato);
+}
+
+.pillola-attesa,
+.punto-attesa {
+  --tinta-stato: var(--stato-attesa);
+}
+
+.pillola-assenza,
+.punto-assenza {
+  --tinta-stato: var(--assenza);
+}
+
+/* La riga di un lavoro o di una task annullata: il testo si attenua, perché
+   è materiale da consultare e non da lavorare. Il colore resta tutto nel
+   badge. */
+.tabella tbody tr.riga-annullata td {
+  color: var(--inchiostro-tenue);
+}
+
+/* Il titolo con il punto davanti: il punto non deve stringersi se il titolo
+   va a capo. */
+.con-stato {
+  display: flex;
+  align-items: baseline;
+}
+
+/* --- interruttore di filtro ----------------------------------------------- */
+
+/* «Mostra annullati» e simili: una casella in riga sopra la tabella, non un
+   pulsante, perché non è un'azione ma uno stato della vista. */
+.filtro {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+}
+
+.filtro label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}

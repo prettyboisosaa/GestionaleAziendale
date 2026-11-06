@@ -86,8 +86,7 @@ public class ServizioOre {
         // nessun altro puo' allocare ore su questo lavoro.
         Lavoro lavoro = bloccato(idLavoro);
 
-        if (lavoro.getStato() == StatoLavoro.CHIUSO
-                || lavoro.getStato() == StatoLavoro.ANNULLATO) {
+        if (lavoro.getStato().chiuso()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Il lavoro " + lavoro.getCodice() + " non è più in corso: non accetta "
                             + "nuove allocazioni di ore.");
@@ -202,7 +201,7 @@ public class ServizioOre {
      * annullata non consuma più ore, quindi allocargliene non ha senso.
      */
     private static boolean aperta(Task task) {
-        return task.getStato() == StatoTask.DA_FARE || task.getStato() == StatoTask.IN_CORSO;
+        return task.getStato().aperta();
     }
 
     // --- aiuti --------------------------------------------------------------

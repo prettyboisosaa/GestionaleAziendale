@@ -59,6 +59,13 @@ export type Giornata = {
    * qualcosa che il server rifiuterebbe.
    */
   modificabile: boolean
+  /**
+   * Vero se per quel giorno c'è un'assenza approvata, ferie o permesso.
+   *
+   * È un **avviso**, non un divieto: registrare ore in un giorno di assenza
+   * resta permesso, perché chi ha lavorato comunque deve poterlo dichiarare.
+   */
+  assenzaApprovata: boolean
   voci: RigaVoce[]
   taskDisponibili: TaskDichiarabile[]
 }

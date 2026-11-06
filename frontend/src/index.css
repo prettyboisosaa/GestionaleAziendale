@@ -24,6 +24,33 @@
   --campo-fondo: #f6f8f7;
   --riga-tenue: rgb(197 209 209 / 55%);
 
+  /* I colori degli stati di lavori e task, dal documento delle correzioni.
+     Sono gli unici colori fuori dalla tavolozza qui sopra, e c'e' una ragione:
+     lo stato e' l'unica informazione che si deve poter leggere senza leggere,
+     attraversando una tabella con l'occhio. Entrano solo in un badge a
+     pillola, in un punto accanto al titolo e negli eventi del calendario:
+     nessuna riga e nessuna scheda colorata per intero, come nel resto
+     dell'interfaccia.
+
+     L'etichetta di testo c'e' sempre accanto al colore, cosi' lo stato si
+     capisce anche senza distinguere le tinte.
+
+     Il documento dava anche le varianti per il tema scuro. Non sono qui
+     perche' il gestionale dichiara color-scheme: light e non ha un tema
+     scuro: metterle significherebbe badge in colori notturni su una pagina
+     chiara. Vanno aggiunte quando il tema scuro arrivera', insieme al resto.
+   */
+  --stato-attivo: #6e6e73;
+  --stato-in-corso: #0071e3;
+  --stato-completato: #34c759;
+  --stato-annullato: #ff3b30;
+
+  /* In attesa: lo stato delle richieste di assenza e di ore. */
+  --stato-attesa: #ff9500;
+
+  /* Le assenze approvate nel calendario. */
+  --assenza: #af52de;
+
   /* L'inchiostro scomposto, per tingere le ombre. */
   --inchiostro-rgb: 21 48 61;
 

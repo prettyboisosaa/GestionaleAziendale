@@ -32,13 +32,32 @@ services:
       - db
 
   backend:
+    # Profilo "app": questo servizio NON parte con un semplice
+    # `docker compose up`, serve `docker compose --profile app up`. Cosi'
+    # `up` tira su solo db e phpmyadmin, cioe' l'infrastruttura che serve al
+    # backend lanciato dall'IDE, senza litigare sulla porta 8080.
+    profiles: ["app"]
     build: ./backend
     container_name: gestionale-backend
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/gestionale?useSSL=false&serverTimezone=UTC
+      # Niente useSSL=false, e non e' una dimenticanza: con quello la
+      # connessione va in chiaro, e MySQL 8.4 autentica con
+      # caching_sha2_password, che senza TLS pretende
+      # allowPublicKeyRetrieval=true. Mancando, il backend muore in avvio con
+      # "Public Key Retrieval is not allowed" e il container entra in crash
+      # loop. Sembrava funzionare solo perche' il vecchio data directory aveva
+      # l'utente creato con un plugin diverso: ricreato il database, il
+      # problema e' venuto fuori.
+      #
+      # Lasciando decidere al driver si ottiene sslMode=PREFERRED, cioe' TLS
+      # verso il certificato autofirmato del container. E' la stessa cosa che
+      # fa application.properties per il backend eseguito dall'IDE, che per
+      # questo si e' sempre connesso senza problemi: due configurazioni che
+      # ora si comportano allo stesso modo.
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/gestionale
       - SPRING_DATASOURCE_USERNAME=gestionale
       - SPRING_DATASOURCE_PASSWORD=gestionale_dev
     depends_on:
@@ -46,6 +65,8 @@ services:
         condition: service_healthy
 
   frontend:
+    # Vedi la nota sul profilo "app" nel servizio backend.
+    profiles: ["app"]
     build: ./frontend
     container_name: gestionale-frontend
     restart: unless-stopped

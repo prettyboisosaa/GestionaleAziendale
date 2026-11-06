@@ -3,6 +3,7 @@ package com.anitia.backend.lavoro;
 import com.anitia.backend.utente.Utente;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /** Un lavoro come lo vede il frontend, con la situazione del suo monte ore. */
 public record RigaLavoro(Long id,
@@ -12,6 +13,8 @@ public record RigaLavoro(Long id,
                          LocalDate dataInizio,
                          LocalDate dataFinePrevista,
                          StatoLavoro stato,
+                         /** Quando e' stato annullato; null se non lo e'. */
+                         LocalDateTime annullatoIl,
                          /** «Cognome Nome», oppure null se è una bozza senza responsabile. */
                          String responsabile,
                          /** Null se il monte ore non è ancora stato fissato. */
@@ -48,6 +51,7 @@ public record RigaLavoro(Long id,
                 lavoro.getDataInizio(),
                 lavoro.getDataFinePrevista(),
                 lavoro.getStato(),
+                lavoro.getAnnullatoIl(),
                 responsabile == null
                         ? null
                         : responsabile.getCognome() + " " + responsabile.getNome(),

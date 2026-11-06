@@ -1,6 +1,7 @@
 package com.anitia.backend.lavoro;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -95,7 +96,7 @@ class LavoriControllerTest {
     private static RigaLavoro riga() {
         return new RigaLavoro(4L, "LAV-004", "Portale fornitori", null,
                 LocalDate.of(2027, 1, 1), LocalDate.of(2027, 6, 30),
-                StatoLavoro.ATTIVO, "Bianchi Laura",
+                StatoLavoro.ATTIVO, null, "Bianchi Laura",
                 new BigDecimal("120.00"), BigDecimal.ZERO, BigDecimal.ZERO,
                 new BigDecimal("120.00"));
     }
@@ -116,7 +117,7 @@ class LavoriControllerTest {
 
     @Test
     void elencoBastaIlPermessoSuiPropriLavori() throws Exception {
-        given(servizio.elenco(any())).willReturn(List.of(riga()));
+        given(servizio.elenco(any(), anyBoolean())).willReturn(List.of(riga()));
 
         mockMvc.perform(get(LAVORI).session(sessioneCon("LAVORI_VISUALIZZA_PROPRI")))
                 .andExpect(status().isOk())
@@ -245,7 +246,7 @@ class LavoriControllerTest {
     void annullamentoConIlPermessoRestituisceIlLavoroAnnullato() throws Exception {
         given(servizio.annulla(1L)).willReturn(new RigaLavoro(1L, "LAV-001", "Portale clienti",
                 null, LocalDate.of(2026, 9, 1), LocalDate.of(2027, 3, 31),
-                StatoLavoro.ANNULLATO, "Bianchi Laura",
+                StatoLavoro.ANNULLATO, LocalDateTime.of(2026, 11, 6, 12, 0), "Bianchi Laura",
                 new BigDecimal("400.00"), new BigDecimal("136.00"), new BigDecimal("38.00"),
                 new BigDecimal("264.00")));
 
@@ -341,7 +342,7 @@ class LavoriControllerTest {
         given(servizio.cambiaMonteOre(any(), any(), any(), any())).willReturn(
                 new RigaLavoro(1L, "LAV-001", "Portale clienti", null,
                         LocalDate.of(2026, 9, 1), LocalDate.of(2027, 3, 31),
-                        StatoLavoro.ATTIVO, "Bianchi Laura",
+                        StatoLavoro.ATTIVO, null, "Bianchi Laura",
                         new BigDecimal("500.00"), new BigDecimal("136.00"),
                         new BigDecimal("38.00"), new BigDecimal("364.00")));
 

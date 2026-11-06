@@ -5,13 +5,8 @@ import type { RigaLavoro } from './api'
 import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
-
-const ETICHETTE: Record<RigaLavoro['stato'], string> = {
-  BOZZA: 'Bozza',
-  ATTIVO: 'Attivo',
-  CHIUSO: 'Chiuso',
-  ANNULLATO: 'Annullato',
-}
+import { Pillola } from '../componenti/Stato'
+import { chiusoLavoro, ETICHETTA_LAVORO, tinta } from '../stato/stati'
 
 type Azione = {
   id: number
@@ -28,13 +23,19 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
   const [errore, setErrore] = useState<string | null>(null)
   const [azione, setAzione] = useState<Azione | null>(null)
   const [inCorso, setInCorso] = useState(false)
+  /**
+   * I lavori annullati non si vedono, finché non li si chiede. Il filtro lo
+   * applica il server, non un `filter` qui: così la risposta non porta righe
+   * che poi si buttano, e l'ordinamento — annullati in fondo — resta uno solo.
+   */
+  const [mostraAnnullati, setMostraAnnullati] = useState(false)
 
   const puoModificare = ha(utente, 'LAVORI_MODIFICA_TUTTI')
 
   useEffect(() => {
     let annullato = false
 
-    elencoLavori()
+    elencoLavori(mostraAnnullati)
       .then((elenco) => {
         if (!annullato) {
           setRighe(elenco)
@@ -49,7 +50,7 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
     return () => {
       annullato = true
     }
-  }, [])
+  }, [mostraAnnullati])
 
   async function esegui(scelta: Azione) {
     setInCorso(true)
@@ -61,7 +62,9 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
         await eliminaLavoro(scelta.id)
       }
       // Ricarica dopo l'azione: lo stato è cambiato, o la riga non c'è più.
-      setRighe(await elencoLavori())
+      // Un lavoro appena annullato sparisce dall'elenco, a meno che
+      // l'interruttore non sia acceso: è esattamente l'effetto voluto.
+      setRighe(await elencoLavori(mostraAnnullati))
     } catch (motivo) {
       // Il caso tipico è il 409 su una bozza che ha delle task: il messaggio
       // arriva dal server e spiega di annullare invece di cancellare.
@@ -89,6 +92,25 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
         </p>
       )}
 
+      <div className="filtro">
+        <label>
+          <input
+            type="checkbox"
+            checked={mostraAnnullati}
+            onChange={(evento) => {
+              // L'elenco si svuota qui e non dentro l'effetto: senza, si
+              // vedrebbe per un istante la lista vecchia come se fosse già
+              // filtrata. Azzerarlo nell'evento che lo causa evita il doppio
+              // render che un setState dentro l'effetto provocherebbe.
+              setRighe(null)
+              setErrore(null)
+              setMostraAnnullati(evento.target.checked)
+            }}
+          />
+          Mostra annullati
+        </label>
+      </div>
+
       {errore === null && righe === null && (
         <p className="sommario" role="status">
           Carico l'elenco…
@@ -114,12 +136,17 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
             </thead>
             <tbody>
               {righe.map((riga) => (
-                <tr key={riga.id}>
+                <tr
+                  key={riga.id}
+                  className={riga.stato === 'ANNULLATO' ? 'riga-annullata' : undefined}
+                >
                   <td>
                     <Link to={`/lavori/${riga.id}`}>{riga.codice}</Link>
                   </td>
                   <td>{riga.nome}</td>
-                  <td>{ETICHETTE[riga.stato]}</td>
+                  <td>
+                    <Pillola tinta={tinta(riga.stato)}>{ETICHETTA_LAVORO[riga.stato]}</Pillola>
+                  </td>
                   <td>{riga.responsabile ?? 'Da assegnare'}</td>
                   <td>
                     {data(riga.dataInizio)} – {data(riga.dataFinePrevista)}
@@ -147,7 +174,10 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
                         </span>
                       ) : (
                         <>
-                          {(riga.stato === 'BOZZA' || riga.stato === 'ATTIVO') && (
+                          {/* Un lavoro completato non si annulla, e uno già
+                              annullato nemmeno: il server rifiuta entrambi, e
+                              offrire il pulsante sarebbe una promessa falsa. */}
+                          {!chiusoLavoro(riga.stato) && (
                             <button
                               type="button"
                               onClick={() => setAzione({ id: riga.id, tipo: 'annulla' })}

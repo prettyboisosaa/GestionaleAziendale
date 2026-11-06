@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,11 +32,19 @@ class LavoriController {
      * Quali lavori si vedono dipende dal permesso, e il filtro lo applica il
      * servizio: con {@code LAVORI_VISUALIZZA_TUTTI} si vede tutto, con
      * {@code LAVORI_VISUALIZZA_PROPRI} solo i propri.
+     *
+     * <p>I lavori annullati restano fuori: l'elenco serve a lavorare, e un
+     * lavoro che non si farà sarebbe rumore. Con
+     * {@code ?includi_annullati=true} rientrano, in fondo alla lista, per
+     * poterli consultare.
      */
     @GetMapping
     @PreAuthorize("hasAnyAuthority('LAVORI_VISUALIZZA_TUTTI','LAVORI_VISUALIZZA_PROPRI')")
-    public List<RigaLavoro> elenco(@AuthenticationPrincipal UserDetails utente) {
-        return servizio.elenco(utente);
+    public List<RigaLavoro> elenco(@AuthenticationPrincipal UserDetails utente,
+                                   @RequestParam(name = "includi_annullati",
+                                                 defaultValue = "false")
+                                   boolean includiAnnullati) {
+        return servizio.elenco(utente, includiAnnullati);
     }
 
     /**

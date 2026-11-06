@@ -12,6 +12,21 @@ import org.springframework.data.repository.query.Param;
 public interface LavoroRepository extends JpaRepository<Lavoro, Long> {
 
     /**
+     * L'ordine di ogni elenco: prima i lavori vivi, poi gli annullati, e
+     * dentro i due gruppi il codice.
+     *
+     * <p>Gli annullati vanno in fondo perche' compaiono solo quando li si
+     * chiede espressamente, per consultarli: mescolati al resto
+     * spezzerebbero la lettura dell'elenco di lavoro.
+     *
+     * <p>E' una costante e non quattro copie della stessa {@code ORDER BY}:
+     * le query che la usano sono quattro, e quattro ordinamenti scritti a
+     * mano sono quattro occasioni di cambiarne tre.
+     */
+    String ORDINE = "CASE WHEN l.stato = com.anitia.backend.lavoro.StatoLavoro.ANNULLATO "
+                  + "THEN 1 ELSE 0 END, l.codice";
+
+    /**
      * Il lavoro, con la sua riga bloccata fino alla fine della transazione:
      * è il {@code SELECT ... FOR UPDATE} su cui poggia tutta la contabilità
      * delle ore.
@@ -39,8 +54,15 @@ public interface LavoroRepository extends JpaRepository<Lavoro, Long> {
      * Il fetch esplicito evita una query per riga, dato che
      * {@code open-in-view} è disattivato.
      */
-    @Query("SELECT l FROM Lavoro l LEFT JOIN FETCH l.responsabile ORDER BY l.codice")
+    @Query("SELECT l FROM Lavoro l LEFT JOIN FETCH l.responsabile ORDER BY "
+         + ORDINE)
     List<Lavoro> trovaTutti();
+
+    /** Come {@link #trovaTutti()}, ma senza i lavori annullati. */
+    @Query("SELECT l FROM Lavoro l LEFT JOIN FETCH l.responsabile "
+         + "WHERE l.stato <> com.anitia.backend.lavoro.StatoLavoro.ANNULLATO "
+         + "ORDER BY " + ORDINE)
+    List<Lavoro> trovaTuttiNonAnnullati();
 
     @Query("SELECT l.id FROM Lavoro l WHERE l.responsabile.id = :responsabileId")
     List<Long> trovaIdDiResponsabile(@Param("responsabileId") Long responsabileId);
@@ -64,8 +86,15 @@ public interface LavoroRepository extends JpaRepository<Lavoro, Long> {
     List<Long> trovaIdConTaskAssegnate(@Param("utenteId") Long utenteId);
 
     @Query("SELECT l FROM Lavoro l LEFT JOIN FETCH l.responsabile "
-         + "WHERE l.id IN :id ORDER BY l.codice")
+         + "WHERE l.id IN :id ORDER BY " + ORDINE)
     List<Lavoro> trovaConId(@Param("id") Collection<Long> id);
+
+    /** Come {@link #trovaConId(Collection)}, ma senza i lavori annullati. */
+    @Query("SELECT l FROM Lavoro l LEFT JOIN FETCH l.responsabile "
+         + "WHERE l.id IN :id "
+         + "  AND l.stato <> com.anitia.backend.lavoro.StatoLavoro.ANNULLATO "
+         + "ORDER BY " + ORDINE)
+    List<Lavoro> trovaConIdNonAnnullati(@Param("id") Collection<Long> id);
 
     /**
      * Il numero più alto fra i codici nel formato {@code LAV-NNN}, oppure 0 se

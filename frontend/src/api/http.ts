@@ -33,36 +33,81 @@ export async function chiedi<T>(url: string, opzioni?: RequestInit): Promise<T> 
   return (await risposta.json()) as T
 }
 
-/** Le opzioni per una POST con corpo JSON. */
-export function postJson(dati: unknown): RequestInit {
+/**
+ * Le opzioni per una richiesta con corpo JSON. Una funzione sola per i tre
+ * metodi, perché cambia solo il verbo: tre copie delle stesse tre righe sono
+ * tre occasioni di sbagliarne una.
+ */
+function conCorpo(metodo: string, dati: unknown): RequestInit {
   return {
-    method: 'POST',
+    method: metodo,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(dati),
   }
 }
 
+export function postJson(dati: unknown): RequestInit {
+  return conCorpo('POST', dati)
+}
+
+export function putJson(dati: unknown): RequestInit {
+  return conCorpo('PUT', dati)
+}
+
+export function patchJson(dati: unknown): RequestInit {
+  return conCorpo('PATCH', dati)
+}
+
 export async function messaggioErrore(risposta: Response): Promise<string> {
-  // 400 e 403 li descrive Spring, in inglese: «Invalid request content.»,
-  // «Forbidden». Non vanno mostrati a chi usa il gestionale. Gli altri stati
-  // portano un `detail` scritto da noi, in italiano e con la formulazione
-  // scelta di proposito: quello si mostra tale e quale.
+  // 400 lo descrive Spring, in inglese: «Invalid request content.». Non va
+  // mostrato a chi usa il gestionale. Gli altri stati portano un `detail`
+  // scritto da noi, in italiano e con la formulazione scelta di proposito:
+  // quello si mostra tale e quale.
   if (risposta.status === 400) {
     return 'Controlla i dati inseriti.'
   }
+
+  const detail = await dettaglio(risposta)
+
+  // Il 403 del login porta un `detail` nostro (UTENTE_DISATTIVATO) e va
+  // mostrato: è l'unico 403 che spieghi qualcosa a chi lo legge. Gli altri
+  // sono il rifiuto secco di `@PreAuthorize`, che Spring descrive in inglese.
   if (risposta.status === 403) {
-    return 'Non hai il permesso per questa operazione.'
+    return detail === null ? 'Non hai il permesso per questa operazione.' : detail
   }
 
+  return detail === null ? ERRORE_GENERICO : detail
+}
+
+/** Il `detail` del corpo RFC 9457, oppure null se non c'è. */
+async function dettaglio(risposta: Response): Promise<string | null> {
   try {
     const problema = (await risposta.json()) as Problema
-    return problema.detail ?? ERRORE_GENERICO
+    return problema.detail === undefined ? null : problema.detail
   } catch {
-    return ERRORE_GENERICO
+    return null
   }
+}
+
+/**
+ * Il codice in testa a un messaggio del backend, se c'è.
+ *
+ * I messaggi delle regole introdotte con ferie, permessi e stati cominciano
+ * con un codice in maiuscolo seguito da due punti — `TASK_NON_SELEZIONABILE:
+ * la task …` — così il frontend può riconoscere il caso senza interpretare il
+ * testo italiano, che resta leggibile per chi lo legge.
+ */
+export function codice(messaggio: string): string | null {
+  const trovato = /^([A-Z][A-Z_]+):/.exec(messaggio)
+  return trovato === null ? null : trovato[1]
+}
+
+/** Il messaggio senza il codice in testa, pronto da mostrare. */
+export function senzaCodice(messaggio: string): string {
+  return messaggio.replace(/^[A-Z][A-Z_]+:\s*/, '')
 }
 
 /** Il testo di un errore sollevato dalle funzioni di questo modulo. */
 export function testo(motivo: unknown): string {
-  return motivo instanceof Error ? motivo.message : ERRORE_GENERICO
+  return senzaCodice(motivo instanceof Error ? motivo.message : ERRORE_GENERICO)
 }

@@ -93,7 +93,7 @@ class UtentiControllerTest {
 
     private static RigaUtente riga() {
         return new RigaUtente(8L, "Mario", "Rossi", "mario.rossi@gestionale.local",
-                true, LocalDateTime.now(), List.of("Dipendente"), 4);
+                true, null, LocalDateTime.now(), List.of("Dipendente"), 4);
     }
 
     // --- elenco -------------------------------------------------------------

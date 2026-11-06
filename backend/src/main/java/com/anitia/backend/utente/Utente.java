@@ -44,6 +44,17 @@ public class Utente {
     private boolean attivo;
 
     /**
+     * Quando è stato disattivato, nullo se è attivo. Il vincolo
+     * {@code ck_utente_disattivato} tiene i due campi d'accordo.
+     *
+     * <p>Serve all'interfaccia per dire «disattivato il 3 marzo» invece del
+     * solo badge grigio. Non si ricava da {@code aggiornatoIl}, che cambia a
+     * ogni modifica successiva e dopo una riattivazione racconterebbe quella.
+     */
+    @Column(name = "disattivato_il")
+    private LocalDateTime disattivatoIl;
+
+    /**
      * Valorizzate dal database, grazie ai DEFAULT dichiarati nella migrazione.
      *
      * <p>{@code @Generated} dice a Hibernate due cose: non scriverle mai, e
@@ -104,6 +115,31 @@ public class Utente {
 
     public boolean isAttivo() {
         return attivo;
+    }
+
+    /** Nullo se l'utente è attivo. */
+    public LocalDateTime getDisattivatoIl() {
+        return disattivatoIl;
+    }
+
+    /**
+     * Chiude l'utenza: niente accesso e nessun permesso, ma la riga resta,
+     * perché il suo nome compare nello storico di lavori, task e
+     * dichiarazioni.
+     *
+     * <p>Non è idempotente di proposito: il servizio rifiuta già la
+     * disattivazione di chi è spento, e sovrascrivere la data qui
+     * cancellerebbe quella vera.
+     */
+    void disattiva() {
+        this.attivo = false;
+        this.disattivatoIl = LocalDateTime.now();
+    }
+
+    /** Riapre l'utenza. La data di disattivazione non serve più. */
+    void riattiva() {
+        this.attivo = true;
+        this.disattivatoIl = null;
     }
 
     public LocalDateTime getCreatoIl() {
