@@ -146,7 +146,7 @@ class TaskControllerTest {
                         .content(corpoTask("Nuova", "2027-01-01", "2027-02-01", "8")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(7))
-                .andExpect(jsonPath("$.stato").value("DA_FARE"));
+                .andExpect(jsonPath("$.stato").value("ATTIVO"));
     }
 
     /** Con _PROPRI su un lavoro di cui non si è responsabile: 403 dal servizio. */
@@ -364,7 +364,7 @@ class TaskControllerTest {
 
         mockMvc.perform(post(TASK + "/1/stato").session(sessioneCon("TASK_AGGIORNA_STATO"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"stato\":\"COMPLETATA\"}"))
+                        .content("{\"stato\":\"COMPLETATO\"}"))
                 .andExpect(status().isForbidden());
     }
 

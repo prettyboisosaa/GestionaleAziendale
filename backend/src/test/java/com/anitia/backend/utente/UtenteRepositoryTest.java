@@ -50,7 +50,7 @@ class UtenteRepositoryTest {
         assertThat(utenti.trovaCodiciPermessoDaiRuoli(GIULIA))
                 .containsExactlyInAnyOrder("LAVORI_VISUALIZZA_PROPRI",
                         "TASK_VISUALIZZA_ASSEGNATE", "TASK_AGGIORNA_STATO",
-                        "DICHIARAZIONI_COMPILA");
+                        "DICHIARAZIONI_COMPILA", "ASSENZE_RICHIEDI");
     }
 
     @Test
