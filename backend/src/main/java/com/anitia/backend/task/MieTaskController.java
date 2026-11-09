@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  * solo le righe di chi chiede, e il filtro è l'id ricavato dalla sessione: se
  * accettasse un {@code utenteId} servirebbe difenderlo, e vedere il lavoro di
  * un altro è già un'altra rotta con i suoi permessi
- * ({@code /api/dichiarazioni/utente/{id}}).
+ * ({@code /api/tempo/utente/{id}}).
  *
  * <p>Il permesso è {@code TASK_VISUALIZZA_ASSEGNATE}, che il catalogo porta
  * dalla V1 e che finora nessuna rotta usava.

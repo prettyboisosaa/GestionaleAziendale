@@ -11,9 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
  * La lettura dei parametri di sistema dalla tabella {@code impostazione}.
  *
  * <p>Ogni lettura ha un <strong>fallback</strong>, e non è pigrizia: se
- * qualcuno cancella la riga {@code dichiarazione.ore_massime_giorno} o ci
- * scrive «otto», l'alternativa a un valore di ripiego sarebbe un'eccezione in
- * faccia a un dipendente che sta solo registrando la giornata. Il valore
+ * qualcuno cancella la riga {@code tempo.ore_massime_sessione} o ci scrive
+ * «otto», l'alternativa a un valore di ripiego sarebbe un'eccezione in faccia
+ * a un dipendente che sta solo avviando una task. Il valore
  * sbagliato finisce nel log, dove un amministratore lo trova, e il gestionale
  * continua a funzionare con il default sensato.
  *
@@ -25,8 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ServizioImpostazioni {
 
     /** Le chiavi usate dal codice, scritte in un posto solo. */
-    public static final String ORE_MASSIME_GIORNO = "dichiarazione.ore_massime_giorno";
-    public static final String GIORNI_MODIFICA = "dichiarazione.giorni_modifica";
+    public static final String ORE_MASSIME_SESSIONE = "tempo.ore_massime_sessione";
     public static final String GIORNI_LAVORATIVI = "calendario.giorni_lavorativi";
 
     private static final Logger log = LoggerFactory.getLogger(ServizioImpostazioni.class);
@@ -81,8 +80,7 @@ public class ServizioImpostazioni {
      *
      * <p>Un valore illeggibile o vuoto fa ripiegare su lunedì–venerdì: è la
      * settimana dell'azienda, e un elenco vuoto renderebbe <em>ogni</em>
-     * giorno non lavorativo, bloccando per sempre la finestra di modifica
-     * delle dichiarazioni.
+     * giorno non lavorativo, quindi ogni richiesta di ferie di zero giorni.
      */
     @Transactional(readOnly = true)
     public List<Integer> giorniLavorativi() {

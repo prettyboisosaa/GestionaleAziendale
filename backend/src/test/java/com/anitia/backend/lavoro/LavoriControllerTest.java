@@ -113,7 +113,7 @@ class LavoriControllerTest {
 
     @Test
     void elencoSenzaNessunPermessoDiVisualizzazioneRisponde403() throws Exception {
-        mockMvc.perform(get(LAVORI).session(sessioneCon("DICHIARAZIONI_COMPILA")))
+        mockMvc.perform(get(LAVORI).session(sessioneCon("ASSENZE_GESTISCI")))
                 .andExpect(status().isForbidden());
     }
 
@@ -301,14 +301,14 @@ class LavoriControllerTest {
     void cancellazioneDiUnLavoroConTaskRisponde409() throws Exception {
         willThrow(new ResponseStatusException(HttpStatus.CONFLICT,
                 "Il lavoro LAV-001 ha 3 task e non può essere cancellato: annullalo, "
-                        + "così lo storico delle assegnazioni e delle dichiarazioni resta."))
+                        + "così lo storico delle assegnazioni e del tempo lavorato resta."))
                 .given(servizio).elimina(1L);
 
         mockMvc.perform(delete(LAVORI + "/1").session(sessioneCon("LAVORI_MODIFICA_TUTTI")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value(
                         "Il lavoro LAV-001 ha 3 task e non può essere cancellato: annullalo, "
-                                + "così lo storico delle assegnazioni e delle dichiarazioni resta."));
+                                + "così lo storico delle assegnazioni e del tempo lavorato resta."));
     }
 
     @Test

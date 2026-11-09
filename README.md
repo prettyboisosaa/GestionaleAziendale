@@ -170,21 +170,21 @@ Gestionale/
 │   └── src/main/
 │       ├── java/com/anitia/backend/
 │       │   ├── autenticazione/   login, logout, "chi sono"
-│       │   ├── dichiarazione/    la giornata del dipendente: ore e descrizione
 │       │   ├── impostazione/     parametri di sistema e calendario lavorativo
 │       │   ├── lavoro/           i progetti, con il loro monte ore
 │       │   ├── ore/              budget, allocazioni, movimenti, richieste
 │       │   ├── permesso/ ruolo/  catalogo dei permessi e ruoli
 │       │   ├── sicurezza/        configurazione di Spring Security
 │       │   ├── task/             le task e le assegnazioni
+│       │   ├── tempo/            le sessioni di lavoro: avvia, pausa, completa
 │       │   └── utente/           utenti e scostamenti di permesso
 │       └── resources/db/
-│           ├── migration/        V1…V8, lo schema
+│           ├── migration/        V1…V17, lo schema
 │           └── dev/              dati di prova, solo per lo sviluppo
 ├── frontend/             React + Vite
 │   └── src/
 │       ├── api/          il wrapper di fetch e la traduzione degli errori
-│       ├── dichiarazione/ ore/ lavoro/ task/ utente/   un modulo per dominio
+│       ├── tempo/ ore/ lavoro/ task/ utente/   un modulo per dominio
 │       └── componenti/   barra superiore e rotte protette
 ├── MD files/             documenti di progetto
 ├── postman/              collezioni per provare le API a mano
@@ -228,13 +228,14 @@ mai.**
 
 ```
 ore libere del lavoro   = monte_ore − SUM(task.ore_allocate)
-ore consumate di una task = SUM(voce_dichiarazione.ore)
+ore consumate di una task = SUM(sessione_task.minuti) / 60
 task in sforamento        = ore consumate > ore allocate
 ```
 
 Si calcolano al volo. La conseguenza utile è che lo sforamento di una task
-**compare da sé** appena un dipendente registra la giornata che supera il
-budget: nessun codice deve ricordarsi di marcarla.
+**compare da sé** appena il tempo misurato supera il budget — mentre qualcuno
+ci sta lavorando, non la sera in cui si ricorda di dichiarare: nessun codice
+deve ricordarsi di marcarla.
 
 Ciò che invece si salva è la **storia**: `movimento_ore` registra ogni
 variazione con autore, data e motivo, e nessuna riga si cancella. È per questo
@@ -245,8 +246,8 @@ Il percorso, in breve:
 
 1. l'amministratore crea il lavoro e ne fissa il monte ore;
 2. il responsabile crea le task e alloca le ore dal pool;
-3. ogni giorno il dipendente registra ore e descrizione sulle task a cui è
-   assegnato, con un tetto giornaliero configurabile;
+3. il dipendente avvia la task a cui è assegnato, la mette in pausa, la
+   completa: il tempo si registra da sé, senza niente da compilare;
 4. se una task sfora, il responsabile lo vede subito;
 5. se il pool non basta, il responsabile apre una **richiesta di ore**
    all'amministratore;
@@ -300,8 +301,12 @@ sapere prima di scrivere una migrazione:
 - **un vincolo CHECK non si modifica**: va eliminato e ricreato (vedi `V5` e
   `V8`);
 - **una colonna `NOT NULL` senza default** su una tabella che ha già righe
-  viene rifiutata: si aggiunge nullable, si riempie, poi si rende obbligatoria
-  (vedi `voce_dichiarazione.ore` nella `V8`).
+  viene rifiutata: si aggiunge nullable, si riempie, poi si rende obbligatoria;
+- **DDL e dati vanno in migrazioni separate**: MySQL non ha DDL transazionale,
+  quindi Flyway non puo' annullare un `CREATE TABLE`. Se un errore sui dati
+  lasciasse la migrazione a meta', al riavvio il `CREATE` si ripeterebbe e
+  fallirebbe, e non ci sarebbe modo di ripartire senza intervenire a mano
+  (vedi `V13`/`V14` e `V15`/`V16`/`V17`).
 
 > ⚠️ La cartella `db/dev/` contiene i dati di prova e viene caricata perché
 > `application.properties` la elenca in `spring.flyway.locations`. **In
@@ -322,8 +327,10 @@ docker compose up -d db
 - **Niente si cancella.** Un lavoro si *annulla*, una task si *annulla*,
   un'assegnazione si rimuove in modo morbido valorizzando `rimossa_il`. Una
   cancellazione fisica porterebbe via le ore registrate, cioè la
-  registrazione del lavoro svolto dalle persone. L'unica eccezione è una voce
-  di dichiarazione sbagliata, che è un errore di battitura e non storia.
+  registrazione del lavoro svolto dalle persone. **Nessuna eccezione**: una
+  sessione sbagliata si annulla valorizzando `annullata_il` ed esce dai conti,
+  ma la riga resta. (L'eccezione era la voce di dichiarazione, che si
+  cancellava davvero; è uscita con la giornata da compilare.)
 - **Le ore sono `DECIMAL` / `BigDecimal`**, mai virgola mobile: sono numeri che
   vanno sommati, e `double` accumulerebbe errori.
 - **L'autenticazione sta nel cookie di sessione** `JSESSIONID`, `HttpOnly` e

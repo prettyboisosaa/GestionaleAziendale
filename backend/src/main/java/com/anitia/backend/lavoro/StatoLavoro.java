@@ -29,20 +29,9 @@ public enum StatoLavoro {
 
     /**
      * Annullato: non si farà. Prende il posto della cancellazione, che
-     * distruggerebbe lo storico delle task e delle dichiarazioni.
+     * distruggerebbe lo storico delle task e del tempo lavorato su di esse.
      */
     ANNULLATO;
-
-    /**
-     * Vero se sul lavoro si può ancora registrare: è la condizione che
-     * decide quali lavori compaiono nel selettore della dichiarazione.
-     *
-     * <p>Una bozza non c'è: non è ancora partita, e non ha nemmeno
-     * necessariamente un responsabile.
-     */
-    public boolean selezionabile() {
-        return this == ATTIVO || this == IN_CORSO;
-    }
 
     /** Vero se il lavoro è finito o non si farà: stato definitivo. */
     public boolean chiuso() {

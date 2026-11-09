@@ -5,6 +5,7 @@ import com.anitia.backend.ore.MovimentoOreRepository;
 import com.anitia.backend.ore.RigaMovimento;
 import com.anitia.backend.sicurezza.Permessi;
 import com.anitia.backend.task.TaskRepository;
+import com.anitia.backend.tempo.SessioneTaskRepository;
 import com.anitia.backend.task.TaskRepository.OrePerLavoro;
 import com.anitia.backend.utente.Utente;
 import com.anitia.backend.utente.UtenteRepository;
@@ -43,13 +44,15 @@ public class ServizioLavori {
     private final UtenteRepository utenti;
     private final TaskRepository task;
     private final MovimentoOreRepository movimenti;
+    private final SessioneTaskRepository sessioni;
 
     ServizioLavori(LavoroRepository lavori, UtenteRepository utenti, TaskRepository task,
-                   MovimentoOreRepository movimenti) {
+                   MovimentoOreRepository movimenti, SessioneTaskRepository sessioni) {
         this.lavori = lavori;
         this.utenti = utenti;
         this.task = task;
         this.movimenti = movimenti;
+        this.sessioni = sessioni;
     }
 
     /**
@@ -272,7 +275,7 @@ public class ServizioLavori {
     /**
      * Annulla un lavoro: non si farà, ma la riga resta. È l'operazione da
      * usare su qualunque lavoro che abbia già delle task, perché cancellarlo
-     * porterebbe via anche le dichiarazioni già inviate.
+     * porterebbe via anche il tempo registrato sulle sue task.
      *
      * <p>Il {@code @PreAuthorize} sul controller verifica che uno dei due
      * permessi ci sia; qui si verifica la parte che un'annotazione non può
@@ -326,6 +329,14 @@ public class ServizioLavori {
         // restituirlo lo farebbe sembrare disponibile per altro.
         task.annullaTutteDelLavoro(idLavoro);
 
+        // E con loro si chiudono le sessioni ancora aperte. Senza questa riga
+        // resterebbero aperte per sempre: annullaTutteDelLavoro e' una UPDATE
+        // in blocco e scavalca ServizioTask.cambiaStato, che e' il posto in cui
+        // normalmente una sessione viene chiusa. E una sessione aperta su una
+        // task annullata non e' solo una riga sbagliata: il vincolo di unicita'
+        // impedirebbe a quella persona di avviarne un'altra, su qualunque task.
+        sessioni.chiudiTutteDelLavoro(idLavoro);
+
         return risposta;
     }
 
@@ -350,7 +361,7 @@ public class ServizioLavori {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Il lavoro " + lavoro.getCodice() + " ha " + quante
                             + " task e non può essere cancellato: annullalo, così lo storico "
-                            + "delle assegnazioni e delle dichiarazioni resta.");
+                            + "delle assegnazioni e del tempo lavorato resta.");
         }
 
         lavori.delete(lavoro);

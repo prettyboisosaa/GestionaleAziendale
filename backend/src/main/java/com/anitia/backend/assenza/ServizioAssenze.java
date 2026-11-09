@@ -128,19 +128,6 @@ public class ServizioAssenze {
         return riga(assenza, true);
     }
 
-    // --- letture di servizio ------------------------------------------------
-
-    /**
-     * Vero se la persona ha un'assenza <strong>approvata</strong> che copre
-     * quel giorno. Serve all'avviso sulla registrazione di ore in un giorno
-     * di assenza: il documento vuole un avviso, non un divieto, quindi chi
-     * chiama decide cosa farne.
-     */
-    @Transactional(readOnly = true)
-    public boolean assenteIl(Long utenteId, LocalDate giorno) {
-        return !assenze.trovaApprovateDelPeriodo(utenteId, giorno, giorno).isEmpty();
-    }
-
     // --- regole -------------------------------------------------------------
 
     /**

@@ -124,8 +124,8 @@ public class Utente {
 
     /**
      * Chiude l'utenza: niente accesso e nessun permesso, ma la riga resta,
-     * perché il suo nome compare nello storico di lavori, task e
-     * dichiarazioni.
+     * perché il suo nome compare nello storico di lavori, task e del tempo
+     * lavorato su di esse.
      *
      * <p>Non è idempotente di proposito: il servizio rifiuta già la
      * disattivazione di chi è spento, e sovrascrivere la data qui

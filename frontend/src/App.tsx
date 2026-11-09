@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import PaginaLogin from './autenticazione/PaginaLogin'
 import { io, logout } from './autenticazione/api'
+import { mioTempo } from './tempo/api'
+import type { SituazioneTempo } from './tempo/api'
 import type { UtenteCorrente } from './autenticazione/api'
 import Intestazione from './componenti/Intestazione'
 import Protetta from './componenti/Protetta'
@@ -11,7 +13,6 @@ import PaginaPermessiUtente from './utente/PaginaPermessiUtente'
 import PaginaLavori from './lavoro/PaginaLavori'
 import PaginaNuovoLavoro from './lavoro/PaginaNuovoLavoro'
 import PaginaLavoro from './lavoro/PaginaLavoro'
-import PaginaGiornata from './dichiarazione/PaginaGiornata'
 import PaginaRichiesteOre from './ore/PaginaRichiesteOre'
 import PaginaDashboard from './dashboard/PaginaDashboard'
 import PaginaMieAssenze from './assenza/PaginaMieAssenze'
@@ -33,6 +34,17 @@ type Stato =
 
 export default function App() {
   const [stato, setStato] = useState<Stato>({ fase: 'caricamento' })
+
+  /**
+   * Il tempo di chi è collegato, tenuto qui e non in ogni pagina.
+   *
+   * La barra in testata e le pagine con i pulsanti del timer devono dire la
+   * stessa cosa: se la dashboard avvia una task, la barra lo deve mostrare
+   * subito. Tenendolo in due stati separati divergerebbero al primo clic, e
+   * non c'è un posto migliore dove metterlo — questo componente è già quello
+   * che possiede l'utente collegato.
+   */
+  const [tempo, setTempo] = useState<SituazioneTempo | null>(null)
 
   // Il cookie di sessione è HttpOnly, quindi invisibile a JavaScript: l'unico
   // modo di sapere se la sessione è ancora viva è chiederlo al server.
@@ -59,9 +71,36 @@ export default function App() {
     }
   }, [])
 
+  // Il tempo si carica appena si sa chi è collegato. Un errore qui non si
+  // mostra: la barra del timer è un comodo, e non deve poter impedire di
+  // usare il gestionale.
+  const collegato = stato.fase === 'collegato'
+  useEffect(() => {
+    if (!collegato) {
+      return
+    }
+
+    let annullato = false
+    mioTempo()
+      .then((situazione) => {
+        if (!annullato) {
+          setTempo(situazione)
+        }
+      })
+      .catch(() => undefined)
+
+    return () => {
+      annullato = true
+    }
+  }, [collegato])
+
   async function esci() {
     await logout()
     setStato({ fase: 'anonimo' })
+    // Il tempo si azzera qui e non nell'effetto che lo carica: e' l'uscita a
+    // renderlo obsoleto, e azzerarlo dentro l'effetto farebbe partire un
+    // secondo render per una cosa che sappiamo gia'.
+    setTempo(null)
   }
 
   if (stato.fase === 'caricamento') {
@@ -106,9 +145,12 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Intestazione utente={utente} onEsci={esci} />
+      <Intestazione utente={utente} tempo={tempo} onTempo={setTempo} onEsci={esci} />
       <Routes>
-        <Route path="/dashboard" element={<PaginaDashboard utente={utente} />} />
+        <Route
+          path="/dashboard"
+          element={<PaginaDashboard utente={utente} tempo={tempo} onTempo={setTempo} />}
+        />
         <Route path="/lavori" element={<PaginaLavori utente={utente} />} />
         <Route
           path="/lavori/nuovo"
@@ -118,8 +160,10 @@ export default function App() {
             </Protetta>
           }
         />
-        <Route path="/lavori/:id" element={<PaginaLavoro utente={utente} />} />
-        <Route path="/giornata" element={<PaginaGiornata />} />
+        <Route
+          path="/lavori/:id"
+          element={<PaginaLavoro utente={utente} tempo={tempo} onTempo={setTempo} />}
+        />
         <Route
           path="/richieste-ore"
           element={
