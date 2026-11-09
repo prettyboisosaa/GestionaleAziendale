@@ -10,8 +10,13 @@ type Proprieta = {
 /**
  * La barra in alto: identità, dove si può andare, chi è collegato.
  *
- * Le voci compaiono in base ai permessi. Come in `Protetta`, serve a non
- * mostrare porte chiuse, non a tenerle chiuse: quello lo fa il backend.
+ * Le voci che dipendono da un permesso compaiono in base a quello. Come in
+ * `Protetta`, serve a non mostrare porte chiuse, non a tenerle chiuse: quello
+ * lo fa il backend.
+ *
+ * Le prime quattro non hanno condizione: poggiano su permessi di base, che
+ * ogni utente attivo ha per costruzione. Una guardia che è sempre vera non
+ * protegge niente e fa credere il contrario a chi legge.
  */
 export default function Intestazione({ utente, onEsci }: Proprieta) {
   return (
@@ -27,27 +32,21 @@ export default function Intestazione({ utente, onEsci }: Proprieta) {
         {/* Prima voce perché è la pagina di atterraggio: la barra racconta
             l'ordine in cui si attraversa il gestionale, e si comincia da
             «cosa devo fare oggi». */}
-        {ha(utente, 'TASK_VISUALIZZA_ASSEGNATE') && (
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) => (isActive ? 'attivo' : undefined)}
-          >
-            Oggi
-          </NavLink>
-        )}
-        {ha(utente, 'LAVORI_VISUALIZZA_TUTTI', 'LAVORI_VISUALIZZA_PROPRI') && (
-          <NavLink to="/lavori" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
-            Lavori
-          </NavLink>
-        )}
-        {ha(utente, 'DICHIARAZIONI_COMPILA') && (
-          <NavLink
-            to="/giornata"
-            className={({ isActive }) => (isActive ? 'attivo' : undefined)}
-          >
-            Giornata
-          </NavLink>
-        )}
+        <NavLink
+          to="/dashboard"
+          className={({ isActive }) => (isActive ? 'attivo' : undefined)}
+        >
+          Oggi
+        </NavLink>
+        <NavLink to="/lavori" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
+          Lavori
+        </NavLink>
+        <NavLink
+          to="/giornata"
+          className={({ isActive }) => (isActive ? 'attivo' : undefined)}
+        >
+          Giornata
+        </NavLink>
         {ha(utente, 'ORE_RICHIESTE_GESTISCI', 'ORE_RICHIEDI') && (
           <NavLink
             to="/richieste-ore"
@@ -56,11 +55,9 @@ export default function Intestazione({ utente, onEsci }: Proprieta) {
             Richieste ore
           </NavLink>
         )}
-        {ha(utente, 'ASSENZE_RICHIEDI') && (
-          <NavLink to="/assenze" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
-            Assenze
-          </NavLink>
-        )}
+        <NavLink to="/assenze" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
+          Assenze
+        </NavLink>
         {/* Due voci distinte e non una pagina che si comporta in due modi come
             «Richieste ore»: qui le righe non sono le stesse. Il dipendente vede
             le proprie, l'amministratore quelle di tutti, e fonderle vorrebbe

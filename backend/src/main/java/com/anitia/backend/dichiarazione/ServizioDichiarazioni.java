@@ -52,7 +52,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class ServizioDichiarazioni {
 
     private static final String VISUALIZZA_TUTTE = "DICHIARAZIONI_VISUALIZZA_TUTTE";
-    private static final String VISUALIZZA_TEAM = "DICHIARAZIONI_VISUALIZZA_TEAM";
+    private static final String VISUALIZZA_LAVORO = "DICHIARAZIONI_VISUALIZZA_LAVORO";
 
     /** Usati se il parametro corrispondente manca o è scritto male. */
     private static final BigDecimal ORE_MASSIME_DI_RIPIEGO = new BigDecimal("8.00");
@@ -258,19 +258,26 @@ public class ServizioDichiarazioni {
      * Le giornate di un'altra persona.
      *
      * <p>{@code DICHIARAZIONI_VISUALIZZA_TUTTE} le vede tutte;
-     * {@code DICHIARAZIONI_VISUALIZZA_TEAM} solo quelle dei dipendenti del
-     * proprio team, e il limite va verificato qui perché dipende dai dati.
+     * {@code DICHIARAZIONI_VISUALIZZA_LAVORO} solo quelle di chi ha una task
+     * attiva in un lavoro di cui chi chiede è responsabile, e il limite va
+     * verificato qui perché dipende dai dati.
+     *
+     * <p>Prima il confine era il team. È caduto con la tabella
+     * {@code membro_team}: il lavoro è l'unità con cui si alloca davvero, e un
+     * PM ha bisogno di vedere le ore dichiarate sul proprio progetto, non di
+     * sapere chi gli fa capo in astratto.
      */
     @Transactional(readOnly = true)
     public List<RigaGiorno> diUnaPersona(UserDetails chiLoChiede, Long utenteId, LocalDate da,
                                          LocalDate a) {
         if (!Permessi.ha(chiLoChiede, VISUALIZZA_TUTTE)) {
             Utente io = utente(chiLoChiede);
-            boolean suo = Permessi.ha(chiLoChiede, VISUALIZZA_TEAM)
-                    && utenti.eNelTeam(io.getId(), utenteId);
+            boolean suo = Permessi.ha(chiLoChiede, VISUALIZZA_LAVORO)
+                    && utenti.eNeiLavoriDi(io.getId(), utenteId);
             if (!suo) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "Puoi vedere solo le dichiarazioni dei dipendenti del tuo team.");
+                        "Puoi vedere solo le dichiarazioni di chi lavora ai lavori di cui "
+                                + "sei responsabile.");
             }
         }
         return periodoDi(utenteId, da, a);

@@ -3,6 +3,12 @@ package com.anitia.backend.utente;
 /** Da dove viene — o perché manca — un permesso di una persona. */
 public enum OriginePermesso {
 
+    /**
+     * È del pavimento: ce l'hanno tutti. Non dipende dai ruoli e non si può
+     * togliere. Sta per prima perché vince su tutte le altre.
+     */
+    BASE,
+
     /** Glielo dà un suo ruolo, e nessuno è intervenuto. */
     RUOLO,
 

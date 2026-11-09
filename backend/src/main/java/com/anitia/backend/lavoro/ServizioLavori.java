@@ -26,9 +26,15 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class ServizioLavori {
 
-    /** Il permesso che un utente deve avere per poter fare il responsabile. */
+    /**
+     * Il permesso di chi è responsabile di un lavoro: gli lascia modificare e
+     * annullare i <em>propri</em> lavori, ed è anche il requisito per poter
+     * essere nominato responsabile. Due effetti dalla stessa casella, come
+     * dice la descrizione nel catalogo.
+     */
     static final String PERMESSO_RESPONSABILE = "LAVORI_MODIFICA_PROPRI";
 
+    private static final String MODIFICA_TUTTI = "LAVORI_MODIFICA_TUTTI";
     private static final String VISUALIZZA_TUTTI = "LAVORI_VISUALIZZA_TUTTI";
     private static final String VISUALIZZA_PROPRI = "LAVORI_VISUALIZZA_PROPRI";
     private static final String MONTE_GESTISCI = "ORE_MONTE_GESTISCI";
@@ -267,10 +273,25 @@ public class ServizioLavori {
      * Annulla un lavoro: non si farà, ma la riga resta. È l'operazione da
      * usare su qualunque lavoro che abbia già delle task, perché cancellarlo
      * porterebbe via anche le dichiarazioni già inviate.
+     *
+     * <p>Il {@code @PreAuthorize} sul controller verifica che uno dei due
+     * permessi ci sia; qui si verifica la parte che un'annotazione non può
+     * esprimere, cioè che chi ha solo {@code LAVORI_MODIFICA_PROPRI} stia
+     * annullando un lavoro di cui è responsabile.
+     *
+     * <p>Il controllo del permesso viene <strong>prima</strong> di quelli
+     * sullo stato: a un estraneo si risponde 403, non un 409 che gli
+     * racconterebbe in che stato si trova un lavoro che non gli compete.
      */
     @Transactional
-    public RigaLavoro annulla(Long idLavoro) {
+    public RigaLavoro annulla(UserDetails chiLoChiede, Long idLavoro) {
         Lavoro lavoro = trova(idLavoro);
+
+        if (!Permessi.ha(chiLoChiede, MODIFICA_TUTTI) && !eResponsabile(chiLoChiede, lavoro)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Per annullare il lavoro " + lavoro.getCodice() + " devi esserne il "
+                            + "responsabile, oppure avere il permesso su tutti i lavori.");
+        }
 
         if (lavoro.getStato() == StatoLavoro.ANNULLATO) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,

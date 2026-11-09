@@ -5,6 +5,7 @@ import type { OriginePermesso, PermessoUtente } from './api'
 import { testo } from '../api/http'
 
 const ETICHETTE: Record<OriginePermesso, string> = {
+  BASE: 'di base',
   RUOLO: 'dal ruolo',
   AGGIUNTO: 'aggiunto',
   TOGLIATO: 'togliato',
@@ -110,7 +111,11 @@ export default function PaginaPermessiUtente() {
                           type="checkbox"
                           aria-label={voce.descrizione}
                           checked={voce.effettivo}
-                          disabled={inCorso !== null}
+                          /* I permessi di base non si toccano: il server
+                             risponderebbe 409, e una casella che si può
+                             premere per sentirsi dire no è una casella che
+                             non andava mostrata attiva. */
+                          disabled={inCorso !== null || voce.base}
                           onChange={() =>
                             void agisci(voce.codice, () =>
                               impostaPermesso(id, voce.codice, !voce.effettivo),

@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>Nessuna rotta accetta l'id di un'altra persona per le proprie
  * operazioni: si scrive solo sulla propria giornata, e chi sia lo dice la
  * sessione. Le dichiarazioni altrui si leggono, e solo con i permessi del
- * team o di tutta l'azienda.
+ * lavori di cui e' responsabile, o di tutta l'azienda.
  */
 @RestController
 @RequestMapping("/api/dichiarazioni")
@@ -67,13 +67,14 @@ class DichiarazioniController {
     }
 
     /**
-     * Le giornate di un'altra persona. Chi ha solo il permesso sul team vede
-     * i propri dipendenti, e il limite lo verifica il servizio: dipende da
-     * {@code membro_team}, che un'annotazione non consulta.
+     * Le giornate di un'altra persona. Chi ha solo il permesso sul lavoro vede
+     * chi ha una task nei lavori di cui è responsabile, e il limite lo
+     * verifica il servizio: dipende dalle assegnazioni, che un'annotazione non
+     * consulta.
      */
     @GetMapping("/utente/{utenteId}")
     @PreAuthorize("hasAnyAuthority('DICHIARAZIONI_VISUALIZZA_TUTTE',"
-                + "'DICHIARAZIONI_VISUALIZZA_TEAM')")
+                + "'DICHIARAZIONI_VISUALIZZA_LAVORO')")
     public List<RigaGiorno> diUnaPersona(
             @PathVariable Long utenteId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate da,

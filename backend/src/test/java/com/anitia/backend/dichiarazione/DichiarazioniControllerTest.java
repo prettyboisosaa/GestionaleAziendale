@@ -41,7 +41,7 @@ import org.springframework.web.server.ResponseStatusException;
  * crea niente per una lettura.
  *
  * <p>Secondo: {@code DICHIARAZIONI_COMPILA} serve per scrivere sulla propria
- * giornata, e i permessi di lettura del team o dell'azienda non lo
+ * giornata, e i permessi di lettura sul lavoro o sull'azienda non lo
  * sostituiscono. Vedere le ore di qualcuno non è registrarle.
  *
  * <p>Terzo: il 409 del tetto giornaliero porta nel messaggio <strong>quante
@@ -168,11 +168,11 @@ class DichiarazioniControllerTest {
     }
 
     @Test
-    void dichiarazioniDiUnAltroConIlPermessoSulTeamRisponde200() throws Exception {
+    void dichiarazioniDiUnAltroConIlPermessoSulLavoroRisponde200() throws Exception {
         given(servizio.diUnaPersona(any(), any(), any(), any())).willReturn(List.of());
 
         mockMvc.perform(get("/api/dichiarazioni/utente/5?da=2026-11-01&a=2026-11-30")
-                        .session(sessioneCon("DICHIARAZIONI_VISUALIZZA_TEAM")))
+                        .session(sessioneCon("DICHIARAZIONI_VISUALIZZA_LAVORO")))
                 .andExpect(status().isOk());
     }
 

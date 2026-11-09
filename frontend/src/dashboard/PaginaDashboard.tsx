@@ -241,7 +241,7 @@ export default function PaginaDashboard({ utente }: { utente: UtenteCorrente }) 
   return (
     <main className="pagina-larga">
       <div className="testata">
-        <h1>{saluto()}</h1>
+        <h1>{saluto(utente.nome)}</h1>
         <span className="nota">{dataDiOggi()}</span>
       </div>
 
@@ -465,13 +465,14 @@ function scadenzaInParole(task: MiaTask): string {
   return giorni === 1 ? 'fra 1 giorno' : `fra ${giorni} giorni`
 }
 
-function saluto(): string {
+function saluto(nome: string): string {
   const ora = new Date().getHours()
   if (ora < 13) {
-    return 'Buongiorno'
+    return 'Buongiorno, ' + nome + ".";
   }
   return ora < 18 ? 'Buon pomeriggio' : 'Buonasera'
 }
+
 
 function dataDiOggi(): string {
   return new Date().toLocaleDateString('it-IT', {

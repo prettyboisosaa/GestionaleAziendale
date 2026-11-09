@@ -182,9 +182,18 @@ public class ServizioTask {
     }
 
     /**
-     * Chi può essere assegnato alle task di questo lavoro: tutti gli utenti
-     * attivi per chi ha {@code TASK_GESTISCI_TUTTI}, solo il proprio team per
-     * chi ha {@code TASK_GESTISCI_PROPRI}.
+     * Chi può essere assegnato alle task di questo lavoro: <strong>tutti gli
+     * utenti attivi</strong>, per chiunque possa gestire le task del lavoro.
+     *
+     * <p>Non c'è più nessun elenco di sottoposti da consultare: una task è
+     * assegnabile a chiunque, e chi è responsabile di un lavoro alloca le
+     * persone che gli servono. Il confine è a monte, in
+     * {@link #vietaSeNonPuoGestire}: si assegna solo nei lavori di cui si è
+     * responsabili, o in tutti con {@code TASK_GESTISCI_TUTTI}.
+     *
+     * <p>Solo gli attivi: assegnare una task a un'utenza chiusa vorrebbe dire
+     * affidarla a qualcuno che non può entrare a farla. Le assegnazioni già
+     * esistenti restano dove sono.
      *
      * <p>Serve a riempire il menu dell'assegnazione. Senza, l'interfaccia
      * dovrebbe chiedere l'elenco completo degli utenti, che richiede
@@ -195,19 +204,7 @@ public class ServizioTask {
         Lavoro lavoro = lavori.lavoroVisibile(chiLoChiede, idLavoro);
         vietaSeNonPuoGestire(chiLoChiede, lavoro);
 
-        List<Utente> candidati;
-        if (Permessi.ha(chiLoChiede, GESTISCI_TUTTI)) {
-            // Solo gli utenti attivi: assegnare una task a un'utenza chiusa
-            // vorrebbe dire affidarla a qualcuno che non puo' entrare a
-            // farla. Le assegnazioni gia' esistenti restano dove sono, e
-            // trovaTeamDi filtra attivo per conto suo.
-            candidati = utenti.findAll().stream().filter(Utente::isAttivo).toList();
-        } else {
-            Long mio = idDi(chiLoChiede);
-            candidati = mio == null ? List.of() : utenti.trovaTeamDi(mio);
-        }
-
-        return candidati.stream()
+        return utenti.findByAttivoTrueOrderByCognomeAscNomeAsc().stream()
                 .map(utente -> new Assegnatario(utente.getId(), utente.getNome(),
                         utente.getCognome()))
                 .toList();
@@ -250,18 +247,13 @@ public class ServizioTask {
                     "L'utenza di " + destinatario.getCognome() + " non è attiva.");
         }
 
-        // TASK_GESTISCI_PROPRI dice «assegnarle al proprio team»: chi non ha
-        // TUTTI può assegnare solo a chi gli fa capo in membro_team. Nota che
-        // i team non hanno ancora un'interfaccia di gestione, quindi sono
-        // quelli dei dati iniziali.
-        if (!Permessi.ha(chiLoChiede, GESTISCI_TUTTI)) {
-            Long mio = idDi(chiLoChiede);
-            if (mio == null || !utenti.eNelTeam(mio, utenteId)) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        destinatario.getCognome() + " " + destinatario.getNome()
-                                + " non fa parte del tuo team.");
-            }
-        }
+        // Nessun controllo su chi sia il destinatario: una task è assegnabile
+        // a chiunque sia attivo. Il confine l'ha già posto
+        // vietaSeNonPuoGestire qui sopra, ed è quello che conta — si assegna
+        // solo nei lavori di cui si è responsabili. Prima c'era anche un
+        // filtro su membro_team, caduto con i team: chi è responsabile di un
+        // lavoro alloca le persone che gli servono, senza passare da un
+        // elenco di sottoposti che nessuno poteva compilare.
 
         try {
             assegnazioni.saveAndFlush(
@@ -369,6 +361,12 @@ public class ServizioTask {
      * quel limite va verificato qui. Senza, un dipendente con quel permesso
      * potrebbe chiudere le task di chiunque — e con esse liberare le ore di
      * lavori che non lo riguardano.
+     *
+     * <p>{@code TASK_AGGIORNA_STATO} è nel pavimento, quindi oggi quel ramo lo
+     * imbocca chiunque e la condizione che decide è solo l'assegnazione. Il
+     * controllo sul permesso resta comunque scritto: toglierlo vorrebbe dire
+     * incastrare il pavimento nel codice, e il pavimento è una riga del
+     * catalogo che una migrazione può cambiare.
      */
     private void vietaSeNonPuoCambiareStato(UserDetails chiLoChiede, Lavoro lavoro, Long idTask) {
         if (Permessi.ha(chiLoChiede, GESTISCI_TUTTI)) {

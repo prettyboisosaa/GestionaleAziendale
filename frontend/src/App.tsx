@@ -3,7 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import PaginaLogin from './autenticazione/PaginaLogin'
 import { io, logout } from './autenticazione/api'
 import type { UtenteCorrente } from './autenticazione/api'
-import { ha } from './autenticazione/permessi'
 import Intestazione from './componenti/Intestazione'
 import Protetta from './componenti/Protetta'
 import PaginaUtenti from './utente/PaginaUtenti'
@@ -19,7 +18,6 @@ import PaginaMieAssenze from './assenza/PaginaMieAssenze'
 import PaginaAssenze from './assenza/PaginaAssenze'
 import './App.css'
 
-const VISUALIZZA_LAVORI = ['LAVORI_VISUALIZZA_TUTTI', 'LAVORI_VISUALIZZA_PROPRI']
 /**
  * Chi apre le richieste e chi le decide arrivano alla stessa pagina, che si
  * comporta in due modi: il primo vede le proprie con l'esito, il secondo la
@@ -99,39 +97,19 @@ export default function App() {
   }
 
   const utente = stato.utente
-  // Dove si atterra: i lavori sono la pagina di lavoro quotidiana, ma chi non
-  // li vede non deve finire su una schermata di «non autorizzato».
-  // Dove si atterra. La dashboard viene prima di tutto, perché risponde alla
-  // domanda con cui si apre la giornata — cosa devo fare oggi — mentre
-  // l'elenco dei lavori risponde a una domanda che ci si pone dopo. Chi non ha
-  // task assegnate non ha una dashboard da guardare, e per quelli l'ordine di
-  // prima resta intatto.
-  const iniziale = ha(utente, 'TASK_VISUALIZZA_ASSEGNATE')
-    ? '/dashboard'
-    : ha(utente, ...VISUALIZZA_LAVORI)
-      ? '/lavori'
-      : '/utenti'
+  // Dove si atterra: sempre la dashboard. Risponde alla domanda con cui si
+  // apre la giornata — cosa devo fare oggi — e da quando TASK_VISUALIZZA_ASSEGNATE
+  // è un permesso di base ce l'hanno tutti, quindi non c'è più nessuno da
+  // dirottare altrove. Prima era una cascata a tre rami, e i due rami di
+  // riserva sono diventati irraggiungibili.
+  const iniziale = '/dashboard'
 
   return (
     <BrowserRouter>
       <Intestazione utente={utente} onEsci={esci} />
       <Routes>
-        <Route
-          path="/dashboard"
-          element={
-            <Protetta utente={utente} permesso="TASK_VISUALIZZA_ASSEGNATE">
-              <PaginaDashboard utente={utente} />
-            </Protetta>
-          }
-        />
-        <Route
-          path="/lavori"
-          element={
-            <Protetta utente={utente} permesso={VISUALIZZA_LAVORI}>
-              <PaginaLavori utente={utente} />
-            </Protetta>
-          }
-        />
+        <Route path="/dashboard" element={<PaginaDashboard utente={utente} />} />
+        <Route path="/lavori" element={<PaginaLavori utente={utente} />} />
         <Route
           path="/lavori/nuovo"
           element={
@@ -140,22 +118,8 @@ export default function App() {
             </Protetta>
           }
         />
-        <Route
-          path="/lavori/:id"
-          element={
-            <Protetta utente={utente} permesso={VISUALIZZA_LAVORI}>
-              <PaginaLavoro utente={utente} />
-            </Protetta>
-          }
-        />
-        <Route
-          path="/giornata"
-          element={
-            <Protetta utente={utente} permesso="DICHIARAZIONI_COMPILA">
-              <PaginaGiornata />
-            </Protetta>
-          }
-        />
+        <Route path="/lavori/:id" element={<PaginaLavoro utente={utente} />} />
+        <Route path="/giornata" element={<PaginaGiornata />} />
         <Route
           path="/richieste-ore"
           element={
@@ -164,14 +128,7 @@ export default function App() {
             </Protetta>
           }
         />
-        <Route
-          path="/assenze"
-          element={
-            <Protetta utente={utente} permesso="ASSENZE_RICHIEDI">
-              <PaginaMieAssenze />
-            </Protetta>
-          }
-        />
+        <Route path="/assenze" element={<PaginaMieAssenze />} />
         <Route
           path="/richieste-assenza"
           element={
@@ -191,7 +148,7 @@ export default function App() {
         <Route
           path="/utenti/nuovo"
           element={
-            <Protetta utente={utente} permesso="UTENTI_CREA">
+            <Protetta utente={utente} modo="tutti" permesso={['UTENTI_CREA', 'RUOLI_ASSEGNA']}>
               <PaginaNuovoUtente />
             </Protetta>
           }
@@ -199,7 +156,7 @@ export default function App() {
         <Route
           path="/utenti/:id/permessi"
           element={
-            <Protetta utente={utente} permesso="RUOLI_ASSEGNA">
+            <Protetta utente={utente} modo="tutti" permesso={['UTENTI_VISUALIZZA', 'RUOLI_ASSEGNA']}>
               <PaginaPermessiUtente />
             </Protetta>
           }

@@ -33,6 +33,19 @@ public class Permesso {
     @Column(nullable = false)
     private int ordine;
 
+    /**
+     * Vero per i permessi del pavimento: ogni utente attivo li ha, qualunque
+     * ruolo abbia, e non si possono togliere.
+     *
+     * <p>A farlo valere è la vista {@code permesso_effettivo}, non questo
+     * campo: il terzo ramo della vista li concede a chiunque sia attivo, senza
+     * passare dai ruoli e senza guardare gli scostamenti. Qui il flag serve a
+     * due cose sole — spiegarlo all'interfaccia, e far rifiutare la scrittura
+     * di uno scostamento che non avrebbe comunque effetto.
+     */
+    @Column(nullable = false)
+    private boolean base;
+
     /** Richiesto da JPA. */
     protected Permesso() {
     }
@@ -51,5 +64,9 @@ public class Permesso {
 
     public int getOrdine() {
         return ordine;
+    }
+
+    public boolean isBase() {
+        return base;
     }
 }

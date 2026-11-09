@@ -1,0 +1,32 @@
+-- =====================================================================
+-- V13 - La colonna che segna i permessi del pavimento
+--
+-- Fino a qui ogni permesso arrivava da un ruolo, e i ruoli erano pensati come
+-- profili completi. In un'azienda piccola quel presupposto non tiene: i ruoli
+-- sono nominativi, un dipendente puo' fare da PM a progetto in corso, e quello
+-- che cambia davvero sono i permessi della singola persona.
+--
+-- Il sintomo era nei dati di sviluppo: il ruolo Project Manager non aveva
+-- TASK_VISUALIZZA_ASSEGNATE ne' DICHIARAZIONI_COMPILA, quindi i due PM non
+-- vedevano la dashboard e non potevano compilare la propria giornata.
+--
+-- Da qui in avanti ci sono due livelli distinti:
+--   il PAVIMENTO  i permessi che ogni utente attivo ha per costruzione, che
+--                 non passano dai ruoli e che nessuno puo' togliere;
+--   il DELTA      quello che un ruolo o uno scostamento aggiungono sopra.
+--
+-- Quali permessi siano di base e' una proprieta' del permesso, quindi la
+-- colonna sta sul catalogo: e il catalogo cambia solo per migrazione, che e'
+-- esattamente la garanzia che serve qui.
+--
+-- QUESTA MIGRAZIONE FA SOLO LA DDL, e il resto sta nella V14. Non e' pedanteria:
+-- MySQL non ha DDL transazionale, quindi Flyway non puo' annullare un ALTER
+-- TABLE. Se DDL e dati stessero insieme, un errore a meta' lascerebbe la
+-- colonna aggiunta e la migrazione segnata come fallita, e al riavvio
+-- successivo l'ALTER si ripeterebbe andando in «Duplicate column name»:
+-- MySQL 8 non ha ADD COLUMN IF NOT EXISTS, quindi non ci sarebbe modo di
+-- ripartire senza intervenire a mano sul database. Da sola, questa migrazione
+-- riesce o non fa niente; la V14 contiene solo istruzioni ripetibili.
+-- =====================================================================
+
+ALTER TABLE permesso ADD COLUMN base BOOLEAN NOT NULL DEFAULT FALSE;

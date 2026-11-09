@@ -2,7 +2,9 @@ package com.anitia.backend.task;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -256,11 +258,31 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.detail").value("Verdi Giulia è già assegnata a questa task."));
     }
 
-    /** TASK_GESTISCI_PROPRI assegna solo al proprio team. */
+    /**
+     * Una task è assegnabile a chiunque sia attivo: non c'è nessun elenco di
+     * sottoposti da consultare, e con {@code TASK_GESTISCI_PROPRI} si assegna
+     * a una persona qualunque, purché nel proprio lavoro.
+     */
     @Test
-    void assegnareFuoriDalProprioTeamRisponde403() throws Exception {
+    void assegnareAUnaPersonaQualunqueRiesce() throws Exception {
+        mockMvc.perform(post(TASK + "/1/assegnazioni")
+                        .session(sessioneCon("TASK_GESTISCI_PROPRI"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"utenteId\":6}"))
+                .andExpect(status().isNoContent());
+
+        then(servizio).should().assegna(any(), eq(1L), eq(1L), eq(6L));
+    }
+
+    /**
+     * Il confine che resta: chi ha solo {@code TASK_GESTISCI_PROPRI} assegna
+     * nei lavori di cui è responsabile, e il servizio lo verifica.
+     */
+    @Test
+    void assegnareInUnLavoroNonProprioRisponde403() throws Exception {
         willThrow(new ResponseStatusException(HttpStatus.FORBIDDEN,
-                "Colombo Sara non fa parte del tuo team."))
+                "Per gestire le task del lavoro LAV-001 devi esserne il responsabile, "
+                        + "oppure avere il permesso su tutti i lavori."))
                 .given(servizio).assegna(any(), anyLong(), anyLong(), anyLong());
 
         mockMvc.perform(post(TASK + "/1/assegnazioni")

@@ -88,6 +88,7 @@ class PermessiUtenteControllerTest {
 
     private static PermessoUtente voce(OriginePermesso origine, boolean effettivo) {
         return new PermessoUtente("LAVORI_VISUALIZZA_TUTTI", "LAVORI", "Vedere tutti i lavori",
+                false,
                 origine == OriginePermesso.RUOLO || origine == OriginePermesso.TOGLIATO,
                 origine, effettivo);
     }
@@ -112,7 +113,7 @@ class PermessiUtenteControllerTest {
         given(servizio.permessiDi(4L)).willReturn(List.of(
                 voce(OriginePermesso.RUOLO, true),
                 new PermessoUtente("UTENTI_CREA", "UTENTI", "Creare nuovi utenti",
-                        false, OriginePermesso.NESSUNO, false)));
+                        false, false, OriginePermesso.NESSUNO, false)));
 
         mockMvc.perform(get(PERMESSI)
                         .session(sessioneCon("UTENTI_VISUALIZZA", "RUOLI_ASSEGNA")))
@@ -189,6 +190,25 @@ class PermessiUtenteControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"effettivo\":true}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * I permessi del pavimento non si toccano: ce li hanno tutti, e la vista
+     * li concede comunque. Scrivere uno scostamento che non avrebbe effetto
+     * non è un errore del chiamante ma una richiesta che contraddice lo stato
+     * del sistema, quindi 409 e non 403.
+     */
+    @Test
+    void toccareUnPermessoDiBaseRisponde409() throws Exception {
+        given(servizio.imposta(anyLong(), eq("ASSENZE_RICHIEDI"), anyBoolean(), anyString()))
+                .willThrow(new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Il permesso ASSENZE_RICHIEDI ce l'hanno tutti e non si tocca: "
+                                + "è il minimo per poter usare il gestionale."));
+
+        mockMvc.perform(put(PERMESSI + "/ASSENZE_RICHIEDI").session(sessioneCon("RUOLI_ASSEGNA"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"effettivo\":false}"))
+                .andExpect(status().isConflict());
     }
 
     /**
