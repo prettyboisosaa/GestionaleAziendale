@@ -26,12 +26,18 @@ import org.springframework.security.core.userdetails.User;
 public final class UtenteCollegato extends User {
 
     private final boolean attivo;
+    public final Long id;
+    public final String nome;
+    public final String cognome;
 
-    UtenteCollegato(String email, String passwordHash, boolean attivo,
-                    Collection<? extends GrantedAuthority> permessi) {
+    UtenteCollegato(Long id, String email, String passwordHash, boolean attivo,
+                    Collection<? extends GrantedAuthority> permessi, String nome, String cognome) {
         // enabled = true sempre, per la ragione spiegata sopra.
         super(email, passwordHash, true, true, true, true, permessi);
         this.attivo = attivo;
+        this.id = id;
+        this.nome = nome;
+        this.cognome = cognome;
     }
 
     /** Falso se l'utenza è chiusa: niente accesso e nessun permesso. */

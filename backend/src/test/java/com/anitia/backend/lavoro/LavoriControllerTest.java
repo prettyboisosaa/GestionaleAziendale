@@ -2,7 +2,9 @@ package com.anitia.backend.lavoro;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -96,7 +98,7 @@ class LavoriControllerTest {
     private static RigaLavoro riga() {
         return new RigaLavoro(4L, "LAV-004", "Portale fornitori", null,
                 LocalDate.of(2027, 1, 1), LocalDate.of(2027, 6, 30),
-                StatoLavoro.ATTIVO, null, "Bianchi Laura",
+                StatoLavoro.ATTIVO, null, 2L, "Bianchi Laura",
                 new BigDecimal("120.00"), BigDecimal.ZERO, BigDecimal.ZERO,
                 new BigDecimal("120.00"));
     }
@@ -237,16 +239,33 @@ class LavoriControllerTest {
     // --- annullamento e cancellazione ---------------------------------------
 
     @Test
-    void annullamentoSenzaIlPermessoRisponde403() throws Exception {
+    void annullamentoSenzaNessunoDeiDuePermessiRisponde403() throws Exception {
+        mockMvc.perform(post(LAVORI + "/1/annulla").session(sessioneCon("LAVORI_CREA")))
+                .andExpect(status().isForbidden());
+    }
+
+    /**
+     * Con il solo {@code LAVORI_MODIFICA_PROPRI} la richiesta passa
+     * l'annotazione e arriva al servizio: è lui a sapere se chi chiede è il
+     * responsabile di quel lavoro, e il 403 di chi non lo è nasce là.
+     */
+    @Test
+    void annullamentoConIlSoloPermessoSuiPropriArrivaAlServizio() throws Exception {
+        given(servizio.annulla(any(), eq(1L))).willThrow(new ResponseStatusException(
+                HttpStatus.FORBIDDEN, "Per annullare il lavoro LAV-001 devi esserne il "
+                        + "responsabile, oppure avere il permesso su tutti i lavori."));
+
         mockMvc.perform(post(LAVORI + "/1/annulla").session(sessioneCon("LAVORI_MODIFICA_PROPRI")))
                 .andExpect(status().isForbidden());
+
+        then(servizio).should().annulla(any(), eq(1L));
     }
 
     @Test
     void annullamentoConIlPermessoRestituisceIlLavoroAnnullato() throws Exception {
-        given(servizio.annulla(1L)).willReturn(new RigaLavoro(1L, "LAV-001", "Portale clienti",
+        given(servizio.annulla(any(), eq(1L))).willReturn(new RigaLavoro(1L, "LAV-001", "Portale clienti",
                 null, LocalDate.of(2026, 9, 1), LocalDate.of(2027, 3, 31),
-                StatoLavoro.ANNULLATO, LocalDateTime.of(2026, 11, 6, 12, 0), "Bianchi Laura",
+                StatoLavoro.ANNULLATO, LocalDateTime.of(2026, 11, 6, 12, 0), 2L, "Bianchi Laura",
                 new BigDecimal("400.00"), new BigDecimal("136.00"), new BigDecimal("38.00"),
                 new BigDecimal("264.00")));
 
@@ -257,8 +276,9 @@ class LavoriControllerTest {
 
     @Test
     void annullamentoDiUnLavoroChiusoRisponde409() throws Exception {
-        given(servizio.annulla(1L)).willThrow(new ResponseStatusException(HttpStatus.CONFLICT,
-                "Il lavoro LAV-001 è concluso: un lavoro chiuso non si annulla."));
+        given(servizio.annulla(any(), eq(1L))).willThrow(
+                new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Il lavoro LAV-001 è concluso: un lavoro chiuso non si annulla."));
 
         mockMvc.perform(post(LAVORI + "/1/annulla").session(sessioneCon("LAVORI_MODIFICA_TUTTI")))
                 .andExpect(status().isConflict());
@@ -342,7 +362,7 @@ class LavoriControllerTest {
         given(servizio.cambiaMonteOre(any(), any(), any(), any())).willReturn(
                 new RigaLavoro(1L, "LAV-001", "Portale clienti", null,
                         LocalDate.of(2026, 9, 1), LocalDate.of(2027, 3, 31),
-                        StatoLavoro.ATTIVO, null, "Bianchi Laura",
+                        StatoLavoro.ATTIVO, null, 2L, "Bianchi Laura",
                         new BigDecimal("500.00"), new BigDecimal("136.00"),
                         new BigDecimal("38.00"), new BigDecimal("364.00")));
 

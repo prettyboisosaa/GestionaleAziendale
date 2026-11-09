@@ -15,6 +15,14 @@ public record RigaLavoro(Long id,
                          StatoLavoro stato,
                          /** Quando e' stato annullato; null se non lo e'. */
                          LocalDateTime annullatoIl,
+                         /**
+                          * L'id del responsabile, oppure null se è una bozza che non ce l'ha.
+                          * Serve all'interfaccia per sapere se chi guarda è il responsabile
+                          * di questo lavoro, e quindi se mostrargli le azioni che
+                          * LAVORI_MODIFICA_PROPRI gli concede. Il nome formattato non
+                          * basterebbe: due omonimi lo renderebbero ambiguo.
+                          */
+                         Long responsabileId,
                          /** «Cognome Nome», oppure null se è una bozza senza responsabile. */
                          String responsabile,
                          /** Null se il monte ore non è ancora stato fissato. */
@@ -52,6 +60,7 @@ public record RigaLavoro(Long id,
                 lavoro.getDataFinePrevista(),
                 lavoro.getStato(),
                 lavoro.getAnnullatoIl(),
+                responsabile == null ? null : responsabile.getId(),
                 responsabile == null
                         ? null
                         : responsabile.getCognome() + " " + responsabile.getNome(),

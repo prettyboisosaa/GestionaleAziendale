@@ -30,7 +30,24 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
    */
   const [mostraAnnullati, setMostraAnnullati] = useState(false)
 
-  const puoModificare = ha(utente, 'LAVORI_MODIFICA_TUTTI')
+  // Due permessi, due portate. `LAVORI_MODIFICA_TUTTI` annulla e cancella
+  // qualunque lavoro; `LAVORI_MODIFICA_PROPRI` annulla solo quelli di cui si è
+  // responsabili, e non cancella niente — la cancellazione è definitiva e resta
+  // all'amministratore.
+  const puoModificareTutti = ha(utente, 'LAVORI_MODIFICA_TUTTI')
+  const puoModificarePropri = ha(utente, 'LAVORI_MODIFICA_PROPRI')
+
+  /** La colonna si mostra se almeno un'azione è possibile su qualche riga. */
+  const mostraAzioni = puoModificareTutti || puoModificarePropri
+
+  /**
+   * Chi ha solo il permesso sui propri annulla il lavoro di cui è
+   * responsabile, e il confronto è sull'id: il nome formattato sarebbe
+   * ambiguo fra due omonimi. È la stessa condizione che il servizio verifica
+   * con `eResponsabile`, quindi il pulsante compare dove non prenderà 403.
+   */
+  const puoAnnullare = (riga: RigaLavoro) =>
+    puoModificareTutti || (puoModificarePropri && riga.responsabileId === utente.id)
 
   useEffect(() => {
     let annullato = false
@@ -131,7 +148,7 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
                 <th>Stato</th>
                 <th>Responsabile</th>
                 <th>Periodo</th>
-                {puoModificare && <th>Azioni</th>}
+                {mostraAzioni && <th>Azioni</th>}
               </tr>
             </thead>
             <tbody>
@@ -152,7 +169,7 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
                     {data(riga.dataInizio)} – {data(riga.dataFinePrevista)}
                   </td>
 
-                  {puoModificare && (
+                  {mostraAzioni && (
                     <td className="azioni">
                       {azione !== null && azione.id === riga.id ? (
                         <span className="conferma">
@@ -176,8 +193,10 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
                         <>
                           {/* Un lavoro completato non si annulla, e uno già
                               annullato nemmeno: il server rifiuta entrambi, e
-                              offrire il pulsante sarebbe una promessa falsa. */}
-                          {!chiusoLavoro(riga.stato) && (
+                              offrire il pulsante sarebbe una promessa falsa.
+                              Lo stesso vale per il lavoro di un altro, se si
+                              ha solo il permesso sui propri. */}
+                          {!chiusoLavoro(riga.stato) && puoAnnullare(riga) && (
                             <button
                               type="button"
                               onClick={() => setAzione({ id: riga.id, tipo: 'annulla' })}
@@ -185,10 +204,13 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
                               Annulla
                             </button>
                           )}
-                          {/* La cancellazione si offre solo sulle bozze. Se poi
-                              quella bozza ha delle task, il server risponde 409
-                              e il messaggio spiega di annullarla. */}
-                          {riga.stato === 'BOZZA' && (
+                          {/* La cancellazione si offre solo sulle bozze, e solo
+                              a chi ha il permesso su tutti i lavori: cancellare
+                              è definitivo, e `LAVORI_MODIFICA_PROPRI` non lo
+                              concede. Se poi quella bozza ha delle task, il
+                              server risponde 409 e il messaggio spiega di
+                              annullarla. */}
+                          {riga.stato === 'BOZZA' && puoModificareTutti && (
                             <button
                               type="button"
                               onClick={() => setAzione({ id: riga.id, tipo: 'elimina' })}

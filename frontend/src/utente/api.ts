@@ -23,12 +23,14 @@ export type NuovoUtente = {
 }
 
 /** Da dove viene — o perché manca — un permesso di una persona. */
-export type OriginePermesso = 'RUOLO' | 'AGGIUNTO' | 'TOGLIATO' | 'NESSUNO'
+export type OriginePermesso = 'BASE' | 'RUOLO' | 'AGGIUNTO' | 'TOGLIATO' | 'NESSUNO'
 
 export type PermessoUtente = {
   codice: string
   categoria: string
   descrizione: string
+  /** Vero se è un permesso del pavimento: ce l'hanno tutti e non si tocca. */
+  base: boolean
   /** Vero se un ruolo della persona concede questo permesso. */
   dalRuolo: boolean
   origine: OriginePermesso

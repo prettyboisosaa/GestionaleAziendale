@@ -1,5 +1,7 @@
 # Gestionale Anitia
 
+[![ci](https://github.com/prettyboisosaa/GestionaleAziendale/actions/workflows/ci.yml/badge.svg)](https://github.com/prettyboisosaa/GestionaleAziendale/actions/workflows/ci.yml)
+
 Gestionale interno per l'assegnazione di lavori e task ai dipendenti, con
 gestione del **monte ore**: ogni progetto ha un budget di ore che si distribuisce
 fra le sue task, i dipendenti registrano le ore lavorate giorno per giorno, e

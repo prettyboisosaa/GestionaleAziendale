@@ -32,10 +32,10 @@ class ServizioDettagliUtente implements UserDetailsService {
         // commento di quella classe — enabled viene controllato prima della
         // password, e farebbe capire dalla risposta quali indirizzi sono
         // registrati.
-        return new UtenteCollegato(utente.getEmail(), utente.getPasswordHash(),
+        return new UtenteCollegato(utente.getId(), utente.getEmail(), utente.getPasswordHash(),
                 utente.isAttivo(),
                 utenti.trovaCodiciPermesso(utente.getId()).stream()
                         .map(SimpleGrantedAuthority::new)
-                        .toList());
+                        .toList(), utente.getNome(), utente.getCognome());
     }
 }

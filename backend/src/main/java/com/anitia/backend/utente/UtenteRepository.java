@@ -22,14 +22,6 @@ public interface UtenteRepository extends JpaRepository<Utente, Long> {
 
     List<Utente> findByAttivoTrueOrderByCognomeAscNomeAsc();
 
-    /** I dipendenti attivi che fanno capo a questo responsabile. */
-    @Query(value = "SELECT u.* FROM utente u "
-                 + "JOIN membro_team mt ON mt.dipendente_id = u.id "
-                 + "WHERE mt.responsabile_id = :responsabileId AND u.attivo = TRUE "
-                 + "ORDER BY u.cognome, u.nome",
-            nativeQuery = true)
-    List<Utente> trovaTeamDi(@Param("responsabileId") Long responsabileId);
-
     /**
      * I codici dei permessi effettivi dell'utente, letti dalla vista
      * {@code permesso_effettivo}: l'unione dei permessi di tutti i suoi ruoli.
@@ -55,14 +47,22 @@ public interface UtenteRepository extends JpaRepository<Utente, Long> {
     List<String> trovaCodiciPermessoDaiRuoli(@Param("utenteId") Long utenteId);
 
     /**
-     * Vero se il dipendente fa parte del team di quel responsabile.
+     * Vero se la persona ha una task <strong>attiva</strong> in almeno un
+     * lavoro di cui l'altro è responsabile.
      *
-     * <p>Serve a far rispettare {@code TASK_GESTISCI_PROPRI}, che dice
-     * «assegnarle al proprio team». Nota che {@code membro_team} non ha ancora
-     * nessuna interfaccia di gestione: i team sono quelli dei dati iniziali.
+     * <p>È il rimpiazzo di {@code eNelTeam}, caduto con la tabella
+     * {@code membro_team}: una task è assegnabile a chiunque, quindi non c'è
+     * nessun elenco di sottoposti da consultare. Quello che resta è il lavoro,
+     * che è l'unità con cui si alloca davvero, e serve a far rispettare
+     * {@code DICHIARAZIONI_VISUALIZZA_LAVORO}.
+     *
+     * <p>Il filtro è {@code rimossa_il IS NULL} e non la colonna generata
+     * {@code attiva}, per la stessa ragione annotata in
+     * {@code LavoroRepository}: quella serve al vincolo di unicità e vale NULL
+     * quando l'assegnazione è stata rimossa.
      */
-    default boolean eNelTeam(Long responsabileId, Long dipendenteId) {
-        return contaNelTeam(responsabileId, dipendenteId) > 0;
+    default boolean eNeiLavoriDi(Long responsabileId, Long dipendenteId) {
+        return contaNeiLavoriDi(responsabileId, dipendenteId) > 0;
     }
 
     /**
@@ -72,11 +72,14 @@ public interface UtenteRepository extends JpaRepository<Utente, Long> {
      * {@code ClassCastException} a tempo di esecuzione, che nessun test con il
      * servizio simulato può intercettare.
      */
-    @Query(value = "SELECT COUNT(*) FROM membro_team "
-                 + "WHERE responsabile_id = :responsabileId AND dipendente_id = :dipendenteId",
+    @Query(value = "SELECT COUNT(*) FROM lavoro l "
+                 + "JOIN task t ON t.lavoro_id = l.id "
+                 + "JOIN assegnazione_task a ON a.task_id = t.id "
+                 + "WHERE l.responsabile_id = :responsabileId "
+                 + "AND a.utente_id = :dipendenteId AND a.rimossa_il IS NULL",
             nativeQuery = true)
-    long contaNelTeam(@Param("responsabileId") Long responsabileId,
-                      @Param("dipendenteId") Long dipendenteId);
+    long contaNeiLavoriDi(@Param("responsabileId") Long responsabileId,
+                          @Param("dipendenteId") Long dipendenteId);
 
     /** Quanti permessi effettivi ha ciascun utente, in una query sola. */
     @Query(value = "SELECT utente_id AS utenteId, COUNT(*) AS quanti "

@@ -3,8 +3,11 @@ import { chiama, chiedi, messaggioErrore, postJson } from '../api/http'
 const BASE = '/api/autenticazione'
 
 export type UtenteCorrente = {
+  id: number
   email: string
   permessi: string[]
+  nome: string
+  cognome: string
 }
 
 export function login(email: string, password: string): Promise<UtenteCorrente> {

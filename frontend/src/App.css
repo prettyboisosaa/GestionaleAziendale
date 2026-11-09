@@ -533,6 +533,12 @@
   white-space: nowrap;
 }
 
+/* Il pavimento non è una concessione di nessuno: resta tenue come il ruolo,
+   perché non è una cosa su cui qualcuno è intervenuto. */
+.origine-base {
+  color: var(--inchiostro-tenue);
+}
+
 .origine-ruolo {
   color: var(--inchiostro-tenue);
 }

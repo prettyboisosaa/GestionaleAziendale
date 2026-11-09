@@ -114,11 +114,17 @@ class LavoriController {
     /**
      * Annulla il lavoro: la riga resta, con lo stato cambiato. È la via per
      * qualunque lavoro che abbia delle task.
+     *
+     * <p>Due permessi: su qualunque lavoro con {@code LAVORI_MODIFICA_TUTTI},
+     * sui propri con {@code LAVORI_MODIFICA_PROPRI}. Quale sia «il proprio» lo
+     * decide il servizio, perché dipende da chi è il responsabile di quel
+     * lavoro e un'annotazione non lo sa.
      */
     @PostMapping("/{id}/annulla")
-    @PreAuthorize("hasAuthority('LAVORI_MODIFICA_TUTTI')")
-    public RigaLavoro annulla(@PathVariable Long id) {
-        return servizio.annulla(id);
+    @PreAuthorize("hasAnyAuthority('LAVORI_MODIFICA_TUTTI','LAVORI_MODIFICA_PROPRI')")
+    public RigaLavoro annulla(@PathVariable Long id,
+                              @AuthenticationPrincipal UserDetails utente) {
+        return servizio.annulla(utente, id);
     }
 
     /**

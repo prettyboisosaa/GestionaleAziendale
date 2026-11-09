@@ -4,7 +4,7 @@
 -- Migrazione ripetibile: rieseguita quando il file cambia; ogni INSERT
 -- ignora le righe già presenti.
 --
--- Qui ci sono soltanto le PERSONE: utenti, ruoli e team. Niente lavori,
+-- Qui ci sono soltanto le PERSONE: utenti e ruoli. Niente lavori,
 -- task, dichiarazioni o movimenti di ore.
 --
 -- È una scelta, non una dimenticanza. I lavori di prova sono stati
@@ -35,10 +35,3 @@ ON DUPLICATE KEY UPDATE id = id;
 INSERT INTO utente_ruolo (utente_id, ruolo_id) VALUES
     (1, 1), (2, 2), (3, 2), (4, 3), (5, 3), (6, 3), (7, 3)
 ON DUPLICATE KEY UPDATE utente_id = utente_id;
-
--- Team: Laura gestisce Giulia e Luca; Marco gestisce Luca e Sara.
--- Serve al permesso TASK_GESTISCI_PROPRI, che lascia assegnare le task solo
--- ai dipendenti del proprio team.
-INSERT INTO membro_team (responsabile_id, dipendente_id, aggiunto_da_id) VALUES
-    (2, 4, 1), (2, 5, 1), (3, 5, 1), (3, 6, 1)
-ON DUPLICATE KEY UPDATE responsabile_id = responsabile_id;

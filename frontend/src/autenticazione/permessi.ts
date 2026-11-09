@@ -10,3 +10,16 @@ import type { UtenteCorrente } from './api'
 export function ha(utente: UtenteCorrente, ...codici: string[]): boolean {
   return codici.some((codice) => utente.permessi.includes(codice))
 }
+
+/**
+ * Vero se l'utente ha **tutti** i permessi indicati.
+ *
+ * Serve dove il `@PreAuthorize` del backend usa `and` e non `hasAnyAuthority`:
+ * creare un utente vuole `UTENTI_CREA` *e* `RUOLI_ASSEGNA`, e la pagina dei
+ * permessi vuole `UTENTI_VISUALIZZA` *e* `RUOLI_ASSEGNA`. Con il solo `ha` la
+ * schermata si apriva e poi prendeva 403 alla prima richiesta, che è
+ * esattamente quello che `Protetta` dice di evitare.
+ */
+export function tutti(utente: UtenteCorrente, ...codici: string[]): boolean {
+  return codici.every((codice) => utente.permessi.includes(codice))
+}

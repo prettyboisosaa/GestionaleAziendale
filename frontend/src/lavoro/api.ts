@@ -17,6 +17,8 @@ export type RigaLavoro = {
   stato: StatoLavoro
   /** Quando è stato annullato; null se non lo è. */
   annullatoIl: string | null
+  /** Null per una bozza senza responsabile: serve a sapere se chi guarda lo è. */
+  responsabileId: number | null
   /** «Cognome Nome», oppure null se è una bozza senza responsabile. */
   responsabile: string | null
   /**

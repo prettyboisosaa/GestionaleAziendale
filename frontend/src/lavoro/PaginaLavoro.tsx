@@ -89,14 +89,8 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
   const parametri = useParams()
   const id = Number(parametri.id)
 
-  // Aprire il lavoro, gestirne le task e distribuirne il budget sono tre cose
-  // diverse, con tre permessi diversi. Qui si decide solo cosa mostrare — il
-  // controllo vero è sul server.
-  const puoGestire = ha(utente, 'TASK_GESTISCI_TUTTI', 'TASK_GESTISCI_PROPRI')
-  const puoAllocare = ha(utente, 'ORE_ALLOCA_TUTTI', 'ORE_ALLOCA_PROPRI')
   const puoFissareMonteOre = ha(utente, 'ORE_MONTE_GESTISCI')
   const puoChiedereOre = ha(utente, 'ORE_RICHIEDI', 'ORE_RICHIESTE_GESTISCI')
-  const puoCambiareStato = puoGestire || ha(utente, 'TASK_AGGIORNA_STATO')
 
   const [lavoro, setLavoro] = useState<RigaLavoro | null>(null)
   const [task, setTask] = useState<RigaTask[] | null>(null)
@@ -107,6 +101,35 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
   const [avviso, setAvviso] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [mostraForm, setMostraForm] = useState(false)
+
+  // Gestire le task e distribuirne il budget sono due cose diverse, con due
+  // permessi diversi, e ciascuno esiste in due versioni: su tutti i lavori o
+  // solo sui propri. Qui si decide cosa mostrare — il controllo vero è sul
+  // server — ma la condizione va scritta come la scrive lui, altrimenti si
+  // offre un pulsante che risponderà 403.
+  //
+  // Per questo entrano nel conto `responsabileId` e l'id di chi guarda: i
+  // permessi `_PROPRI` valgono solo sui lavori di cui si è responsabili, ed è
+  // la stessa cosa che il servizio verifica con `eResponsabile`.
+  const sonoResponsabile = lavoro !== null && lavoro.responsabileId === utente.id
+  const puoGestire =
+    ha(utente, 'TASK_GESTISCI_TUTTI') ||
+    (ha(utente, 'TASK_GESTISCI_PROPRI') && sonoResponsabile)
+  const puoAllocare =
+    ha(utente, 'ORE_ALLOCA_TUTTI') ||
+    (ha(utente, 'ORE_ALLOCA_PROPRI') && sonoResponsabile)
+
+  /**
+   * Vero se la task è assegnata a chi guarda.
+   *
+   * `TASK_AGGIORNA_STATO` è un permesso di base, quindi ce l'hanno tutti: la
+   * condizione che decide è l'assegnazione, ed è esattamente quella che
+   * `vietaSeNonPuoCambiareStato` verifica sul server. Senza, la tendina dello
+   * stato comparirebbe su ogni task del lavoro e risponderebbe 403 su quelle
+   * di qualcun altro.
+   */
+  const miaTask = (singola: RigaTask) =>
+    singola.assegnatari.some((persona) => persona.utenteId === utente.id)
 
   const [titolo, setTitolo] = useState('')
   const [descrizione, setDescrizione] = useState('')
@@ -611,7 +634,7 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
                           )}
                         </td>
                         <td>
-                          {puoCambiareStato && aperta ? (
+                          {(puoGestire || miaTask(singola)) && aperta ? (
                             <select
                               aria-label={`Stato di ${singola.titolo}`}
                               value={singola.stato}
