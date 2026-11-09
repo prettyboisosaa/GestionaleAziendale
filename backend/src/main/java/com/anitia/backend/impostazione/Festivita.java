@@ -12,9 +12,9 @@ import java.time.LocalDate;
  * Un giorno di chiusura aziendale, dalla tabella {@code festivita} della
  * migrazione V4.
  *
- * <p>Serve a {@link ServizioCalendario}: i giorni entro cui un dipendente può
- * ancora correggere la dichiarazione sono giorni <strong>lavorativi</strong>,
- * e una settimana con un ponte in mezzo ne ha meno di cinque.
+ * <p>Serve a {@link ServizioCalendario}: i giorni di una richiesta di assenza
+ * sono giorni <strong>lavorativi</strong>, e una settimana con un ponte in
+ * mezzo ne ha meno di cinque.
  */
 @Entity
 @Table(name = "festivita")

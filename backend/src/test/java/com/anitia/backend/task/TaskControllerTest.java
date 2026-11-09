@@ -107,7 +107,7 @@ class TaskControllerTest {
 
     @Test
     void letturaSenzaNessunPermessoSuiLavoriRisponde403() throws Exception {
-        mockMvc.perform(get(TASK).session(sessioneCon("DICHIARAZIONI_COMPILA")))
+        mockMvc.perform(get(TASK).session(sessioneCon("ASSENZE_GESTISCI")))
                 .andExpect(status().isForbidden());
     }
 

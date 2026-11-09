@@ -106,7 +106,7 @@ class UtentiControllerTest {
 
     @Test
     void elencoSenzaIlPermessoRisponde403() throws Exception {
-        mockMvc.perform(get(UTENTI).session(sessioneCon("DICHIARAZIONI_COMPILA")))
+        mockMvc.perform(get(UTENTI).session(sessioneCon("ASSENZE_GESTISCI")))
                 .andExpect(status().isForbidden());
     }
 

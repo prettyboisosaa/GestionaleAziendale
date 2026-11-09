@@ -27,13 +27,13 @@ public enum StatoTask {
     ANNULLATO;
 
     /**
-     * Vero se la task è ancora in gioco: ci si possono registrare ore e la si
-     * può scegliere nella tendina della dichiarazione.
+     * Vero se la task è ancora in gioco: ci si può ancora lavorare, quindi
+     * avviare una sessione di tempo su di essa.
      *
      * <p>La domanda sta qui e non ripetuta nei servizi perché la pongono in
-     * quattro punti diversi — la query della tendina, il controllo del
-     * servizio, i segni del calendario, il cambio di stato — e quattro copie
-     * della stessa condizione sono quattro occasioni di aggiornarne tre.
+     * quattro punti diversi — l'avvio di una sessione, l'allocazione delle
+     * ore, i segni del calendario, il cambio di stato — e quattro copie della
+     * stessa condizione sono quattro occasioni di aggiornarne tre.
      */
     public boolean aperta() {
         return this == ATTIVO || this == IN_CORSO;

@@ -12,6 +12,8 @@ import {
   taskDelLavoro,
 } from '../task/api'
 import type { Assegnatario, RigaTask, StatoTask } from '../task/api'
+import { avvia as avviaTempo, completa as completaTempo, pausa as pausaTempo } from '../tempo/api'
+import type { SituazioneTempo } from '../tempo/api'
 import {
   allocaOre,
   apriRichiestaOre,
@@ -85,7 +87,15 @@ function ore(valore: number | null): string {
   return valore.toLocaleString('it-IT', { maximumFractionDigits: 2 })
 }
 
-export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
+export default function PaginaLavoro({
+  utente,
+  tempo,
+  onTempo,
+}: {
+  utente: UtenteCorrente
+  tempo: SituazioneTempo | null
+  onTempo: (situazione: SituazioneTempo) => void
+}) {
   const parametri = useParams()
   const id = Number(parametri.id)
 
@@ -237,6 +247,18 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
     } finally {
       setInCorso(false)
     }
+  }
+
+  /**
+   * Come {@link agisci}, ma per le azioni del timer: la risposta e' la
+   * situazione del tempo e va passata in alto, perche' la barra in testata la
+   * mostri. Il resto si ricarica comunque — avviare una task ne cambia lo
+   * stato, completarla restituisce ore al pool del lavoro.
+   */
+  async function agisciTempo(azione: () => Promise<SituazioneTempo>) {
+    await agisci(async () => {
+      onTempo(await azione())
+    })
   }
 
   async function inviaNuovaTask(evento: FormEvent<HTMLFormElement>) {
@@ -659,6 +681,46 @@ export default function PaginaLavoro({ utente }: { utente: UtenteCorrente }) {
                             <Pillola tinta={tinta(singola.stato)}>
                               {STATI_TASK[singola.stato]}
                             </Pillola>
+                          )}
+
+                          {/* Il timer, per chi ci lavora. Sta sotto la tendina
+                              dello stato perche' e' la stessa domanda vista da
+                              due lati: la tendina dice a che punto e' la task,
+                              i pulsanti se ci sto lavorando adesso. */}
+                          {miaTask(singola) && aperta && (
+                            <div className="azioni-timer">
+                              {tempo?.inCorso?.taskId === singola.id ? (
+                                <button
+                                  type="button"
+                                  className="minuscolo"
+                                  disabled={inCorso}
+                                  onClick={() => void agisciTempo(pausaTempo)}
+                                >
+                                  Pausa
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="minuscolo"
+                                  disabled={inCorso}
+                                  onClick={() =>
+                                    void agisciTempo(() => avviaTempo(id, singola.id))
+                                  }
+                                >
+                                  Avvia
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="minuscolo"
+                                disabled={inCorso}
+                                onClick={() =>
+                                  void agisciTempo(() => completaTempo(id, singola.id))
+                                }
+                              >
+                                Completa
+                              </button>
+                            </div>
                           )}
                         </td>
                         <td className="assegnatari">

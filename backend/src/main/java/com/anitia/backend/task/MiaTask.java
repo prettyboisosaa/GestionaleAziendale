@@ -52,6 +52,17 @@ public record MiaTask(Long taskId,
                       /** Calcolato: {@code oreConsumate > oreAllocate}. */
                       boolean sforamento,
 
+                      /**
+                       * Vero se sto lavorando a questa task <em>adesso</em>:
+                       * ho una sessione aperta su di essa.
+                       *
+                       * <p>Serve all'interfaccia per sapere se mostrare
+                       * «avvia» o «pausa». Ce n'e' al massimo una vera in
+                       * tutta la risposta: una persona ha una sola sessione
+                       * aperta, e lo garantisce un vincolo di unicita'.
+                       */
+                      boolean inCorso,
+
                       /** Calcolato: scadenza passata e task ancora aperta. */
                       boolean inRitardo,
 
@@ -82,7 +93,8 @@ public record MiaTask(Long taskId,
      *                     mezzanotte non deve risultare incoerente con sé
      *                     stesso
      */
-    static MiaTask da(Task task, BigDecimal oreConsumate, BigDecimal mieOre, LocalDate oggi) {
+    static MiaTask da(Task task, BigDecimal oreConsumate, BigDecimal mieOre,
+                      boolean inCorso, LocalDate oggi) {
         Lavoro lavoro = task.getLavoro();
         Utente responsabile = lavoro.getResponsabile();
         BigDecimal oreAllocate = task.getOreAllocate();
@@ -98,6 +110,7 @@ public record MiaTask(Long taskId,
                 oreConsumate,
                 mieOre,
                 oreConsumate.compareTo(oreAllocate) > 0,
+                inCorso,
                 aperta(task) && task.getScadenza().isBefore(oggi),
                 ChronoUnit.DAYS.between(oggi, task.getScadenza()),
                 lavoro.getId(),

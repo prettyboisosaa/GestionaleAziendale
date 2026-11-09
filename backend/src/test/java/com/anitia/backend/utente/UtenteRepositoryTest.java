@@ -30,10 +30,16 @@ class UtenteRepositoryTest {
     private static final long LAURA = 2;
     private static final long GIULIA = 4;
 
-    /** Il pavimento, come lo definisce la V14. */
+    /**
+     * Il pavimento, come lo definiscono la V14 e la V17.
+     *
+     * <p>Quattro e non cinque: DICHIARAZIONI_COMPILA e' uscito con la giornata
+     * da compilare. Il tempo si registra avviando una task, e quello lo
+     * autorizza gia' TASK_AGGIORNA_STATO.
+     */
     private static final String[] PERMESSI_DI_BASE = {
         "LAVORI_VISUALIZZA_PROPRI", "TASK_VISUALIZZA_ASSEGNATE", "TASK_AGGIORNA_STATO",
-        "DICHIARAZIONI_COMPILA", "ASSENZE_RICHIEDI"};
+        "ASSENZE_RICHIEDI"};
 
     @Autowired
     private UtenteRepository utenti;

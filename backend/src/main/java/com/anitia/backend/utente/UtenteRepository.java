@@ -54,7 +54,7 @@ public interface UtenteRepository extends JpaRepository<Utente, Long> {
      * {@code membro_team}: una task è assegnabile a chiunque, quindi non c'è
      * nessun elenco di sottoposti da consultare. Quello che resta è il lavoro,
      * che è l'unità con cui si alloca davvero, e serve a far rispettare
-     * {@code DICHIARAZIONI_VISUALIZZA_LAVORO}.
+     * {@code TEMPO_VISUALIZZA_LAVORO}.
      *
      * <p>Il filtro è {@code rimossa_il IS NULL} e non la colonna generata
      * {@code attiva}, per la stessa ragione annotata in

@@ -83,8 +83,8 @@ public class Task {
      * lo impone {@code ck_task_allocate} insieme al DEFAULT 0 della colonna.
      *
      * <p>Qui non ci sono le ore <em>consumate</em>, di proposito: si ricavano
-     * da {@code SUM(voce_dichiarazione.ore)}. Tenerle anche qui vorrebbe dire
-     * aggiornare due posti a ogni registrazione di ore, e prima o poi
+     * dalla somma dei minuti delle sessioni di lavoro. Tenerle anche qui
+     * vorrebbe dire aggiornare due posti a ogni pausa, e prima o poi
      * divergerebbero.
      */
     @Column(name = "ore_allocate", nullable = false, precision = 7, scale = 2)

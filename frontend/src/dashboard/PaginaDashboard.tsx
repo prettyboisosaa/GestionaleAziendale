@@ -8,13 +8,13 @@ import itLocale from '@fullcalendar/core/locales/it'
 import type { DatesSetArg, EventClickArg, EventInput } from '@fullcalendar/core'
 import { miaDashboard, mioCalendario } from './api'
 import type { EventoCalendario, MiaTask, RiepilogoDashboard } from './api'
-import { cambiaStatoTask } from '../task/api'
+import { avvia, completa, conferma, durata, pausa } from '../tempo/api'
+import type { SituazioneTempo } from '../tempo/api'
 import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
 import { Pillola } from '../componenti/Stato'
-import { ETICHETTA_TASK, tinta } from '../stato/stati'
-import type { StatoTask } from '../stato/stati'
+import { apertaTask, ETICHETTA_TASK, tinta } from '../stato/stati'
 
 /**
  * I filtri della lista. Sono gli stessi delle card in cima, perché le card
@@ -109,7 +109,15 @@ function vivaIl(task: MiaTask, giorno: string): boolean {
   return task.scadenza === giorno
 }
 
-export default function PaginaDashboard({ utente }: { utente: UtenteCorrente }) {
+export default function PaginaDashboard({
+  utente,
+  tempo,
+  onTempo,
+}: {
+  utente: UtenteCorrente
+  tempo: SituazioneTempo | null
+  onTempo: (situazione: SituazioneTempo) => void
+}) {
   const [riepilogo, setRiepilogo] = useState<RiepilogoDashboard | null>(null)
   const [eventi, setEventi] = useState<EventoCalendario[]>([])
   const [errore, setErrore] = useState<string | null>(null)
@@ -163,14 +171,20 @@ export default function PaginaDashboard({ utente }: { utente: UtenteCorrente }) 
     caricaEventi(da, a).catch((motivo: unknown) => setErrore(testo(motivo)))
   }
 
-  async function cambia(task: MiaTask, nuovoStato: StatoTask) {
-    setInAggiornamento(task.taskId)
+  /**
+   * Avvia, pausa, completa: un clic, senza aprire il dettaglio.
+   *
+   * Ogni azione risponde con la situazione del tempo, che va passata in alto
+   * perche' la barra in testata la mostri; e si ricarica tutto il resto,
+   * perche' i conteggi delle card cambiano e il calendario disegna la task in
+   * modo diverso — una task avviata diventa una barra dove prima c'era un
+   * segno.
+   */
+  async function agisci(taskId: number, azione: () => Promise<SituazioneTempo>) {
+    setInAggiornamento(taskId)
     setErrore(null)
     try {
-      await cambiaStatoTask(task.lavoroId, task.taskId, nuovoStato)
-      // Si ricarica tutto: i conteggi delle card cambiano, e il calendario
-      // disegna la task in modo diverso — una task avviata diventa una barra
-      // dove prima c'era un segno.
+      onTempo(await azione())
       await caricaRiepilogo()
       if (intervallo !== null) {
         await caricaEventi(intervallo.da, intervallo.a)
@@ -257,8 +271,53 @@ export default function PaginaDashboard({ utente }: { utente: UtenteCorrente }) 
         </p>
       )}
 
+      {/* Le chiusure d'ufficio da guardare.
+
+          Sta in cima e non in una pagina sua: una sessione chiusa dal sistema
+          e' l'unica cosa che il tracciamento automatico chiede al dipendente,
+          e chiederla dove passa comunque e' il modo di non trasformarla in un
+          adempimento. Non ci sono notifiche in questo gestionale: cio' che una
+          notifica annuncerebbe si mette in evidenza nelle schermate. */}
+      {tempo !== null && tempo.daConfermare.length > 0 && (
+        <div className="avviso">
+          <p>
+            {tempo.daConfermare.length === 1
+              ? 'Una sessione è stata chiusa dal sistema perché era rimasta aperta troppo a lungo. Controlla che le ore siano giuste.'
+              : `${tempo.daConfermare.length} sessioni sono state chiuse dal sistema perché erano rimaste aperte troppo a lungo. Controlla che le ore siano giuste.`}
+          </p>
+          <ul className="elenco-conferme">
+            {tempo.daConfermare.map((sessione) => (
+              <li key={sessione.id}>
+                <span className="codice-permesso">{sessione.task}</span>
+                <span className="nota">
+                  {sessione.codiceLavoro} · {breve(sessione.avviataIl.slice(0, 10))} ·{' '}
+                  {durata(sessione.minuti)}
+                </span>
+                <button
+                  type="button"
+                  className="minuscolo"
+                  disabled={inAggiornamento === sessione.taskId}
+                  onClick={() =>
+                    void agisci(sessione.taskId, () => conferma(sessione.id))
+                  }
+                >
+                  Confermo
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {riepilogo !== null && (
         <>
+          {tempo !== null && (
+            <p className="sommario">
+              Oggi hai registrato <strong>{durata(tempo.minutiOggi)}</strong>
+              {tempo.inCorso !== null && ', più la task che stai facendo adesso'}.
+            </p>
+          )}
+
           {/* Le card sono pulsanti: ognuna applica il suo filtro alla lista
               qui sotto. È il «più punti d'ingresso, un solo elenco». */}
           <div className="card-riga">
@@ -394,24 +453,52 @@ export default function PaginaDashboard({ utente }: { utente: UtenteCorrente }) 
                         <td className="azioni">
                           {/* Un clic solo, senza aprire il dettaglio:
                               altrimenti i dati invecchiano e la dashboard
-                              smette di dire la verità. */}
-                          {task.stato === 'ATTIVO' && (
+                              smette di dire la verità.
+
+                              «Avvia» compare anche su una task gia' in corso
+                              su cui il timer non sta scorrendo: in corso vuol
+                              dire che il lavoro e' cominciato, non che lo si
+                              stia facendo in questo momento.
+
+                              Su una task chiusa o annullata non c'e' niente da
+                              offrire: il server rifiuterebbe, e un pulsante
+                              che risponde 403 e' un pulsante che non andava
+                              mostrato. */}
+                          {apertaTask(task.stato) && (
+                            <>
+                          {task.inCorso ? (
                             <button
                               type="button"
                               disabled={inAggiornamento === task.taskId}
-                              onClick={() => void cambia(task, 'IN_CORSO')}
+                              onClick={() => void agisci(task.taskId, pausa)}
+                            >
+                              Pausa
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={inAggiornamento === task.taskId}
+                              onClick={() =>
+                                void agisci(task.taskId, () =>
+                                  avvia(task.lavoroId, task.taskId),
+                                )
+                              }
                             >
                               Avvia
                             </button>
                           )}
-                          {task.stato === 'IN_CORSO' && (
-                            <button
-                              type="button"
-                              disabled={inAggiornamento === task.taskId}
-                              onClick={() => void cambia(task, 'COMPLETATO')}
-                            >
-                              Chiudi
-                            </button>
+                          <button
+                            type="button"
+                            disabled={inAggiornamento === task.taskId}
+                            onClick={() =>
+                              void agisci(task.taskId, () =>
+                                completa(task.lavoroId, task.taskId),
+                              )
+                            }
+                          >
+                            Completa
+                          </button>
+                            </>
                           )}
                         </td>
                       )}

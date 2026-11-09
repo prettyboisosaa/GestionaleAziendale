@@ -14,6 +14,11 @@ export type MiaTask = {
   /** Le ore registrate da me su questa task, non da tutti gli assegnatari. */
   mieOre: number
   sforamento: boolean
+  /**
+   * Vero se il timer sta scorrendo su questa task adesso. Al massimo una
+   * riga della risposta lo ha: una persona ha una sola sessione aperta.
+   */
+  inCorso: boolean
   inRitardo: boolean
   /** Negativo se la scadenza è passata. */
   giorniAllaScadenza: number

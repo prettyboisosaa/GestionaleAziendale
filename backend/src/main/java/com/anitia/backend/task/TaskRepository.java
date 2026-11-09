@@ -16,7 +16,7 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * cancellato: {@code task.lavoro_id} è una chiave esterna senza
      * ON DELETE CASCADE, e con almeno una task la cancellazione è impossibile
      * — e sarebbe sbagliata, perché le task sono referenziate dalle
-     * assegnazioni e dalle voci delle dichiarazioni.
+     * assegnazioni e dalle sessioni di lavoro.
      *
      * <p>Il nome attraversa la relazione: {@code lavoro.id}.
      */
@@ -90,34 +90,69 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     List<OrePerLavoro> sommaOreAllocatePerLavoro(@Param("lavoroId") Collection<Long> lavoroId);
 
     /**
-     * Le ore registrate dai dipendenti sulle task di un lavoro.
+     * Le ore misurate sulle task di un lavoro.
      *
-     * <p>Query nativa perché {@code voce_dichiarazione} non è mappata come
-     * entità in questo package: il registro delle ore vive nel dominio delle
-     * dichiarazioni, e da qui si legge soltanto la somma.
+     * <p>Query nativa perché {@code sessione_task} non è mappata come entità
+     * in questo package: il registro del tempo vive nel dominio del tempo, e
+     * da qui si legge soltanto la somma.
+     *
+     * <p><strong>Le sessioni misurano minuti, le ore sono il totale.</strong>
+     * La divisione per 60 sta qui e non nel chiamante perché qui si fa una
+     * volta sulla somma: arrotondare prima, sessione per sessione, perderebbe
+     * qualcosa a ogni riga — e quelle perdite si sommano, su un numero che
+     * decide se un lavoro sfora il budget.
+     *
+     * <p>Si contano solo le sessioni <strong>chiuse e non annullate</strong>.
+     * Una sessione aperta non ha minuti (la colonna generata vale NULL finché
+     * non c'è una fine), quindi non entrerebbe nella somma comunque, ma il
+     * filtro lo dice invece di lasciarlo dedurre.
+     *
+     * <p>Una sessione <em>non confermata</em> ci entra, di proposito: è una
+     * chiusura d'ufficio che nessuno ha ancora guardato, ma sotto c'è lavoro
+     * vero, ed escluderla farebbe sparire ore dal consuntivo. Che ci sia lo
+     * dice {@code TempoDiUnaPersona.minutiNonConfermati}.
      */
-    @Query(value = "SELECT COALESCE(SUM(v.ore), 0) FROM voce_dichiarazione v "
-                 + "JOIN task t ON t.id = v.task_id WHERE t.lavoro_id = :lavoroId",
+    @Query(value = "SELECT ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) FROM sessione_task s "
+                 + "JOIN task t ON t.id = s.task_id "
+                 + "WHERE t.lavoro_id = :lavoroId "
+                 + "AND s.chiusa_il IS NOT NULL AND s.annullata_il IS NULL",
             nativeQuery = true)
     BigDecimal sommaOreConsumate(@Param("lavoroId") Long lavoroId);
 
     /** Le ore consumate, per ciascuno dei lavori indicati. */
-    @Query(value = "SELECT t.lavoro_id AS lavoroId, COALESCE(SUM(v.ore), 0) AS ore "
-                 + "FROM voce_dichiarazione v JOIN task t ON t.id = v.task_id "
-                 + "WHERE t.lavoro_id IN (:lavoroId) GROUP BY t.lavoro_id",
+    @Query(value = "SELECT t.lavoro_id AS lavoroId, "
+                 + "       ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) AS ore "
+                 + "FROM sessione_task s JOIN task t ON t.id = s.task_id "
+                 + "WHERE t.lavoro_id IN (:lavoroId) "
+                 + "AND s.chiusa_il IS NOT NULL AND s.annullata_il IS NULL "
+                 + "GROUP BY t.lavoro_id",
             nativeQuery = true)
     List<OrePerLavoro> sommaOreConsumatePerLavoro(@Param("lavoroId") Collection<Long> lavoroId);
 
     /** Le ore consumate, task per task, dentro un lavoro. */
-    @Query(value = "SELECT v.task_id AS taskId, COALESCE(SUM(v.ore), 0) AS ore "
-                 + "FROM voce_dichiarazione v JOIN task t ON t.id = v.task_id "
-                 + "WHERE t.lavoro_id = :lavoroId GROUP BY v.task_id",
+    @Query(value = "SELECT s.task_id AS taskId, "
+                 + "       ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) AS ore "
+                 + "FROM sessione_task s JOIN task t ON t.id = s.task_id "
+                 + "WHERE t.lavoro_id = :lavoroId "
+                 + "AND s.chiusa_il IS NOT NULL AND s.annullata_il IS NULL "
+                 + "GROUP BY s.task_id",
             nativeQuery = true)
     List<OrePerTask> sommaOreConsumatePerTask(@Param("lavoroId") Long lavoroId);
 
-    /** Le ore consumate da una singola task. */
-    @Query(value = "SELECT COALESCE(SUM(v.ore), 0) FROM voce_dichiarazione v "
-                 + "WHERE v.task_id = :taskId",
+    /**
+     * Le ore consumate da una singola task.
+     *
+     * <p>⚠️ È quella che legge {@code ServizioOre.rilasciaResiduo} per
+     * decidere quante ore tornano nel pool quando una task si chiude, ed è il
+     * solo punto in cui una somma di ore <strong>scrive</strong> sul database.
+     * Chi chiude una task deve aver chiuso prima le sessioni ancora aperte su
+     * di essa: i loro minuti non sarebbero contati qui, e il residuo
+     * restituito risulterebbe più grande del vero — su righe di
+     * {@code movimento_ore} che non si cancellano mai.
+     */
+    @Query(value = "SELECT ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) FROM sessione_task s "
+                 + "WHERE s.task_id = :taskId "
+                 + "AND s.chiusa_il IS NOT NULL AND s.annullata_il IS NULL",
             nativeQuery = true)
     BigDecimal sommaOreConsumateDellaTask(@Param("taskId") Long taskId);
 
@@ -127,22 +162,29 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      *
      * <p>Lo sforamento <strong>non è una colonna</strong>: è questo confronto.
      * Metterlo in una query invece che in un flag salvato significa che
-     * compare da sé appena un dipendente registra la giornata che fa superare
-     * il budget, senza che nessun codice debba ricordarsi di marcare la task.
+     * compare da sé appena il tempo misurato supera il budget, senza che
+     * nessun codice debba ricordarsi di marcare la task — e adesso compare
+     * mentre il dipendente ci sta lavorando, non la sera in cui si ricorda di
+     * dichiarare.
      *
      * <p>{@code HAVING} e non {@code WHERE} perché il confronto è su una somma
-     * aggregata; {@code LEFT JOIN} perché una task senza ore registrate non
+     * aggregata; {@code LEFT JOIN} perché una task senza tempo registrato non
      * deve sparire dal raggruppamento — anche se poi l'{@code HAVING} la
-     * scarta, dato che zero non supera nessuna allocazione.
+     * scarta, dato che zero non supera nessuna allocazione. Le condizioni
+     * sulla sessione stanno nella {@code ON} e non nella {@code WHERE}: nella
+     * {@code WHERE} butterebbero via le task senza sessioni, che è proprio
+     * quello che il {@code LEFT JOIN} serve a conservare.
      */
     @Query(value = "SELECT t.id AS taskId, t.titolo AS titolo, "
                  + "       t.ore_allocate AS oreAllocate, "
-                 + "       COALESCE(SUM(v.ore), 0) AS oreConsumate "
-                 + "FROM task t LEFT JOIN voce_dichiarazione v ON v.task_id = t.id "
+                 + "       ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) AS oreConsumate "
+                 + "FROM task t LEFT JOIN sessione_task s "
+                 + "  ON s.task_id = t.id "
+                 + "  AND s.chiusa_il IS NOT NULL AND s.annullata_il IS NULL "
                  + "WHERE t.lavoro_id = :lavoroId "
                  + "GROUP BY t.id, t.titolo, t.ore_allocate "
-                 + "HAVING COALESCE(SUM(v.ore), 0) > t.ore_allocate "
-                 + "ORDER BY (COALESCE(SUM(v.ore), 0) - t.ore_allocate) DESC",
+                 + "HAVING ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) > t.ore_allocate "
+                 + "ORDER BY (ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) - t.ore_allocate) DESC",
             nativeQuery = true)
     List<Sforamento> trovaSforamenti(@Param("lavoroId") Long lavoroId);
 
@@ -166,16 +208,19 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * totale di <em>tutti</em> gli assegnati, non solo il proprio.
      *
      * <p>La sottoquery nel {@code IN} non è un dettaglio: senza di essa la
-     * somma sarebbe un raggruppamento su tutta {@code voce_dichiarazione},
-     * cioè sulla tabella destinata a crescere più di ogni altra nel database,
-     * per poi buttarne via quasi tutte le righe in memoria.
+     * somma sarebbe un raggruppamento su tutta {@code sessione_task}, cioè
+     * sulla tabella destinata a crescere più di ogni altra nel database — una
+     * riga per ogni volta che qualcuno avvia e mette in pausa, molte al giorno
+     * per persona — per poi buttarne via quasi tutte le righe in memoria.
      */
-    @Query(value = "SELECT v.task_id AS taskId, COALESCE(SUM(v.ore), 0) AS ore "
-                 + "FROM voce_dichiarazione v "
-                 + "WHERE v.task_id IN (SELECT a.task_id FROM assegnazione_task a "
-                 + "                    WHERE a.utente_id = :utenteId "
-                 + "                      AND a.rimossa_il IS NULL) "
-                 + "GROUP BY v.task_id",
+    @Query(value = "SELECT s.task_id AS taskId, "
+                 + "       ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) AS ore "
+                 + "FROM sessione_task s "
+                 + "WHERE s.chiusa_il IS NOT NULL AND s.annullata_il IS NULL "
+                 + "AND s.task_id IN (SELECT a.task_id FROM assegnazione_task a "
+                 + "                  WHERE a.utente_id = :utenteId "
+                 + "                    AND a.rimossa_il IS NULL) "
+                 + "GROUP BY s.task_id",
             nativeQuery = true)
     List<OrePerTask> sommaOreConsumateDelleMieTask(@Param("utenteId") Long utenteId);
 
@@ -187,62 +232,20 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * numero solo nasconderebbe il caso che conta su una task condivisa — la
      * task è quasi esaurita, ma non per opera mia.
      *
-     * <p>Il collegamento alla persona passa da {@code dichiarazione}, perché è
-     * lì che vive {@code utente_id}: una voce appartiene alla giornata, e la
-     * giornata a chi l'ha compilata.
+     * <p>Il collegamento alla persona è diretto: {@code sessione_task} porta
+     * {@code utente_id}, perché una sessione è di chi l'ha lavorata. Prima
+     * serviva un passaggio da {@code dichiarazione}, dove viveva l'unica
+     * traccia di chi avesse registrato le ore; è una delle ragioni per cui la
+     * colonna sta sulla sessione.
      */
-    @Query(value = "SELECT v.task_id AS taskId, COALESCE(SUM(v.ore), 0) AS ore "
-                 + "FROM voce_dichiarazione v "
-                 + "JOIN dichiarazione d ON d.id = v.dichiarazione_id "
-                 + "WHERE d.utente_id = :utenteId "
-                 + "GROUP BY v.task_id",
+    @Query(value = "SELECT s.task_id AS taskId, "
+                 + "       ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) AS ore "
+                 + "FROM sessione_task s "
+                 + "WHERE s.utente_id = :utenteId "
+                 + "AND s.chiusa_il IS NOT NULL AND s.annullata_il IS NULL "
+                 + "GROUP BY s.task_id",
             nativeQuery = true)
     List<OrePerTask> sommaMieOrePerTask(@Param("utenteId") Long utenteId);
-
-    /**
-     * Le task aperte a cui una persona è assegnata: quelle su cui può
-     * registrare ore.
-     *
-     * <p>Il filtro è esattamente la regola del monte ore — «un dipendente
-     * registra ore solo sulle task aperte a cui è assegnato» — scritta una
-     * volta qui, così la tendina della dichiarazione non può proporre una
-     * task che il servizio poi rifiuterebbe.
-     *
-     * <p>Il lavoro deve essere aperto quanto la task: una task attiva dentro
-     * un lavoro completato o annullato non e' selezionabile, e proporla nella
-     * tendina vorrebbe dire far scegliere qualcosa che il servizio poi
-     * rifiuta.
-     *
-     * <p>{@code a.rimossa_il IS NULL} e non la colonna generata
-     * {@code attiva}: quella serve al vincolo di unicità e vale NULL quando
-     * l'assegnazione è stata rimossa. Query nativa perché
-     * {@code assegnazione_task} non è mappata come entità raggiungibile da
-     * qui.
-     */
-    @Query(value = "SELECT t.id AS taskId, t.titolo AS titolo, "
-                 + "       l.id AS lavoroId, l.codice AS codiceLavoro, l.nome AS nomeLavoro "
-                 + "FROM task t "
-                 + "JOIN lavoro l ON l.id = t.lavoro_id "
-                 + "JOIN assegnazione_task a ON a.task_id = t.id "
-                 + "WHERE a.utente_id = :utenteId AND a.rimossa_il IS NULL "
-                 + "  AND t.stato IN ('ATTIVO', 'IN_CORSO') "
-                 + "  AND l.stato IN ('ATTIVO', 'IN_CORSO') "
-                 + "ORDER BY l.codice, t.titolo",
-            nativeQuery = true)
-    List<TaskAperta> trovaAperteAssegnateA(@Param("utenteId") Long utenteId);
-
-    /** Una riga di {@link #trovaAperteAssegnateA(Long)}. */
-    interface TaskAperta {
-        Long getTaskId();
-
-        String getTitolo();
-
-        Long getLavoroId();
-
-        String getCodiceLavoro();
-
-        String getNomeLavoro();
-    }
 
     /** Una riga delle somme raggruppate per lavoro. */
     interface OrePerLavoro {

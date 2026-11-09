@@ -5,6 +5,8 @@ import com.anitia.backend.lavoro.ServizioLavori;
 import com.anitia.backend.lavoro.StatoLavoro;
 import com.anitia.backend.ore.ServizioOre;
 import com.anitia.backend.sicurezza.Permessi;
+import com.anitia.backend.tempo.SessioneTask;
+import com.anitia.backend.tempo.SessioneTaskRepository;
 import com.anitia.backend.task.AssegnazioneTaskRepository.AssegnazioneDiTask;
 import com.anitia.backend.task.TaskRepository.OrePerTask;
 import com.anitia.backend.utente.Utente;
@@ -58,14 +60,17 @@ public class ServizioTask {
     private final UtenteRepository utenti;
     private final ServizioLavori lavori;
     private final ServizioOre ore;
+    private final SessioneTaskRepository sessioni;
 
     ServizioTask(TaskRepository task, AssegnazioneTaskRepository assegnazioni,
-                 UtenteRepository utenti, ServizioLavori lavori, ServizioOre ore) {
+                 UtenteRepository utenti, ServizioLavori lavori, ServizioOre ore,
+                 SessioneTaskRepository sessioni) {
         this.task = task;
         this.assegnazioni = assegnazioni;
         this.utenti = utenti;
         this.lavori = lavori;
         this.ore = ore;
+        this.sessioni = sessioni;
     }
 
     /**
@@ -95,6 +100,13 @@ public class ServizioTask {
         Map<Long, BigDecimal> consumate = perTask(task.sommaOreConsumateDelleMieTask(mio));
         Map<Long, BigDecimal> mieOre = perTask(task.sommaMieOrePerTask(mio));
 
+        // Su quale task sto lavorando adesso, se ne sto lavorando una. Una
+        // lettura sola: di sessioni aperte ce n'e' al massimo una per
+        // persona, quindi al massimo una di queste righe la mostra.
+        Long inCorso = sessioni.trovaInCorso(mio)
+                .map(sessione -> sessione.getTask().getId())
+                .orElse(null);
+
         // Una data sola per tutta la risposta: «in ritardo» e «giorni alla
         // scadenza» di righe diverse non devono poter essere calcolati a
         // cavallo della mezzanotte e risultare incoerenti fra loro.
@@ -105,6 +117,7 @@ public class ServizioTask {
                 .map(singola -> MiaTask.da(singola,
                         consumate.getOrDefault(singola.getId(), BigDecimal.ZERO),
                         mieOre.getOrDefault(singola.getId(), BigDecimal.ZERO),
+                        singola.getId().equals(inCorso),
                         oggi))
                 .sorted(PER_URGENZA)
                 .toList();
@@ -169,7 +182,7 @@ public class ServizioTask {
         }
 
         // Le ore consumate di tutte le task in una query, non una per task:
-        // sono una SUM su voce_dichiarazione, e con open-in-view disattivato
+        // sono una SUM su sessione_task, e con open-in-view disattivato
         // la variante ingenua costerebbe un'interrogazione per riga.
         Map<Long, BigDecimal> consumate = task.sommaOreConsumatePerTask(idLavoro).stream()
                 .collect(Collectors.toMap(OrePerTask::getTaskId, OrePerTask::getOre));
@@ -313,6 +326,16 @@ public class ServizioTask {
         // lavoro che rilasciaResiduo acquisisce: le ore liberate non possono
         // essere lette a metà da un'allocazione concorrente.
         if (nuovoStato.finale()) {
+            // Prima le sessioni, poi il rilascio: rilasciaResiduo legge le ore
+            // consumate per decidere quante tornano nel pool, e una sessione
+            // ancora aperta non ha minuti — quelle ore sparirebbero dal conto
+            // e il residuo restituito sarebbe più grande del vero.
+            //
+            // Vale per chiunque ci stesse lavorando, non solo per chi chiude:
+            // un responsabile che completa una task lo fa anche per gli altri
+            // assegnati, e lasciare aperta la loro sessione li bloccherebbe —
+            // il vincolo di unicità non gliene farebbe avviare un'altra.
+            chiudiSessioniAperte(idTask);
             ore.rilasciaResiduo(daCambiare, autore(chiLoChiede));
         }
 
@@ -367,8 +390,14 @@ public class ServizioTask {
      * controllo sul permesso resta comunque scritto: toglierlo vorrebbe dire
      * incastrare il pavimento nel codice, e il pavimento è una riga del
      * catalogo che una migrazione può cambiare.
+     *
+     * <p>Non vale per il timer: registrare tempo su una task vuole
+     * un'assegnazione attiva e nient'altro. Chi ha {@code TASK_GESTISCI_TUTTI}
+     * o è responsabile del lavoro può cambiare lo stato di una task altrui,
+     * ma non scriverci le proprie ore — vedi {@code ServizioTempo.avvia}.
      */
-    private void vietaSeNonPuoCambiareStato(UserDetails chiLoChiede, Lavoro lavoro, Long idTask) {
+    private void vietaSeNonPuoCambiareStato(UserDetails chiLoChiede, Lavoro lavoro,
+                                            Long idTask) {
         if (Permessi.ha(chiLoChiede, GESTISCI_TUTTI)) {
             return;
         }
@@ -457,6 +486,18 @@ public class ServizioTask {
     private static List<Assegnatario> assegnatari(Map<Long, List<Assegnatario>> perTask,
                                                   Long idTask) {
         return perTask.getOrDefault(idTask, List.of());
+    }
+
+    /**
+     * Chiude le sessioni ancora aperte su una task che si sta chiudendo.
+     *
+     * <p>Si chiudono ad adesso e restano confermate: l'istante è vero — è il
+     * momento in cui la task è stata completata — e non c'è niente da far
+     * confermare a nessuno. È il contrario della chiusura al tetto, che
+     * inventa la fine e per questo chiede conferma.
+     */
+    private void chiudiSessioniAperte(Long idTask) {
+        sessioni.trovaInCorsoDellaTask(idTask).forEach(SessioneTask::chiudi);
     }
 
     private Long idDi(UserDetails chiLoChiede) {
