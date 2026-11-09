@@ -1,44 +1,95 @@
 name: ci
+
 on:
   push:
     branches: ["main", "master"]
   pull_request:
     branches: ["main", "master"]
 
-
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Tre test (BackendApplicationTests, SessioniEOreTest,
+    # UtenteRepositoryTest) parlano con MySQL vero, e non per pigrizia: le
+    # colonne generate di sessione_task, la vista permesso_effettivo e le
+    # query native di TaskRepository sono scritte in SQL di MySQL, quindi un
+    # database finto non le proverebbe. Stessa immagine e stesse credenziali
+    # del docker-compose di sviluppo: se cambiano la', cambiano anche qui.
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: gestionale
+          MYSQL_USER: gestionale
+          MYSQL_PASSWORD: gestionale_dev
+          MYSQL_ROOT_PASSWORD: root_dev
+          TZ: Europe/Rome
+        ports:
+          - 3306:3306
+        # Senza l'attesa sulla salute, Maven parte mentre MySQL sta ancora
+        # inizializzando e i test muoiono con "Communications link failure".
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot_dev"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    env:
+      # Il database della corsa e' vuoto: Flyway ci costruisce sopra V1..V17
+      # piu' il seed di db/dev, che e' la stessa fixture su cui girano i test
+      # in locale. Niente dump da portarsi dietro.
+      SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/gestionale
+      SPRING_DATASOURCE_USERNAME: gestionale
+      SPRING_DATASOURCE_PASSWORD: gestionale_dev
+      # spring-boot-docker-compose e' una dipendenza di scope runtime, quindi
+      # sta anche nel classpath dei test: senza questo cercherebbe
+      # ../docker-compose.yml e proverebbe ad avviare un SECONDO MySQL dentro
+      # il runner, che qui non serve e non c'e'.
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+
     steps:
       - name: checkout repository
         uses: actions/checkout@v5
-       
+
       - name: setup jdk 25
         uses: actions/setup-java@v4
         with:
           distribution: temurin
+          # Coincide con <java.version> del pom: cambiarla qui senza
+          # cambiarla la' fa fallire la compilazione.
           java-version: '25'
-          cache: 'maven'
+          cache: maven
+
       - name: build and test with maven
-        run: ./mvnw -B --no-transfer-progress compile
+        # package, non compile. Due ragioni: e' package a eseguire i test
+        # (compile si fermava prima, quindi il nome di questo passo era una
+        # promessa non mantenuta), ed e' package a produrre il jar che il
+        # passo dopo carica. Con compile il target/ restava senza jar e
+        # upload-artifact moriva con "no files were found".
+        run: ./mvnw -B --no-transfer-progress package
         working-directory: backend
 
       - name: upload jar artifact
         uses: actions/upload-artifact@v4
         with:
           name: backend-jar
+          # *.jar prende solo il jar eseguibile: il .jar.original che il
+          # repackage lascia accanto non corrisponde al glob.
           path: backend/target/*.jar
+          # Se un giorno il jar non c'e' piu', il workflow deve rompersi qui
+          # e dirlo, non caricare un artefatto vuoto e passare verde.
+          if-no-files-found: error
+
   deploy:
-    needs: build 
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Download JAR Artifact
         uses: actions/download-artifact@v4
         with:
           name: backend-jar
-          path: ./downloaded-jar 
+          path: ./downloaded-jar
 
       - name: Verify downloaded file
         run: ls -la ./downloaded-jar
-
-      

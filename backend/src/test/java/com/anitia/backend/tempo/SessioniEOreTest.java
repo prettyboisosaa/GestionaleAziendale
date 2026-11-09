@@ -3,11 +3,15 @@ package com.anitia.backend.tempo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import com.anitia.backend.lavoro.Lavoro;
+import com.anitia.backend.lavoro.LavoroRepository;
+import com.anitia.backend.lavoro.StatoLavoro;
 import com.anitia.backend.task.Task;
 import com.anitia.backend.task.TaskRepository;
 import com.anitia.backend.utente.Utente;
 import com.anitia.backend.utente.UtenteRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +49,9 @@ class SessioniEOreTest {
 
     @Autowired
     private TaskRepository task;
+
+    @Autowired
+    private LavoroRepository lavori;
 
     @Autowired
     private UtenteRepository utenti;
@@ -165,18 +172,30 @@ class SessioniEOreTest {
     }
 
     /**
-     * Una task qualunque del database di sviluppo.
+     * Una task creata da questo test, non pescata dal database.
      *
-     * <p>Quale non importa: questi test misurano la somma delle sessioni che
-     * scrivono loro, non il contenuto del database. Prendere la prima che
-     * c'è, invece di fissare un id, li rende indipendenti da quali task
-     * esistano oggi.
+     * <p>Pescarla era un errore. I dati di sviluppo contengono soltanto le
+     * persone: i lavori di prova sono stati rimossi il 5 novembre 2026,
+     * quando il gestionale ha iniziato a raccogliere dati veri, e
+     * {@code R__dati_sviluppo.sql} lo dichiara. Su una macchina dove qualcuno
+     * aveva lavori suoi questi test passavano per caso; su un database appena
+     * migrato — quello della CI, o quello di chi clona il progetto oggi — non
+     * trovavano nessuna task e fallivano tutti e sei.
+     *
+     * <p>Il lavoro e la task li scrive qui, e il {@code @Transactional} di
+     * classe li porta via col rollback: il test non dipende da cosa c'è nel
+     * database e non gli lascia niente dentro. Il codice del lavoro porta un
+     * {@code nanoTime} perché {@code uk_lavoro_codice} è unico e una corsa
+     * interrotta prima del rollback non deve bloccare la successiva.
      */
     private Task unaTask() {
-        return task.findAll().stream().findFirst().orElseThrow(
-                () -> new IllegalStateException(
-                        "Il database di sviluppo non ha nessuna task: questi test ne "
-                                + "vogliono almeno una."));
+        Lavoro contenitore = lavori.save(Lavoro.nuovo(
+                "LAV-TEST-" + System.nanoTime(), "Lavoro di prova delle sessioni",
+                null, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 12, 31),
+                StatoLavoro.ATTIVO, new BigDecimal("40.00"), giulia(), giulia()));
+        return task.save(Task.nuova(contenitore, "Task di prova delle sessioni",
+                null, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30),
+                new BigDecimal("8.00")));
     }
 
     private Utente giulia() {
