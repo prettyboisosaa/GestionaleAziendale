@@ -114,6 +114,7 @@
 .campo input[type='email'],
 .campo input[type='password'],
 .campo input[type='date'],
+.campo input[type='time'],
 .campo input:not([type]),
 .campo select,
 .campo textarea {
@@ -129,6 +130,7 @@
 .campo input[type='email'],
 .campo input[type='password'],
 .campo input[type='date'],
+.campo input[type='time'],
 .campo input:not([type]),
 .campo select {
   height: 2.875rem;
@@ -970,6 +972,25 @@ button.minuscolo:disabled {
   --tinta-stato: var(--assenza);
 }
 
+/* L'urgenza di una task. Riusa .pillola, perche' e' la stessa grammatica —
+   fondo velato, testo pieno, etichetta sempre scritta — su un'altra domanda:
+   li' «a che punto e'», qui «quanto viene prima». */
+.pillola-urgenza-bassa {
+  --tinta-stato: var(--urgenza-bassa);
+}
+
+.pillola-urgenza-media {
+  --tinta-stato: var(--urgenza-media);
+}
+
+.pillola-urgenza-alta {
+  --tinta-stato: var(--urgenza-alta);
+}
+
+.pillola-urgenza-urgente {
+  --tinta-stato: var(--urgenza-urgente);
+}
+
 /* La riga di un lavoro o di una task annullata: il testo si attenua, perché
    è materiale da consultare e non da lavorare. Il colore resta tutto nel
    badge. */
@@ -1065,6 +1086,14 @@ button.minuscolo:disabled {
 /* Le card riusano i modificatori di tinta degli stati. */
 .card-annullato {
   --tinta-stato: var(--stato-annullato);
+}
+
+/* La card delle task urgenti prende la tinta dell'urgenza e non quella di
+   «annullato», benche' oggi siano lo stesso rosso: le due cose possono
+   divergere, e il giorno in cui qualcuno cambia il rosso degli stati questa
+   card non deve seguirlo per sbaglio. */
+.card-urgente {
+  --tinta-stato: var(--urgenza-urgente);
 }
 
 .card-attesa {
@@ -1271,4 +1300,180 @@ button.minuscolo:disabled {
   align-items: baseline;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+/* --- dashboard: la settimana lavorata ------------------------------------ */
+
+/* La griglia a fasce orarie riusa .scheda-calendario, cosi' prende la stessa
+   cornice, gli stessi pulsanti e la stessa mappatura delle variabili di
+   FullCalendar: due calendari nella stessa pagina che non si somigliassero
+   sarebbero due applicazioni. Qui c'e' solo quello che cambia. */
+.scheda-settimana {
+  /* Le ore fuori dall'orario di lavoro — prima delle 9, dopo le 18, il
+     sabato e la domenica — si velano invece di sparire. Spariscono in tanti
+     gestionali, e il risultato e' che chi ha lavorato alle 20 non trova dove
+     dirlo: la griglia gli direbbe che quell'ora non esiste. Velate si vede
+     dov'e' l'orario senza che il resto sia vietato. */
+  --fc-non-business-color: var(--campo-fondo);
+  --fc-now-indicator-color: var(--azione);
+}
+
+.scheda-settimana .fc-timegrid-slot-label-cushion,
+.scheda-settimana .fc-col-header-cell-cushion {
+  color: var(--inchiostro-tenue);
+  text-decoration: none;
+}
+
+/* Il totale della settimana, accanto al titolo della sezione. */
+.totale-settimana {
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+}
+
+.totale-settimana strong {
+  color: var(--inchiostro);
+  font-weight: 500;
+}
+
+/* Un blocco di lavoro: tinta del lavoro, diluita sulla superficie e piena sul
+   filetto, come gli eventi dell'altro calendario. La forma e' la stessa
+   perche' la grammatica e' la stessa; cambia solo da dove viene la tinta —
+   li' lo stato, qui il lavoro. */
+.scheda-settimana .sessione {
+  padding: 0.1rem 0.3rem;
+  border: 0;
+  border-left: 3px solid var(--tinta-lavoro, var(--inchiostro-tenue));
+  border-radius: var(--raggio-controllo);
+  background-color: color-mix(in srgb, var(--tinta-lavoro, var(--inchiostro-tenue)) 16%, var(--superficie));
+  color: var(--inchiostro);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.scheda-settimana .sessione .fc-event-time {
+  font-size: var(--scala-piccola);
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.scheda-settimana .sessione .fc-event-title {
+  font-weight: 500;
+  white-space: normal;
+}
+
+.scheda-settimana .sessione .lavoro-del-blocco {
+  display: block;
+  font-size: var(--scala-piccola);
+  font-weight: 400;
+  color: var(--inchiostro-tenue);
+}
+
+.scheda-settimana .lavoro-0 { --tinta-lavoro: var(--lavoro-0); }
+.scheda-settimana .lavoro-1 { --tinta-lavoro: var(--lavoro-1); }
+.scheda-settimana .lavoro-2 { --tinta-lavoro: var(--lavoro-2); }
+.scheda-settimana .lavoro-3 { --tinta-lavoro: var(--lavoro-3); }
+.scheda-settimana .lavoro-4 { --tinta-lavoro: var(--lavoro-4); }
+.scheda-settimana .lavoro-5 { --tinta-lavoro: var(--lavoro-5); }
+.scheda-settimana .lavoro-6 { --tinta-lavoro: var(--lavoro-6); }
+.scheda-settimana .lavoro-7 { --tinta-lavoro: var(--lavoro-7); }
+
+/* Il blocco la cui ora del giorno non l'ha misurata nessuno si vede che non
+   e' stata misurata, e su una griglia che colloca per ora del giorno e' la
+   distinzione che conta: la chiusura al tetto ha un'ora di fine di
+   convenzione, e una voce importata dalla V16 ha un'ora del mattino scelta
+   dalla migrazione. Contano comunque nei totali — non contarle farebbe
+   sparire lavoro vero — ma un blocco pieno rivendicherebbe una precisione
+   che quel dato non ha. Il tratteggio lo dice senza una parola. */
+.scheda-settimana .sessione-dedotta {
+  border-left-style: dashed;
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--tinta-lavoro, var(--inchiostro-tenue)) 12%, transparent) 5px 10px
+  );
+}
+
+/* La sessione che sta scorrendo adesso: il filetto pulsa appena, perche' e'
+   l'unico blocco della griglia che sta ancora crescendo. */
+.scheda-settimana .sessione-in-corso {
+  border-left-width: 4px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tinta-lavoro, var(--azione)) 35%, transparent);
+}
+
+/* Niente sessioni in questa settimana: si dice, non si lascia una griglia
+   vuota a far pensare che il caricamento sia fallito. */
+.settimana-vuota {
+  margin-top: 0.625rem;
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+}
+
+/* --- il pannello di una sessione ----------------------------------------- */
+
+/* Un `<dialog>` nativo, non un `<div>` sovrapposto: la messa a fuoco
+   intrappolata, la chiusura con Esc e il top layer li fa il browser, e
+   riscriverli a mano vorrebbe dire riscriverli peggio. Qui c'e' solo la
+   forma: e' il foglio di questa interfaccia, con il suo raggio e la sua
+   ombra piena, perche' sta sopra la pagina invece che dentro di essa. */
+.pannello {
+  width: min(26rem, calc(100vw - 2rem));
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-foglio);
+  padding: 1.5rem;
+  background-color: var(--superficie);
+  color: var(--inchiostro);
+  box-shadow: var(--ombra-foglio);
+}
+
+.pannello::backdrop {
+  background-color: rgb(var(--inchiostro-rgb) / 28%);
+}
+
+.pannello .testata {
+  margin-bottom: 0.25rem;
+}
+
+.pannello .testata h2 {
+  font-size: var(--scala-media);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-base);
+}
+
+/* Le ore stanno in riga: sono due meta' della stessa informazione, e
+   impilate farebbero sembrare il pannello un modulo da compilare invece di
+   una correzione da fare. */
+.pannello .modulo {
+  gap: 0.875rem;
+}
+
+/* La settimana chiusa si guarda e non si tocca: niente puntatore a mano sui
+   blocchi, perche' un dito che invita a cliccare dove non si puo' cliccare
+   e' una promessa che la griglia non mantiene. */
+.settimana-chiusa .sessione {
+  cursor: default;
+}
+
+/* Le due ore stanno in riga: sono le meta' della stessa informazione, e
+   impilate farebbero sembrare il pannello piu' lungo di quello che chiede. */
+.pannello .campo-in-riga {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+/* Un'ora dichiarata a mano non e' un'ora misurata: il tratteggio e' lo stesso
+   della chiusura d'ufficio, perche' la cosa che dicono e' la stessa — l'ora
+   del giorno, qui, l'ha scelta una persona a memoria. */
+.scheda-settimana .sessione-manuale {
+  border-left-style: dashed;
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 5px,
+    color-mix(in srgb, var(--tinta-lavoro, var(--inchiostro-tenue)) 12%, transparent) 5px 10px
+  );
+}
+
+/* L'ombra di quello che si sta trascinando sulla griglia. */
+.scheda-settimana .fc-highlight {
+  background-color: var(--azione-velo-fermo);
 }

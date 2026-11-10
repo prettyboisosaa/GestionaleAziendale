@@ -9,6 +9,7 @@ import com.anitia.backend.impostazione.FestivitaRepository;
 import com.anitia.backend.task.MiaTask;
 import com.anitia.backend.task.ServizioTask;
 import com.anitia.backend.task.StatoTask;
+import com.anitia.backend.task.TaskImportanza;
 import com.anitia.backend.utente.Utente;
 import com.anitia.backend.utente.UtenteRepository;
 import java.time.DayOfWeek;
@@ -70,7 +71,11 @@ public class ServizioDashboard {
         LocalDate fineSettimana = oggi.with(DayOfWeek.SUNDAY);
 
         ContatoriDashboard contatori = new ContatoriDashboard(
-                conta(mie, riga -> aperta(riga) && riga.scadenza().isBefore(oggi)),
+                // Urgenti al posto di scadute: il ritardo lo dicono già la
+                // lista («in ritardo di tre giorni») e il calendario, mentre
+                // l'urgenza decisa dal PM non si vedeva da nessuna parte.
+                conta(mie, riga -> aperta(riga)
+                        && riga.urgenzaTask() == TaskImportanza.CRITICAL),
                 conta(mie, riga -> aperta(riga) && riga.scadenza().isEqual(oggi)),
                 conta(mie, riga -> aperta(riga)
                         && !riga.scadenza().isBefore(oggi)
@@ -116,11 +121,25 @@ public class ServizioDashboard {
                 continue;
             }
 
-            // Una task in corso e' una barra dal suo inizio alla scadenza;
-            // tutte le altre sono un segno sul giorno di scadenza. E' la
-            // differenza fra «ci sto lavorando da allora» e «questo e' il
-            // giorno entro cui va fatta».
-            LocalDate inizio = riga.stato() == StatoTask.IN_CORSO
+            // Una task APERTA e' una barra dal suo inizio alla scadenza; una
+            // chiusa e' un segno sul giorno in cui scadeva. E' la differenza
+            // fra «questo e' da fare, in questo periodo» e «questo e' andato
+            // cosi'».
+            //
+            // Il discrimine era IN_CORSO, e non andava: IN_CORSO si diventa
+            // premendo avvia, mentre una task appena assegnata nasce ATTIVO.
+            // Una task ATTIVO cominciata il 10 e in scadenza il 28 veniva
+            // collocata solo il 28, quindi chi la deve fare non la vedeva
+            // nella settimana in cui la deve fare — compariva nel calendario
+            // tre settimane dopo. Proprio il lavoro appena affidato, che e' la
+            // cosa che il calendario esiste per mostrare, era l'unico
+            // invisibile.
+            //
+            // Chiedere al dipendente di premere avvia per vedere il proprio
+            // lavoro sul calendario sarebbe poi l'adempimento che il
+            // tracciamento automatico ha tolto: il timer misura le ore, non
+            // dichiara che una task esiste.
+            LocalDate inizio = riga.stato().aperta()
                     ? riga.dataInizio()
                     : riga.scadenza();
             LocalDate fine = riga.scadenza();

@@ -52,6 +52,31 @@ public class TempoController {
     }
 
     /**
+     * La mia settimana, da lunedì a domenica.
+     *
+     * <p>{@code giorno} è un giorno <em>qualunque</em> della settimana
+     * voluta, non il suo lunedì: il calendario in pagina manda il primo
+     * giorno che ha in mano e il servizio risale alla settimana. Omesso, è
+     * oggi.
+     *
+     * <p>Sta su {@code TASK_AGGIORNA_STATO} come le altre rotte di chi lavora,
+     * e non su {@code TEMPO_VISUALIZZA_*}: quelli servono a leggere il tempo
+     * <em>di un altro</em>, e guardare le proprie ore non è un privilegio
+     * amministrativo. Per la stessa ragione non si riusa
+     * {@code /api/tempo/utente/{id}}, che pure restituirebbe le stesse
+     * sessioni — chiederebbe a un dipendente un permesso che non ha e non
+     * deve avere.
+     */
+    @GetMapping("/api/mio-tempo/settimana")
+    @PreAuthorize("hasAuthority('TASK_AGGIORNA_STATO')")
+    public SettimanaDiTempo miaSettimana(
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate giorno,
+            @AuthenticationPrincipal UserDetails utente) {
+        return servizio.miaSettimana(utente, giorno == null ? LocalDate.now() : giorno);
+    }
+
+    /**
      * Comincia a lavorare su una task. Se un'altra stava scorrendo, la chiude.
      */
     @PostMapping("/api/lavori/{idLavoro}/task/{idTask}/avvia")
@@ -79,6 +104,32 @@ public class TempoController {
                                     @PathVariable Long idTask,
                                     @AuthenticationPrincipal UserDetails utente) {
         return servizio.completa(utente, idLavoro, idTask);
+    }
+
+    /**
+     * Registra a mano del lavoro già fatto, dal calendario settimanale.
+     *
+     * <p>Sta sotto {@code /api/lavori/{l}/task/{t}/} e non sotto
+     * {@code /api/mio-tempo/} perché <strong>nomina una task</strong>, come
+     * avviare e completare: è la task che si registra, e il tempo viene
+     * dietro. {@code /api/mio-tempo/...} resta per ciò che riguarda la
+     * sessione corrente, dove la task non serve dirla perché ce n'è una sola.
+     *
+     * <p>Nessun permesso nuovo, con lo stesso argomento di tutte le altre
+     * rotte di chi lavora: {@code TASK_AGGIORNA_STATO} è nel pavimento e dice
+     * già «aggiornare lo stato delle task a cui è assegnato». Il confine vero
+     * — che si scrive solo sulle proprie task — lo verifica il servizio,
+     * perché è un dato e un'annotazione non lo consulta.
+     */
+    @PostMapping("/api/lavori/{idLavoro}/task/{idTask}/sessioni")
+    @PreAuthorize("hasAuthority('TASK_AGGIORNA_STATO')")
+    public SituazioneTempo registraManuale(
+            @PathVariable Long idLavoro,
+            @PathVariable Long idTask,
+            @Valid @RequestBody RichiestaSessione richiesta,
+            @AuthenticationPrincipal UserDetails utente) {
+        return servizio.registraManuale(utente, idLavoro, idTask,
+                richiesta.avviataIl(), richiesta.chiusaIl());
     }
 
     /** Accetta una chiusura d'ufficio così com'è. */

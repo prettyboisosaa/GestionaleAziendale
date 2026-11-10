@@ -59,15 +59,27 @@ export function patchJson(dati: unknown): RequestInit {
 }
 
 export async function messaggioErrore(risposta: Response): Promise<string> {
-  // 400 lo descrive Spring, in inglese: «Invalid request content.». Non va
-  // mostrato a chi usa il gestionale. Gli altri stati portano un `detail`
-  // scritto da noi, in italiano e con la formulazione scelta di proposito:
-  // quello si mostra tale e quale.
-  if (risposta.status === 400) {
-    return 'Controlla i dati inseriti.'
-  }
-
   const detail = await dettaglio(risposta)
+
+  // Il 400 arriva da due posti diversi, e solo uno dei due parla italiano.
+  //
+  // Quello di Spring descrive un corpo malformato — «Invalid request
+  // content.» — e non va mostrato a chi usa il gestionale. Ma ci sono anche
+  // regole nostre che rispondono 400: un intervallo di tempo che finisce
+  // prima di cominciare, o che non è ancora passato. Quelle hanno un
+  // messaggio scritto di proposito, e mostrare al suo posto «controlla i
+  // dati» nasconde l'unica cosa che serve sapere.
+  //
+  // A distinguerli è il **codice in testa**, la convenzione che questo
+  // modulo già usa per far riconoscere un caso senza interpretare il testo
+  // italiano: i 400 nostri lo portano, quello di Spring no. Riconoscerlo
+  // dalla stringa inglese sarebbe stato più fragile — basta che Spring la
+  // riformuli e si torna a mostrarla.
+  if (risposta.status === 400) {
+    return detail !== null && codice(detail) !== null
+      ? detail
+      : 'Controlla i dati inseriti.'
+  }
 
   // Il 403 del login porta un `detail` nostro (UTENTE_DISATTIVATO) e va
   // mostrato: è l'unico 403 che spieghi qualcosa a chi lo legge. Gli altri

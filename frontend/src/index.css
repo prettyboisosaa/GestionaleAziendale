@@ -51,6 +51,49 @@
   /* Le assenze approvate nel calendario. */
   --assenza: #af52de;
 
+  /* I livelli di urgenza di una task.
+
+     Non e' una scala di quattro colori accesi, ed e' voluto: la maggior parte
+     delle task e' «media», e una colonna in cui ogni riga accende un colore
+     diventa rumore invece di segnale. I primi due livelli restano
+     nell'inchiostro — si leggono, non si notano — e il colore comincia da
+     «alta», che e' il punto in cui c'e' qualcosa da fare prima.
+
+     Gli ultimi due riusano l'arancione dell'attesa e il rosso: sono i due
+     colori con cui questa interfaccia dice gia' «guarda qui». Stanno in una
+     colonna loro e portano sempre l'etichetta scritta, quindi non si
+     confondono con lo stato della task accanto. */
+  --urgenza-bassa: #8a9aa0;
+  --urgenza-media: #4a6670;
+  --urgenza-alta: #ff9500;
+  --urgenza-urgente: #ff3b30;
+
+  /* Le tinte dei lavori, per i blocchi del calendario settimanale.
+
+     Sono decorative, non di segnale, ed e' la ragione per cui non riusano i
+     colori degli stati qui sopra: quelli dicono una cosa — attivo, in corso,
+     completato — e un blocco colorato per dire «questo e' il lavoro LAV-003»
+     non dice niente di suo. Vanno distinte fra loro, non lette.
+
+     Per questo sono smorzate e tutte alla stessa intensita': nessuna deve
+     gridare piu' delle altre, e nessuna deve somigliare al teal dell'azione o
+     al rosso dell'errore, che invece vanno notati. Otto tinte a distanza
+     regolare sulla ruota; un lavoro le prende dal proprio id, quindi la sua
+     tinta e' la stessa in ogni settimana.
+
+     Nel calendario tingono la superficie **diluite**, come il velo, e restano
+     piene solo sul filetto di sinistra: una scheda colorata per intero e'
+     fuori da questa interfaccia. Il codice del lavoro e' scritto dentro il
+     blocco, cosi' due tinte che si somigliano non perdono l'informazione. */
+  --lavoro-0: #2f6fb3;
+  --lavoro-1: #7a5bb8;
+  --lavoro-2: #b34a86;
+  --lavoro-3: #b3514a;
+  --lavoro-4: #9a7430;
+  --lavoro-5: #4f8f3f;
+  --lavoro-6: #2e8f6f;
+  --lavoro-7: #5c6b7a;
+
   /* L'inchiostro scomposto, per tingere le ombre. */
   --inchiostro-rgb: 21 48 61;
 

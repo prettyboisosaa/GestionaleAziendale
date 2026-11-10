@@ -93,7 +93,7 @@ class TaskControllerTest {
         return new RigaTask(7L, "Analisi requisiti", null,
                 LocalDate.of(2027, 1, 1), LocalDate.of(2027, 2, 1),
                 new BigDecimal("8.00"), new BigDecimal("8.00"), BigDecimal.ZERO, false,
-                StatoTask.ATTIVO,
+                StatoTask.ATTIVO, TaskImportanza.MEDIUM,
                 List.of(new Assegnatario(4L, "Giulia", "Verdi")));
     }
 
@@ -120,6 +120,12 @@ class TaskControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].titolo").value("Analisi requisiti"))
+                // L'urgenza esce col nome dell'enum, che è quello che il
+                // frontend si aspetta nella sua unione di stringhe. Senza
+                // questa riga il campo poteva sparire dal DTO senza che
+                // niente se ne accorgesse: è già accaduto una volta, e il
+                // risultato era una colonna vuota in pagina.
+                .andExpect(jsonPath("$[0].urgenzaTask").value("MEDIUM"))
                 .andExpect(jsonPath("$[0].assegnatari[0].cognome").value("Verdi"));
     }
 

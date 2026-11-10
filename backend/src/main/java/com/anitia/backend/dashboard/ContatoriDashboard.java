@@ -10,8 +10,20 @@ package com.anitia.backend.dashboard;
  * devono essere credibili.
  */
 public record ContatoriDashboard(
-        /** Task aperte con la scadenza già passata. */
-        long scadute,
+        /**
+         * Task aperte che il PM ha marcato {@code CRITICAL}.
+         *
+         * <p>Ha preso il posto di «scadute». Le due domande non sono la stessa
+         * — una scadenza passata è un fatto, l'urgenza è una decisione — e
+         * quella che manca a chi apre la dashboard è la seconda: il ritardo si
+         * legge già nella lista, dove ogni riga dice «in ritardo di tre
+         * giorni», e nel calendario, dove la barra è alle spalle di oggi.
+         * L'urgenza invece non si vedeva da nessuna parte.
+         *
+         * <p>Conta solo le task <strong>aperte</strong>, come gli altri tre:
+         * una task urgente ma completata non è più niente da fare.
+         */
+        long critiche,
 
         /** Task aperte che scadono oggi. */
         long oggi,

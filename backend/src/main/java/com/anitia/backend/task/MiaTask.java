@@ -82,7 +82,21 @@ public record MiaTask(Long taskId,
                       StatoLavoro statoLavoro,
 
                       /** «Cognome Nome» del responsabile del lavoro, null se non assegnato. */
-                      String responsabile) {
+                      String responsabile,
+
+                      /**
+                       * Quanto questa task viene prima delle altre.
+                       *
+                       * <p><strong>Può essere nulla</strong>: la {@code V19}
+                       * ha aggiunto la colonna senza riempire le righe
+                       * esistenti, quindi le task create prima non hanno
+                       * un'urgenza e non se ne inventa una.
+                       *
+                       * <p>Serve alla card «Urgenti» della dashboard, che la
+                       * conta, e alla lista, che la filtra: entrambe lavorano
+                       * su questo elenco senza tornare al server.
+                       */
+                      TaskImportanza urgenzaTask) {
 
     /**
      * @param oreConsumate zero, non null, se nessuno ha ancora registrato ore
@@ -119,7 +133,8 @@ public record MiaTask(Long taskId,
                 lavoro.getStato(),
                 responsabile == null
                         ? null
-                        : responsabile.getCognome() + " " + responsabile.getNome());
+                        : responsabile.getCognome() + " " + responsabile.getNome(),
+                TaskImportanza.daStringa(task.getUrgenzaTask()));
     }
 
     /**

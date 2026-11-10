@@ -10,6 +10,7 @@ import { miaDashboard, mioCalendario } from './api'
 import type { EventoCalendario, MiaTask, RiepilogoDashboard } from './api'
 import { avvia, completa, conferma, durata, pausa } from '../tempo/api'
 import type { SituazioneTempo } from '../tempo/api'
+import CalendarioSettimanale from '../tempo/CalendarioSettimanale'
 import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
@@ -21,11 +22,11 @@ import { apertaTask, ETICHETTA_TASK, tinta } from '../stato/stati'
  * *sono* i filtri: il documento chiede un solo componente lista con più punti
  * d'ingresso, non cinque liste diverse.
  */
-type Filtro = 'TUTTE' | 'SCADUTE' | 'OGGI' | 'SETTIMANA' | 'IN_CORSO'
+type Filtro = 'TUTTE' | 'URGENTI' | 'OGGI' | 'SETTIMANA' | 'IN_CORSO'
 
 const ETICHETTA_FILTRO: Record<Filtro, string> = {
   TUTTE: 'Tutte',
-  SCADUTE: 'Scadute',
+  URGENTI: 'Urgenti',
   OGGI: 'Oggi',
   SETTIMANA: 'Settimana',
   IN_CORSO: 'In corso',
@@ -103,7 +104,11 @@ function classiEvento(evento: EventoCalendario): string[] {
  * esattamente ciò che in quel giorno si vede sopra.
  */
 function vivaIl(task: MiaTask, giorno: string): boolean {
-  if (task.stato === 'IN_CORSO') {
+  // Aperta e non «in corso»: il discrimine è lo stesso del server, e deve
+  // restarlo. IN_CORSO si diventa premendo avvia, quindi una task appena
+  // assegnata — ATTIVO — risultava viva solo il giorno della scadenza, e
+  // cliccare un giorno della settimana in cui va fatta la nascondeva.
+  if (apertaTask(task.stato)) {
     return task.dataInizio <= giorno && giorno <= task.scadenza
   }
   return task.scadenza === giorno
@@ -204,9 +209,13 @@ export default function PaginaDashboard({
   const visibili = tutte
     .filter((task) => {
       switch (filtro) {
-        case 'SCADUTE':
+        case 'URGENTI':
+          // Il livello più alto e nient'altro. «Alta» non entra: una card che
+          // ne contasse due livelli direbbe un numero che l'etichetta non
+          // spiega, e chi la clicca si troverebbe una lista più larga di
+          // quello che ha chiesto.
           return task.stato !== 'COMPLETATO' && task.stato !== 'ANNULLATO'
-            && task.scadenza < oggi
+            && task.urgenzaTask === 'CRITICAL'
         case 'OGGI':
           return task.stato !== 'COMPLETATO' && task.stato !== 'ANNULLATO'
             && task.scadenza === oggi
@@ -322,11 +331,11 @@ export default function PaginaDashboard({
               qui sotto. È il «più punti d'ingresso, un solo elenco». */}
           <div className="card-riga">
             <Card
-              etichetta="Scadute"
-              valore={riepilogo.contatori.scadute}
-              tinta="annullato"
-              attiva={filtro === 'SCADUTE'}
-              onClick={() => setFiltro(filtro === 'SCADUTE' ? 'TUTTE' : 'SCADUTE')}
+              etichetta="Urgenti"
+              valore={riepilogo.contatori.critiche}
+              tinta="urgente"
+              attiva={filtro === 'URGENTI'}
+              onClick={() => setFiltro(filtro === 'URGENTI' ? 'TUTTE' : 'URGENTI')}
             />
             <Card
               etichetta="Oggi"
@@ -349,6 +358,15 @@ export default function PaginaDashboard({
               attiva={filtro === 'IN_CORSO'}
               onClick={() => setFiltro(filtro === 'IN_CORSO' ? 'TUTTE' : 'IN_CORSO')}
             />
+          </div>
+
+          {/* Due calendari, due domande. Questo guarda avanti: che cosa
+              devo fare, per scadenza. Quello sotto guarda indietro: dove
+              sono andate le ore. Impilati e non affiancati di proposito —
+              una griglia di sette giorni per quattordici ore stretta in
+              mezza pagina non si legge. */}
+          <div className="testata">
+            <h2>Da fare</h2>
           </div>
 
           <div className="scheda-calendario">
@@ -378,6 +396,29 @@ export default function PaginaDashboard({
               eventClick={eventoCliccato}
             />
           </div>
+
+          <div className="testata">
+            <h2>Cosa ho fatto</h2>
+          </div>
+
+          {/* Il ricaricamento della griglia lo fa il cambio di `tempo`. Qui
+              si rimette in pari il resto: le ore consumate di una task
+              cambiano se una sessione viene corretta o annullata, e quelle
+              stanno nel riepilogo. */}
+          <CalendarioSettimanale
+            tempo={tempo}
+            // Le task su cui si può scrivere sono quelle a cui si è assegnati
+            // e ancora aperte: il riepilogo le ha già, e non serve una rotta
+            // per richiederle. Le chiuse restano fuori perché il server le
+            // rifiuterebbe — su una task completata le ore residue sono già
+            // tornate nel pool del lavoro.
+            task={tutte.filter((una) => apertaTask(una.stato))}
+            onErrore={setErrore}
+            onScritto={(situazione) => {
+              onTempo(situazione)
+              caricaRiepilogo().catch((motivo: unknown) => setErrore(testo(motivo)))
+            }}
+          />
 
           <div className="testata">
             <h2>Le mie task</h2>
@@ -557,7 +598,7 @@ function saluto(nome: string): string {
   if (ora < 13) {
     return 'Buongiorno, ' + nome + ".";
   }
-  return ora < 18 ? 'Buon pomeriggio' : 'Buonasera'
+  return ora < 18 ? 'Buon pomeriggio, ' + nome + "." : 'Buonasera, ' + nome + "."
 }
 
 

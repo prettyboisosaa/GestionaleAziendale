@@ -8,10 +8,12 @@ import {
   assegnabili as caricaAssegnabili,
   cambiaStatoTask,
   creaTask,
+  ETICHETTA_URGENZA,
   rimuoviAssegnazione,
   taskDelLavoro,
+  TINTA_URGENZA,
 } from '../task/api'
-import type { Assegnatario, RigaTask, StatoTask } from '../task/api'
+import type { Assegnatario, RigaTask, StatoTask, UrgenzaTask } from '../task/api'
 import { avvia as avviaTempo, completa as completaTempo, pausa as pausaTempo } from '../tempo/api'
 import type { SituazioneTempo } from '../tempo/api'
 import {
@@ -39,6 +41,19 @@ const STATI_RICHIESTA: Record<RigaRichiestaOre['stato'], string> = {
   APPROVATA_PARZIALE: 'Approvata in parte',
   RIFIUTATA: 'Rifiutata',
 }
+
+/**
+ * I livelli di urgenza nell'ordine in cui la tendina li offre: dal meno al
+ * più urgente, così si legge come una scala invece che come un elenco.
+ *
+ * L'array sta qui e non accanto al tipo, come fanno `MOTIVI` e `TIPI` in
+ * `PaginaMieAssenze`: l'ordine delle opzioni è una scelta di questa schermata,
+ * non una proprietà dell'enum.
+ */
+const URGENZE: UrgenzaTask[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+
+/** Il livello di partenza del form: ogni task ne ha uno, anche senza pensarci. */
+const URGENZA_INIZIALE: UrgenzaTask = 'MEDIUM'
 
 const TIPI_MOVIMENTO: Record<RigaMovimento['tipo'], string> = {
   MONTE_INIZIALE: 'Monte ore iniziale',
@@ -146,6 +161,9 @@ export default function PaginaLavoro({
   const [dataInizio, setDataInizio] = useState('')
   const [scadenza, setScadenza] = useState('')
   const [stimaOre, setStimaOre] = useState('')
+  // Tipizzato e non `string`: è quello che impedisce di mandare al server un
+  // valore che il suo enum non conosce.
+  const [urgenza, setUrgenza] = useState<UrgenzaTask>(URGENZA_INIZIALE)
 
   // Il monte ore
   const [mostraMonteOre, setMostraMonteOre] = useState(false)
@@ -270,6 +288,7 @@ export default function PaginaLavoro({
         dataInizio,
         scadenza,
         stimaOre: stimaOre.trim() === '' ? null : Number(stimaOre),
+        urgenzaTask: urgenza,
       }),
     )
     if (riuscita) {
@@ -278,6 +297,9 @@ export default function PaginaLavoro({
       setDataInizio('')
       setScadenza('')
       setStimaOre('')
+      // Torna al livello di partenza e non all'ultimo scelto: altrimenti la
+      // task dopo erediterebbe un'urgenza che nessuno ha deciso per lei.
+      setUrgenza(URGENZA_INIZIALE)
       setMostraForm(false)
     }
   }
@@ -564,6 +586,26 @@ export default function PaginaLavoro({
                 disabled={inCorso}
               />
             </div>
+            {/* Fra la scadenza e la stima, così il form si legge come una
+                domanda sola: che cosa, entro quando, quanto viene prima,
+                quanto è lunga. Niente opzione vuota — il campo parte
+                compilato, e un valore vuoto sarebbe un quinto livello che
+                l'enum non ha. */}
+            <div className="campo">
+              <label htmlFor="urgenza">Urgenza</label>
+              <select
+                id="urgenza"
+                value={urgenza}
+                onChange={(evento) => setUrgenza(evento.target.value as UrgenzaTask)}
+                disabled={inCorso}
+              >
+                {URGENZE.map((una) => (
+                  <option key={una} value={una}>
+                    {ETICHETTA_URGENZA[una]}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="campo">
               <label htmlFor="stima">Stima in ore</label>
               <input
@@ -606,6 +648,7 @@ export default function PaginaLavoro({
                   <th>Ore</th>
                   <th>Stato</th>
                   <th>Assegnata a</th>
+                  <th>Urgenza</th>
                 </tr>
               </thead>
               <tbody>
@@ -769,6 +812,20 @@ export default function PaginaLavoro({
                             </select>
                           )}
                         </td>
+                        <td>
+                          {/* Niente pillola se l'urgenza non c'è: le task
+                              create prima della V19 non ne hanno una, e
+                              scrivere «media» al posto del vuoto sarebbe
+                              attribuire al PM una decisione che non ha
+                              preso. Il trattino dice che il dato manca. */}
+                          {singola.urgenzaTask === null ? (
+                            <span className="nota">—</span>
+                          ) : (
+                            <Pillola tinta={TINTA_URGENZA[singola.urgenzaTask]}>
+                              {ETICHETTA_URGENZA[singola.urgenzaTask]}
+                            </Pillola>
+                          )}
+                        </td>
                       </tr>
 
                       {/* Il modulo dell'allocazione sta in una riga sotto la
@@ -776,7 +833,10 @@ export default function PaginaLavoro({
                           a quale task si stanno dando le ore. */}
                       {allocaPer === singola.id && (
                         <tr>
-                          <td colSpan={5}>
+                          {/* Sei colonne da quando c'è l'urgenza: il modulo deve
+                              coprire la riga intera, altrimenti la tabella si
+                              apre una cella vuota a destra. */}
+                          <td colSpan={6}>
                             <form
                               className="modulo modulo-riga"
                               onSubmit={(evento) => void inviaAllocazione(evento, singola.id)}

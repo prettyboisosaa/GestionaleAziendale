@@ -27,6 +27,13 @@ public record RigaTask(Long id,
                         */
                        boolean sforamento,
                        StatoTask stato,
+                       /**
+                        * Quanto questa task viene prima delle altre. <strong>Può
+                        * essere nulla</strong>: la {@code V19} ha aggiunto la colonna
+                        * senza riempire le righe esistenti, quindi le task create
+                        * prima non hanno un'urgenza e non se ne può inventare una.
+                        */
+                       TaskImportanza urgenzaTask,
                        List<Assegnatario> assegnatari) {
 
     /**
@@ -39,6 +46,7 @@ public record RigaTask(Long id,
                 task.getDataInizio(), task.getScadenza(), task.getStimaOre(),
                 oreAllocate, oreConsumate,
                 oreConsumate.compareTo(oreAllocate) > 0,
-                task.getStato(), assegnatari);
+                task.getStato(), TaskImportanza.daStringa(task.getUrgenzaTask()),
+                assegnatari);
     }
 }

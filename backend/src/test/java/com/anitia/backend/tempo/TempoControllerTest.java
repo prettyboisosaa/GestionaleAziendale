@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.anitia.backend.sicurezza.ConfigurazioneSicurezza;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -61,8 +63,10 @@ class TempoControllerTest {
 
     private static final String EMAIL = "admin@gestionale.local";
     private static final String MIO = "/api/mio-tempo";
+    private static final String SETTIMANA = "/api/mio-tempo/settimana";
     private static final String AVVIA = "/api/lavori/1/task/2/avvia";
     private static final String COMPLETA = "/api/lavori/1/task/2/completa";
+    private static final String SESSIONI = "/api/lavori/1/task/2/sessioni";
 
     @Autowired
     private MockMvc mockMvc;
@@ -120,6 +124,83 @@ class TempoControllerTest {
     void ilProprioTempoConIlSoloPermessoDiLetturaRisponde403() throws Exception {
         mockMvc.perform(get(MIO).session(sessioneCon("TEMPO_VISUALIZZA_TUTTI")))
                 .andExpect(status().isForbidden());
+    }
+
+    // --- la propria settimana ------------------------------------------------
+
+    /**
+     * La griglia della dashboard sta sul pavimento, come il resto di quello
+     * che il dipendente fa col proprio tempo: guardare le proprie ore non è
+     * un privilegio amministrativo.
+     */
+    @Test
+    void laPropriaSettimanaConIlPermessoDiBaseRisponde200() throws Exception {
+        given(servizio.miaSettimana(any(), any())).willReturn(new SettimanaDiTempo(
+                LocalDate.of(2026, 11, 9), LocalDate.of(2026, 11, 15), 95, true,
+                List.of(new RigaSessione(7L, 2L, "Revisione contratto", 1L, "LAV-001",
+                        LocalDateTime.of(2026, 11, 9, 9, 0),
+                        LocalDateTime.of(2026, 11, 9, 10, 35), 95,
+                        OrigineSessione.TIMER, true))));
+
+        mockMvc.perform(get(SETTIMANA).session(sessioneCon("TASK_AGGIORNA_STATO")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inizio").value("2026-11-09"))
+                .andExpect(jsonPath("$.fine").value("2026-11-15"))
+                .andExpect(jsonPath("$.minutiTotali").value(95))
+                .andExpect(jsonPath("$.sessioni[0].codiceLavoro").value("LAV-001"))
+                .andExpect(jsonPath("$.sessioni[0].minuti").value(95))
+                .andExpect(jsonPath("$.modificabile").value(true));
+    }
+
+    /**
+     * Il giorno chiesto arriva al servizio così com'è, senza che il controller
+     * provi a risalire al lunedì: la settimana la decide un posto solo.
+     */
+    @Test
+    void laSettimanaDiUnGiornoPreciso() throws Exception {
+        given(servizio.miaSettimana(any(), any())).willReturn(
+                new SettimanaDiTempo(LocalDate.of(2026, 11, 2),
+                        LocalDate.of(2026, 11, 8), 0, false, List.of()));
+
+        mockMvc.perform(get(SETTIMANA).param("giorno", "2026-11-05")
+                        .session(sessioneCon("TASK_AGGIORNA_STATO")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inizio").value("2026-11-02"))
+                // Una settimana chiusa lo dice, così la griglia resta inerte
+                // invece di aprire un pannello che prenderebbe un 409.
+                .andExpect(jsonPath("$.modificabile").value(false));
+
+        then(servizio).should().miaSettimana(any(), eq(LocalDate.of(2026, 11, 5)));
+    }
+
+    /** Senza il parametro è la settimana di oggi: la dashboard non lo manda. */
+    @Test
+    void laSettimanaSenzaParametroEQuellaDiOggi() throws Exception {
+        given(servizio.miaSettimana(any(), any())).willReturn(
+                new SettimanaDiTempo(LocalDate.now().with(DayOfWeek.MONDAY),
+                        LocalDate.now().with(DayOfWeek.MONDAY).plusDays(6), 0, true,
+                        List.of()));
+
+        mockMvc.perform(get(SETTIMANA).session(sessioneCon("TASK_AGGIORNA_STATO")))
+                .andExpect(status().isOk());
+
+        then(servizio).should().miaSettimana(any(), eq(LocalDate.now()));
+    }
+
+    /** Un giorno illeggibile è una richiesta malfatta, non una settimana vuota. */
+    @Test
+    void unGiornoNonValidoRisponde400() throws Exception {
+        mockMvc.perform(get(SETTIMANA).param("giorno", "settimana-scorsa")
+                        .session(sessioneCon("TASK_AGGIORNA_STATO")))
+                .andExpect(status().isBadRequest());
+
+        then(servizio).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void laPropriaSettimanaSenzaSessioneRisponde401() throws Exception {
+        mockMvc.perform(get(SETTIMANA))
+                .andExpect(status().isUnauthorized());
     }
 
     // --- avvia, pausa, completa ----------------------------------------------
@@ -206,6 +287,111 @@ class TempoControllerTest {
         then(servizio).should().completa(any(), eq(1L), eq(2L));
     }
 
+    // --- la sessione scritta a mano ------------------------------------------
+
+    /**
+     * Scrivere a mano non ha un permesso suo, come il resto di quello che il
+     * dipendente fa col proprio tempo: è la stessa scelta che questo file
+     * fissa per avvia, pausa e completa.
+     */
+    @Test
+    void registrareAManoConIlPermessoDiBaseRisponde200() throws Exception {
+        given(servizio.registraManuale(any(), eq(1L), eq(2L),
+                eq(LocalDateTime.of(2026, 11, 9, 9, 0)),
+                eq(LocalDateTime.of(2026, 11, 9, 13, 0)))).willReturn(vuota());
+
+        mockMvc.perform(post(SESSIONI).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T13:00:00\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void registrareAManoSenzaIlPermessoDiBaseRisponde403() throws Exception {
+        mockMvc.perform(post(SESSIONI).session(sessioneCon("TEMPO_VISUALIZZA_TUTTI"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T13:00:00\"}"))
+                .andExpect(status().isForbidden());
+
+        then(servizio).shouldHaveNoInteractions();
+    }
+
+    /** Un intervallo senza estremi non è una sessione da zero minuti. */
+    @Test
+    void registrareAManoSenzaGliEstremiRisponde400() throws Exception {
+        mockMvc.perform(post(SESSIONI).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        then(servizio).shouldHaveNoInteractions();
+    }
+
+    /**
+     * Su una task non propria non si scrive, nemmeno potendola gestire: il
+     * 403 nasce nel servizio, perché l'assegnazione è un dato.
+     */
+    @Test
+    void registrareAManoSuUnaTaskNonPropriaRisponde403() throws Exception {
+        given(servizio.registraManuale(any(), anyLong(), anyLong(), any(), any()))
+                .willThrow(new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Non sei assegnato alla task «Preventivo Rossi»: puoi registrare "
+                                + "tempo solo sulle task che ti sono state affidate."));
+
+        mockMvc.perform(post(SESSIONI).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T13:00:00\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    /** Del tempo nel futuro non è un ricordo: è un proposito. */
+    @Test
+    void registrareAManoNelFuturoRisponde400() throws Exception {
+        given(servizio.registraManuale(any(), anyLong(), anyLong(), any(), any()))
+                .willThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "TEMPO_NEL_FUTURO: non si registra tempo che non è ancora passato."));
+
+        mockMvc.perform(post(SESSIONI).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2027-01-04T09:00:00\","
+                                + "\"chiusaIl\":\"2027-01-04T13:00:00\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void registrareAManoInUnaSettimanaChiusaRisponde409() throws Exception {
+        given(servizio.registraManuale(any(), anyLong(), anyLong(), any(), any()))
+                .willThrow(new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Il tempo del 2026-11-02 non si scrive più: si sistema entro la "
+                                + "settimana in cui si è lavorato."));
+
+        mockMvc.perform(post(SESSIONI).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2026-11-02T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-02T13:00:00\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    /** Il conflitto nomina la task con cui si accavalla: altrimenti non si sa che spostare. */
+    @Test
+    void registrareAManoSopraUnAltraSessioneRisponde409() throws Exception {
+        given(servizio.registraManuale(any(), anyLong(), anyLong(), any(), any()))
+                .willThrow(new ResponseStatusException(HttpStatus.CONFLICT,
+                        "In quelle ore hai già «Preventivo Rossi», dalle 09:00 alle 11:00. "
+                                + "Le ore non si sovrappongono."));
+
+        mockMvc.perform(post(SESSIONI).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2026-11-09T10:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T12:00:00\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(
+                        org.hamcrest.Matchers.containsString("Preventivo Rossi")));
+    }
+
     // --- conferme e correzioni -----------------------------------------------
 
     @Test
@@ -227,19 +413,64 @@ class TempoControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    /** Fuori dalla finestra il server rifiuta, e il messaggio dice qual è la regola. */
+    /**
+     * Fuori dalla finestra il server rifiuta, e il messaggio dice qual è la
+     * regola.
+     *
+     * <p>La finestra è la <strong>settimana</strong>, non più la giornata: da
+     * quando la griglia settimanale permette di riempire un giorno che non è
+     * stato registrato, un giorno di finestra mancherebbe lo scopo — di un
+     * giovedì dimenticato ci si accorge il venerdì. Una settimana chiusa,
+     * invece, resta chiusa: le ore entrano nel consuntivo di un lavoro, e un
+     * consuntivo deve potersi fermare.
+     */
     @Test
-    void correggereIlTempoDiIeriRisponde409() throws Exception {
+    void correggereIlTempoDiUnaSettimanaChiusaRisponde409() throws Exception {
         given(servizio.correggi(any(), anyLong(), any(), any())).willThrow(
                 new ResponseStatusException(HttpStatus.CONFLICT,
-                        "Il tempo del 2026-11-08 non si corregge più: si sistema entro la "
-                                + "giornata."));
+                        "Il tempo del 2026-11-02 non si scrive più: si sistema entro la "
+                                + "settimana in cui si è lavorato."));
 
         mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"avviataIl\":\"2026-11-08T09:00:00\","
-                                + "\"chiusaIl\":\"2026-11-08T11:00:00\"}"))
+                        .content("{\"avviataIl\":\"2026-11-02T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-02T11:00:00\"}"))
                 .andExpect(status().isConflict());
+    }
+
+    /**
+     * Una correzione che porta la sessione addosso a un'altra viene respinta,
+     * e il messaggio <strong>nomina</strong> quella in conflitto: un «si
+     * sovrappone» senza dire a che cosa è un errore su cui non si può agire.
+     */
+    @Test
+    void correggereSopraUnAltraSessioneRisponde409() throws Exception {
+        given(servizio.correggi(any(), anyLong(), any(), any())).willThrow(
+                new ResponseStatusException(HttpStatus.CONFLICT,
+                        "In quelle ore hai già «Preventivo Rossi», dalle 14:00 alle 16:00. "
+                                + "Le ore non si sovrappongono."));
+
+        mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2026-11-10T14:30:00\","
+                                + "\"chiusaIl\":\"2026-11-10T15:30:00\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(
+                        org.hamcrest.Matchers.containsString("Preventivo Rossi")));
+    }
+
+    /** Il tempo di un altro giorno della settimana si corregge: è la finestra nuova. */
+    @Test
+    void correggereUnAltroGiornoDellaSettimanaRisponde200() throws Exception {
+        given(servizio.correggi(any(), eq(7L),
+                eq(LocalDateTime.of(2026, 11, 9, 9, 0)),
+                eq(LocalDateTime.of(2026, 11, 9, 13, 0)))).willReturn(vuota());
+
+        mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T13:00:00\"}"))
+                .andExpect(status().isOk());
     }
 
     @Test

@@ -240,7 +240,7 @@ public class ServizioTask {
 
         Task creata = task.saveAndFlush(Task.nuova(lavoro, richiesta.titolo(),
                 richiesta.descrizione(), richiesta.dataInizio(), richiesta.scadenza(),
-                richiesta.stimaOre()));
+                richiesta.stimaOre(), String.valueOf(richiesta.urgenzaTask())));
 
         // Appena creata: nessuna ora allocata — gliene darà il PM dal pool — e
         // nessuna consumata, perché non c'è ancora nessuno assegnato.

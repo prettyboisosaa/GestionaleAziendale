@@ -26,5 +26,21 @@ public enum OrigineSessione {
      * Convertita da una vecchia voce di dichiarazione dalla {@code V16}. Di
      * quelle righe era vera la durata, non l'ora del giorno.
      */
-    IMPORTATA
+    IMPORTATA,
+
+    /**
+     * Scritta a mano sul calendario settimanale, da chi si è dimenticato di
+     * premere avvia.
+     *
+     * <p>Non è {@code TIMER}, che vuol dire «misurata», e non è
+     * {@code IMPORTATA}, che vuol dire «storia di un altro modello»: è un
+     * ricordo dichiarato da una persona, una terza qualità di dato. La
+     * distinzione serve a chi legge un consuntivo, che ha diritto di sapere
+     * quanta parte di quelle ore è stata misurata — nella griglia il blocco è
+     * tratteggiato come quello delle chiusure d'ufficio.
+     *
+     * <p>Nasce <strong>confermata</strong>: l'ha scritta la persona, e non c'è
+     * niente da far confermare a nessuno.
+     */
+    MANUALE
 }

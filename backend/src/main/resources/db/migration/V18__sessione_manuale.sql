@@ -1,0 +1,81 @@
+-- =====================================================================
+-- V18 - La sessione scritta a mano
+--
+-- Dalla V15 il tempo si misura: il dipendente avvia una task, la mette in
+-- pausa, e le ore escono da se'. Funziona per chi preme avvia. Chi se ne
+-- dimentica non aveva nessun rimedio: la V17 ha eliminato la dichiarazione
+-- giornaliera, e la sola scrittura manuale rimasta era correggere una
+-- sessione che ESISTE GIA'.
+--
+-- Il calendario settimanale della dashboard chiude quel buco: si clicca una
+-- zona vuota e si dice che cosa si e' fatto. Il timer resta la strada
+-- normale, questa e' la rete per chi se ne accorge dopo.
+--
+-- Serve un quarto valore di `origine`, e serve una migrazione perche'
+-- `ck_sessione_origine` rifiuterebbe la scrittura.
+--
+--   TIMER       il dipendente ha premuto avvia e poi pausa o completa
+--   AUTOMATICA  chiusa d'ufficio perche' aperta oltre il tetto
+--   IMPORTATA   convertita da una vecchia voce di dichiarazione (V16)
+--   MANUALE     scritta a mano sul calendario settimanale   <-- nuovo
+--
+-- Non si riusa TIMER, che vuol dire «misurata», ne' IMPORTATA, che vuol dire
+-- «storia di un altro modello». L'enum esiste per non confondere quello che
+-- una persona ha misurato con quello che il sistema ha dedotto, e un ricordo
+-- dichiarato e' una terza qualita' di dato: l'interfaccia la mostra in modo
+-- diverso — il blocco e' tratteggiato — e chi legge un consuntivo ha diritto
+-- di sapere quanta parte e' misura.
+--
+-- Solo DDL, nessun dato: la regola della V15/V16/V17, che separa le due cose
+-- in migrazioni distinte, qui non si applica perche' non c'e' niente da
+-- convertire. Un ALTER riesce o non fa niente.
+--
+-- Nessun permesso nuovo, quindi nessun INSERT nel catalogo e nessuna
+-- concessione al ruolo protetto: TASK_AGGIORNA_STATO e' nel pavimento e dice
+-- gia' «aggiornare lo stato delle task a cui e' assegnato». Scrivere le
+-- proprie ore su una task propria E' quello, come avviare e mettere in pausa.
+-- =====================================================================
+
+
+-- Il CHECK non si modifica: si elimina e si rifa'. La lista va COPIATA da
+-- quella della V15 e allungata, perche' ricrearla a memoria e' il modo di
+-- perdere un valore per strada.
+ALTER TABLE sessione_task DROP CHECK ck_sessione_origine;
+
+ALTER TABLE sessione_task ADD CONSTRAINT ck_sessione_origine
+    CHECK (origine IN ('TIMER', 'AUTOMATICA', 'IMPORTATA', 'MANUALE'));
+
+
+-- ---------------------------------------------------------------------
+-- Quello che NON cambia, e la ragione per cui non cambia
+--
+-- ck_sessione_conferma  CHECK (confermata = TRUE OR origine = 'AUTOMATICA')
+--   Una sessione manuale nasce confermata: l'ha scritta la persona, e non c'e'
+--   niente da far confermare a nessuno. Il vincolo resta soddisfatto cosi'
+--   com'e', e AUTOMATICA resta l'unica origine che puo' restare in attesa —
+--   la sola la cui ora di fine non l'ha scelta un essere umano.
+--
+-- uk_sessione_in_corso  UNIQUE (in_corso)
+--   Una sessione manuale ha sempre `chiusa_il`, quindi la colonna generata
+--   `in_corso` vale NULL e il vincolo non la vede. Scrivere a mano non
+--   interferisce con il timer che sta scorrendo.
+--
+-- ck_sessione_durata    CHECK (chiusa_il IS NULL OR chiusa_il > avviata_il)
+--   Vale anche qui, ed e' l'ultima difesa: il servizio rifiuta prima un
+--   intervallo che finisce quando e' cominciato, ma se un giorno smettesse di
+--   farlo, minuti negativi non entrerebbero comunque nelle ore di un lavoro.
+--
+-- idx_sessione_utente (utente_id, avviata_il)
+--   Copre gia' la lettura di una settimana di una persona, che e' la query
+--   nuova piu' frequente. Nessun indice da aggiungere.
+--
+-- LA SOVRAPPOSIZIONE NON E' QUI, ed e' una scelta. Due sessioni della stessa
+-- persona non devono coprire lo stesso istante — e' la proprieta' su cui si
+-- appoggia la sommabilita' delle ore — ma un CHECK non guarda le altre righe,
+-- e il vincolo di esclusione che servirebbe MySQL non lo ha. Il controllo sta
+-- in ServizioTempo, a differenza dell'unicita' della sessione aperta, che
+-- invece e' qui perche' due clic contemporanei passerebbero sotto un
+-- controllo applicativo. A percorrere la finestra fra la lettura e la
+-- scrittura, qui, dovrebbe essere la stessa persona che inserisce due
+-- intervalli accavallati nello stesso istante da due finestre del browser.
+-- ---------------------------------------------------------------------

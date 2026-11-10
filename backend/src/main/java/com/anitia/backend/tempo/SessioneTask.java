@@ -93,6 +93,30 @@ public class SessioneTask {
         return sessione;
     }
 
+    /**
+     * Scritta a mano: due istanti scelti da chi c'era.
+     *
+     * <p>È l'unica fabbrica che prende una fine, e la ragione è che qui la
+     * sessione non si apre — nasce già chiusa, perché quel lavoro è già
+     * accaduto. Il timer misura mentre succede, questa registra dopo.
+     *
+     * <p>Nasce <strong>confermata</strong>: la differenza con
+     * {@link #chiudiDUfficio} è esattamente questa — là la fine è una
+     * deduzione da far guardare a qualcuno, qui l'ha scelta una persona.
+     * L'origine resta a dire che non è stata misurata.
+     */
+    public static SessioneTask manuale(Task task, Utente utente,
+                                       LocalDateTime da, LocalDateTime a) {
+        SessioneTask sessione = new SessioneTask();
+        sessione.task = task;
+        sessione.utente = utente;
+        sessione.avviataIl = da;
+        sessione.chiusaIl = a;
+        sessione.origine = OrigineSessione.MANUALE;
+        sessione.confermata = true;
+        return sessione;
+    }
+
     /** Pausa, oppure task completata: la sessione si chiude adesso. */
     public void chiudi() {
         this.chiusaIl = LocalDateTime.now();

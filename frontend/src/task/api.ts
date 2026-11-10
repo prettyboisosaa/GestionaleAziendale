@@ -38,7 +38,61 @@ export type RigaTask = {
    */
   sforamento: boolean
   stato: StatoTask
+  /**
+   * Quanto questa task viene prima delle altre.
+   *
+   * **Può essere nulla**, e non è un caso di confine da ignorare: la `V19` ha
+   * aggiunto la colonna senza riempire le righe esistenti, quindi ogni task
+   * creata prima non ha un'urgenza. Il server risponde `null` invece di
+   * inventare un livello, e qui non si mostra niente — dire «media» di una
+   * task su cui nessuno ha deciso sarebbe mettergli in bocca una parola.
+   */
+  urgenzaTask: UrgenzaTask | null
   assegnatari: Assegnatario[]
+}
+
+/**
+ * Quanto una task viene prima delle altre.
+ *
+ * Il tipo sta qui e non in `stato/stati`: là vivono gli **stati** di lavori e
+ * task, che compaiono in cinque schermate e portano i nomi delle classi CSS
+ * dei loro colori. L'urgenza per ora riguarda un campo di un form, e la regola
+ * del progetto è che i tipi propri di un dominio stiano nell'`api.ts` di quel
+ * dominio insieme alle loro etichette — come `MotivoPermesso` in
+ * `assenza/api.ts` o `TipoMovimento` in `ore/api.ts`.
+ *
+ * I valori sono in **inglese** perché rispecchiano `TaskImportanza` lato
+ * server, e sul filo deve passare esattamente quello che quell'enum accetta.
+ * È l'unico enum del progetto con valori non italiani: le etichette qui sotto
+ * sono il punto dove le due lingue si incontrano, e non ce ne sono altri.
+ */
+export type UrgenzaTask = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
+/** Al femminile, come le etichette di stato delle task: «questa task è alta». */
+export const ETICHETTA_URGENZA: Record<UrgenzaTask, string> = {
+  LOW: 'Bassa',
+  MEDIUM: 'Media',
+  HIGH: 'Alta',
+  CRITICAL: 'Urgente',
+}
+
+/**
+ * Il modificatore di colore della pillola, per livello.
+ *
+ * Come `TINTA_STATO` in `assenza/api.ts` e come `tinta()` in `stato/stati`:
+ * qui c'è il **nome della classe**, i valori stanno in `App.css` accanto al
+ * resto della tavolozza. Un colore scritto in un file TypeScript è un colore
+ * che nessuno trova quando cerca di cambiare il tema.
+ *
+ * I primi due livelli sono volutamente spenti. La maggior parte delle task è
+ * «media», e se ogni riga della tabella accendesse un colore la colonna
+ * diventerebbe rumore invece di segnale: si notano le due che vengono prima.
+ */
+export const TINTA_URGENZA: Record<UrgenzaTask, string> = {
+  LOW: 'urgenza-bassa',
+  MEDIUM: 'urgenza-media',
+  HIGH: 'urgenza-alta',
+  CRITICAL: 'urgenza-urgente',
 }
 
 export type NuovaTask = {
@@ -47,6 +101,12 @@ export type NuovaTask = {
   dataInizio: string
   scadenza: string
   stimaOre: number | null
+  /**
+   * Non è facoltativa come la stima: la tendina parte compilata, quindi un
+   * valore c'è sempre. Il nome combacia con la colonna `urgenza_task` e con
+   * il campo dell'entità.
+   */
+  urgenzaTask: UrgenzaTask
 }
 
 /**

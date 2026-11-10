@@ -62,3 +62,23 @@ export function apertaTask(stato: StatoTask): boolean {
 export function chiusoLavoro(stato: StatoLavoro): boolean {
   return stato === 'COMPLETATO' || stato === 'ANNULLATO'
 }
+
+/**
+ * La tinta di un lavoro, per i blocchi del calendario settimanale.
+ *
+ * Una per lavoro e non una per task: la domanda a cui la settimana risponde a
+ * colpo d'occhio è «su quali progetti è andata», e due task dello stesso
+ * lavoro che fossero di due colori diversi la renderebbero illeggibile.
+ *
+ * Si ricava dall'**id**, non dall'ordine in cui le sessioni arrivano: così il
+ * lavoro che questa settimana è verde è verde anche la prossima, e la memoria
+ * visiva serve a qualcosa. Otto tinte che si ripetono — con più di otto lavori
+ * nella stessa settimana due possono coincidere, e si accetta: dentro il
+ * blocco c'è scritto il codice del lavoro.
+ *
+ * Come `tinta`, restituisce **il nome della classe** e non un colore: i valori
+ * stanno in `App.css` accanto al resto della tavolozza.
+ */
+export function tintaLavoro(lavoroId: number): string {
+  return `lavoro-${lavoroId % 8}`
+}

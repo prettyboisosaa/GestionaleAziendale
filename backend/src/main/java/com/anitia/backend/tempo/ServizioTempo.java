@@ -11,6 +11,7 @@ import com.anitia.backend.task.Task;
 import com.anitia.backend.task.TaskRepository;
 import com.anitia.backend.utente.Utente;
 import com.anitia.backend.utente.UtenteRepository;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -112,6 +113,46 @@ public class ServizioTempo {
                 sessioni.trovaDaConfermare(io.getId()).stream().map(RigaSessione::da).toList());
     }
 
+    /**
+     * Una settimana di lavoro, da lunedì a domenica.
+     *
+     * <p>Alimenta la griglia a fasce orarie della dashboard. Non aggiunge
+     * niente ai dati: legge le stesse sessioni che il timer scrive, e le
+     * restituisce con i loro due istanti invece che sommate in un totale —
+     * è la collocazione nella giornata che qui serve.
+     *
+     * <p>La settimana la decide il <strong>lunedì</strong>, non il giorno
+     * chiesto: {@code with(DayOfWeek.MONDAY)} sulla settimana ISO riporta
+     * anche la domenica al lunedì che la precede, così la domenica sera cade
+     * nella settimana che si sta chiudendo e non in quella dopo. È la stessa
+     * convenzione con cui il calendario in pagina è impostato su
+     * {@code firstDay=1}: due definizioni diverse sposterebbero di un giorno
+     * il confine fra una settimana e l'altra.
+     *
+     * <p>Passa dalla chiusura al tetto come ogni rotta del tempo: guardare la
+     * propria settimana è un'occasione buona come un'altra per interrompere
+     * una sessione rimasta aperta ieri sera.
+     */
+    @Transactional
+    public SettimanaDiTempo miaSettimana(UserDetails chiLoChiede, LocalDate giorno) {
+        Utente io = autore(chiLoChiede);
+        chiudiSeOltreIlTetto(io.getId());
+
+        LocalDate lunedi = giorno.with(DayOfWeek.MONDAY);
+
+        // L'intervallo è semiaperto, come vuole trovaDelPeriodo: dalla
+        // mezzanotte del lunedì a quella del lunedì dopo. La domenica entra
+        // tutta, e nessuna sessione finisce in due settimane.
+        List<SessioneTask> trovate = sessioni.trovaDelPeriodo(io.getId(),
+                lunedi.atStartOfDay(), lunedi.plusDays(7).atStartOfDay());
+
+        long minuti = trovate.stream().mapToLong(SessioneTask::durataMinuti).sum();
+
+        return new SettimanaDiTempo(lunedi, lunedi.plusDays(6), minuti,
+                lunedi.isEqual(inizioSettimanaCorrente()),
+                trovate.stream().map(RigaSessione::da).toList());
+    }
+
     // --- avvia, pausa, completa ---------------------------------------------
 
     /**
@@ -129,38 +170,8 @@ public class ServizioTempo {
         Lavoro lavoro = lavori.lavoroVisibile(chiLoChiede, idLavoro);
         Task destinazione = taskDelLavoro(idTask, idLavoro);
 
-        // Serve un'assegnazione attiva, e NON basta poter gestire la task.
-        //
-        // È la differenza fra «posso disporre di questa task» e «ci ho
-        // lavorato io»: il timer misura il tempo di chi lo avvia, e metterlo
-        // su una task di qualcun altro vorrebbe dire scrivere le proprie ore
-        // nel consuntivo del lavoro di un collega. Un responsabile che
-        // davvero ci lavora ha già la strada: assegnarsi la task, cosa che
-        // il suo permesso di gestione gli consente.
-        //
-        // Per questo qui non si riusa vietaSeNonPuoCambiareStato, che invece
-        // lascia passare chi ha TASK_GESTISCI_TUTTI o è responsabile del
-        // lavoro: cambiare lo stato di una task altrui è legittimo,
-        // registrarci il proprio tempo no.
-        if (assegnazioni.findByTaskIdAndUtenteIdAndRimossaIlIsNull(idTask, io.getId())
-                .isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Non sei assegnato alla task «" + destinazione.getTitolo()
-                            + "»: puoi registrare tempo solo sulle task che ti sono "
-                            + "state affidate.");
-        }
-
-        if (lavoro.getStato().chiuso()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Il lavoro " + lavoro.getCodice() + " non è più in corso: non si "
-                            + "registra tempo sulle sue task.");
-        }
-        if (!destinazione.getStato().aperta()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "La task «" + destinazione.getTitolo() + "» è "
-                            + destinazione.getStato().etichetta()
-                            + ": non si può più lavorarci.");
-        }
+        vietaSeNonAssegnato(io, destinazione);
+        vietaSeNonSiPuoLavorare(lavoro, destinazione);
 
         chiudiSeOltreIlTetto(io.getId());
 
@@ -229,6 +240,70 @@ public class ServizioTempo {
         return miaSituazione(chiLoChiede);
     }
 
+    /**
+     * Registra a mano del lavoro già fatto: due istanti su una task.
+     *
+     * <p>È la rete per chi si dimentica il timer, e non un ritorno alla
+     * dichiarazione giornaliera. La differenza non è formale: là si compilava
+     * una giornata intera ogni sera, qui si rimedia a un buco su un
+     * calendario che per il resto si riempie da sé. L'origine
+     * {@code MANUALE} tiene separato quello che è stato misurato da quello
+     * che è stato ricordato, e la griglia lo disegna tratteggiato.
+     *
+     * <p>I controlli sono quelli di {@link #avvia} — l'assegnazione, il
+     * lavoro aperto, la task aperta — più i tre che riguardano un intervallo
+     * scelto da una persona invece che misurato da un orologio: non finisce
+     * nel futuro, sta nella settimana corrente, non si accavalla a un'altra
+     * sessione. L'ordine conta: si rifiuta per la ragione più vicina a quello
+     * che chi scrive ha sbagliato.
+     *
+     * <p>Nessun tetto alle ore, qui: il tetto serve a interrompere un timer
+     * dimenticato, e un intervallo scritto a mano ha già una fine. Le ore
+     * assurde le ferma la finestra della settimana e il divieto di
+     * sovrapposizione — in una settimana non ci stanno più di sette giorni di
+     * ore che non si accavallano.
+     */
+    @Transactional
+    public SituazioneTempo registraManuale(UserDetails chiLoChiede, Long idLavoro,
+                                           Long idTask, LocalDateTime da,
+                                           LocalDateTime a) {
+        Utente io = autore(chiLoChiede);
+        Lavoro lavoro = lavori.lavoroVisibile(chiLoChiede, idLavoro);
+        Task destinazione = taskDelLavoro(idTask, idLavoro);
+
+        vietaSeNonAssegnato(io, destinazione);
+        vietaSeNonSiPuoLavorare(lavoro, destinazione);
+
+        if (!a.isAfter(da)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "INTERVALLO_ROVESCIATO: la fine deve venire dopo l'inizio.");
+        }
+        if (a.isAfter(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "TEMPO_NEL_FUTURO: non si registra tempo che non è ancora passato.");
+        }
+
+        vietaSeFuoriDallaSettimana(da.toLocalDate());
+
+        // Prima di cercare le sovrapposizioni si mette in pari il timer: una
+        // sessione rimasta aperta da ieri sera risulterebbe aperta anche
+        // adesso, e farebbe da ostacolo a tutto quello che le viene dopo.
+        // Chiusa al tetto, torna a occupare le sole ore che le competono.
+        chiudiSeOltreIlTetto(io.getId());
+        vietaSeSiSovrappone(io.getId(), da, a, null);
+
+        // Averci lavorato è averla messa in corso, come per l'avvio del
+        // timer: chiedere di dirlo anche con la tendina sarebbe l'adempimento
+        // che questo cambiamento ha tolto.
+        if (destinazione.getStato() == StatoTask.ATTIVO) {
+            destinazione.cambiaStato(StatoTask.IN_CORSO);
+        }
+
+        sessioni.save(SessioneTask.manuale(destinazione, io, da, a));
+
+        return miaSituazione(chiLoChiede);
+    }
+
     // --- conferme e correzioni ----------------------------------------------
 
     /** Ho guardato la chiusura d'ufficio e va bene così. */
@@ -241,12 +316,16 @@ public class ServizioTempo {
     /**
      * Corregge gli estremi di una propria sessione.
      *
-     * <p>Si corregge <strong>oggi</strong>, oppure sempre se la sessione è una
-     * chiusura d'ufficio da confermare. La seconda metà non è una scappatoia:
-     * una sessione chiusa al tetto nasce di notte o la mattina dopo, e
-     * bloccarla con la sua giornata renderebbe la conferma una formalità su un
-     * numero che nessuno può più sistemare. Il dato che il sistema si è
-     * dedotto lo deve poter correggere chi c'era.
+     * <p>Si corregge entro la <strong>settimana</strong> in cui si è
+     * lavorato, oppure sempre se la sessione è una chiusura d'ufficio da
+     * confermare: la finestra la spiega {@link #vietaSeFuoriDallaFinestra}.
+     *
+     * <p>La correzione non può portare la sessione <strong>sopra un'altra</strong>:
+     * spostarla di due ore potrebbe farla finire addosso a quella del
+     * pomeriggio, e le ore di una persona non si sovrappongono. Era un
+     * controllo che mancava, perché prima della griglia settimanale una
+     * correzione nasceva da un timer appena fermato e non da un orario
+     * riscritto a mano.
      *
      * <p>Nessuna correzione per l'amministratore, di proposito: le ore sono di
      * chi le ha lavorate. Una sessione che nessuno conferma resta non
@@ -260,12 +339,26 @@ public class ServizioTempo {
 
         if (!chiusaIl.isAfter(avviataIl)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "La fine deve venire dopo l'inizio.");
+                    "INTERVALLO_ROVESCIATO: la fine deve venire dopo l'inizio.");
         }
         if (chiusaIl.isAfter(LocalDateTime.now())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Non si registra tempo nel futuro.");
+                    "TEMPO_NEL_FUTURO: non si registra tempo che non è ancora passato.");
         }
+
+        // Anche la destinazione deve stare nella finestra, altrimenti la
+        // finestra la si aggira spostando una sessione invece di scriverla.
+        //
+        // Ma solo se una finestra c'è: una chiusura d'ufficio di tre settimane
+        // fa si corregge **sul suo giorno**, e pretendere che finisca in
+        // questa settimana costringerebbe a datarla male per poterla
+        // sistemare. Chi c'era deve poter dire quando ha smesso, non quando
+        // gli conviene dirlo.
+        if (sessione.isConfermata()) {
+            vietaSeFuoriDallaSettimana(avviataIl.toLocalDate());
+        }
+
+        vietaSeSiSovrappone(sessione.getUtente().getId(), avviataIl, chiusaIl, idSessione);
 
         sessione.correggi(avviataIl, chiusaIl);
         return miaSituazione(chiLoChiede);
@@ -355,17 +448,143 @@ public class ServizioTempo {
     }
 
     /**
-     * La finestra di correzione: oggi, oppure sempre se è da confermare.
+     * Serve un'assegnazione attiva, e <strong>non</strong> basta poter gestire
+     * la task.
+     *
+     * <p>È la differenza fra «posso disporre di questa task» e «ci ho lavorato
+     * io»: il tempo è di chi l'ha lavorato, e scriverlo su una task di qualcun
+     * altro vorrebbe dire mettere le proprie ore nel consuntivo del lavoro di
+     * un collega. Un responsabile che davvero ci lavora ha già la strada:
+     * assegnarsi la task, cosa che il suo permesso di gestione gli consente.
+     *
+     * <p>Per questo non si riusa {@code vietaSeNonPuoCambiareStato}, che
+     * invece lascia passare chi ha {@code TASK_GESTISCI_TUTTI} o è
+     * responsabile del lavoro: cambiare lo stato di una task altrui è
+     * legittimo, registrarci il proprio tempo no.
+     *
+     * <p>Vale identico per il timer e per la scrittura a mano: cambia il modo
+     * in cui l'ora viene fuori, non di chi è.
+     */
+    private void vietaSeNonAssegnato(Utente io, Task destinazione) {
+        if (assegnazioni
+                .findByTaskIdAndUtenteIdAndRimossaIlIsNull(destinazione.getId(), io.getId())
+                .isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Non sei assegnato alla task «" + destinazione.getTitolo()
+                            + "»: puoi registrare tempo solo sulle task che ti sono "
+                            + "state affidate.");
+        }
+    }
+
+    /**
+     * Su un lavoro chiuso o su una task non più aperta non si registra tempo,
+     * né col timer né a mano.
+     *
+     * <p>Non è una formalità: chiudere una task restituisce al pool del lavoro
+     * le ore allocate e non consumate, e quel conto è già stato fatto.
+     * Scriverci dentro altre ore dopo lo smentirebbe.
+     */
+    private void vietaSeNonSiPuoLavorare(Lavoro lavoro, Task destinazione) {
+        if (lavoro.getStato().chiuso()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Il lavoro " + lavoro.getCodice() + " non è più in corso: non si "
+                            + "registra tempo sulle sue task.");
+        }
+        if (!destinazione.getStato().aperta()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "La task «" + destinazione.getTitolo() + "» è "
+                            + destinazione.getStato().etichetta()
+                            + ": non si può più lavorarci.");
+        }
+    }
+
+    /** Il lunedì della settimana in corso: il confine della finestra. */
+    static LocalDate inizioSettimanaCorrente() {
+        return LocalDate.now().with(DayOfWeek.MONDAY);
+    }
+
+    /**
+     * La finestra di scrittura: <strong>la settimana corrente</strong>, da
+     * lunedì a domenica, oppure sempre se la sessione è una chiusura d'ufficio
+     * da confermare.
+     *
+     * <p>Era la giornata, e andava bene quando l'unica scrittura possibile era
+     * correggere una misura appena presa: di un timer lasciato scorrere ci si
+     * accorge subito. Da quando il calendario settimanale permette di
+     * <em>riempire</em> un giorno che non è stato registrato, lo scopo è
+     * diverso — rimediare a una dimenticanza — e un giorno di finestra lo
+     * manca per definizione, perché di un giovedì non registrato ci si accorge
+     * il venerdì.
+     *
+     * <p>Non si va oltre, però, perché le ore di una persona non sono un
+     * diario personale: entrano nel consuntivo di un lavoro, su cui qualcuno
+     * decide. La settimana è il periodo che si chiude e si guarda; lasciar
+     * riscrivere un mese dopo vorrebbe dire che nessun consuntivo è mai fermo.
+     *
+     * <p>L'eccezione per le chiusure d'ufficio resta, e non è una scappatoia:
+     * una sessione chiusa al tetto nasce di notte o la mattina dopo, e
+     * bloccarla col suo periodo renderebbe la conferma una formalità su un
+     * numero che nessuno può più sistemare. Il dato che il sistema si è
+     * dedotto lo deve poter correggere chi c'era.
      */
     private void vietaSeFuoriDallaFinestra(SessioneTask sessione) {
         if (!sessione.isConfermata()) {
             return;
         }
-        if (!sessione.getAvviataIl().toLocalDate().isEqual(LocalDate.now())) {
+        vietaSeFuoriDallaSettimana(sessione.getAvviataIl().toLocalDate());
+    }
+
+    /** Lo stesso confine, per un giorno che non è ancora una sessione. */
+    private void vietaSeFuoriDallaSettimana(LocalDate giorno) {
+        if (giorno.isBefore(inizioSettimanaCorrente())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Il tempo del " + sessione.getAvviataIl().toLocalDate()
-                            + " non si corregge più: si sistema entro la giornata.");
+                    "Il tempo del " + giorno + " non si scrive più: si sistema "
+                            + "entro la settimana in cui si è lavorato.");
         }
+    }
+
+    /**
+     * Vieta che due sessioni della stessa persona coprano lo stesso istante.
+     *
+     * <p>Era già vero, ma per caso. {@code uk_sessione_in_corso} garantisce
+     * una sola sessione <em>aperta</em>, non l'assenza di sovrapposizioni fra
+     * sessioni <em>chiuse</em>: finora bastava, perché scriveva solo il timer
+     * e il timer chiude la precedente quando ne apre un'altra. Da quando si
+     * può scrivere un intervallo a mano la cosa è raggiungibile, e romperebbe
+     * la proprietà su cui questa classe dichiara di poggiare tutto il resto —
+     * che le ore si possano sommare senza chiedersi quale sia quella vera. Due
+     * ore scritte due volte diventerebbero quattro nel consuntivo di un
+     * lavoro.
+     *
+     * <p>Il controllo sta qui e non in un vincolo del database, a differenza
+     * dell'unicità: un CHECK non guarda le altre righe, e il vincolo di
+     * esclusione che servirebbe MySQL non lo ha. Resta aperta la finestra fra
+     * la lettura e la scrittura, ma a percorrerla dovrebbe essere la stessa
+     * persona che inserisce due intervalli accavallati nello stesso istante da
+     * due finestre del browser: un rischio che non vale una tabella di
+     * appoggio.
+     *
+     * <p>Il messaggio <strong>nomina</strong> la sessione in conflitto. Un
+     * «si sovrappone» senza dire a che cosa è un errore su cui non si può
+     * agire: chi lo legge non sa che cosa spostare.
+     */
+    private void vietaSeSiSovrappone(Long utenteId, LocalDateTime da,
+                                     LocalDateTime a, Long escludi) {
+        sessioni.trovaSovrapposte(utenteId, da, a, escludi).stream().findFirst()
+                .ifPresent(scontro -> {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "In quelle ore hai già «" + scontro.getTask().getTitolo()
+                                    + "», dalle " + ora(scontro.getAvviataIl())
+                                    + (scontro.getChiusaIl() == null
+                                            ? " e ancora in corso"
+                                            : " alle " + ora(scontro.getChiusaIl()))
+                                    + ". Le ore non si sovrappongono.");
+                });
+    }
+
+    /** Solo l'ora e i minuti: il giorno chi legge il messaggio lo sa già. */
+    private static String ora(LocalDateTime istante) {
+        return String.format("%02d:%02d", istante.getHour(), istante.getMinute());
     }
 
     /** La sessione, se è di chi chiede. Altrimenti non esiste. */

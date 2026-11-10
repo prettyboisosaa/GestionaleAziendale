@@ -31,5 +31,9 @@ public record RichiestaNuovaTask(
 
         /** Facoltativa, ma se c'è deve essere positiva: lo vuole ck_task_stima. */
         @Positive(message = "La stima in ore deve essere maggiore di zero")
-        BigDecimal stimaOre) {
-}
+        BigDecimal stimaOre,
+
+
+        TaskImportanza urgenzaTask
+
+){}

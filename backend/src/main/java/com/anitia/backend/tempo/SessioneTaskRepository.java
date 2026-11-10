@@ -43,6 +43,36 @@ public interface SessioneTaskRepository extends JpaRepository<SessioneTask, Long
                                        @Param("da") LocalDateTime da,
                                        @Param("a") LocalDateTime a);
 
+    /**
+     * Le sessioni di una persona che coprono un pezzo dell'intervallo dato.
+     *
+     * <p>Serve a tenere in piedi la proprietà su cui si appoggia tutto il
+     * resto: le ore di una persona non si sovrappongono, quindi si possono
+     * sommare senza chiedersi quale sia quella vera.
+     * {@code uk_sessione_in_corso} garantisce una sola sessione <em>aperta</em>
+     * e non si occupa di quelle chiuse — finora non serviva, perché scriveva
+     * solo il timer e il timer chiude la precedente quando ne apre un'altra.
+     *
+     * <p>{@code escludi} è la sessione che si sta correggendo: senza, si
+     * troverebbe sempre sovrapposta a sé stessa. Con {@code null} non esclude
+     * nulla, ed è il caso dell'inserimento.
+     *
+     * <p>Due intervalli si sovrappongono se ciascuno comincia prima che
+     * l'altro finisca. Una sessione <strong>aperta</strong> conta come se si
+     * estendesse all'infinito: è un filo severo, ma l'alternativa sarebbe
+     * decidere dentro la query fino a quando arriva «adesso», e una sessione
+     * che sta scorrendo è esattamente quella su cui non si deve scrivere.
+     */
+    @Query("SELECT s FROM SessioneTask s JOIN FETCH s.task t JOIN FETCH t.lavoro "
+         + "WHERE s.utente.id = :utenteId AND s.annullataIl IS NULL "
+         + "AND (:escludi IS NULL OR s.id <> :escludi) "
+         + "AND s.avviataIl < :a AND (s.chiusaIl IS NULL OR s.chiusaIl > :da) "
+         + "ORDER BY s.avviataIl")
+    List<SessioneTask> trovaSovrapposte(@Param("utenteId") Long utenteId,
+                                        @Param("da") LocalDateTime da,
+                                        @Param("a") LocalDateTime a,
+                                        @Param("escludi") Long escludi);
+
     /** Le chiusure d'ufficio che questa persona non ha ancora guardato. */
     @Query("SELECT s FROM SessioneTask s JOIN FETCH s.task t JOIN FETCH t.lavoro "
          + "WHERE s.utente.id = :utenteId AND s.annullataIl IS NULL "

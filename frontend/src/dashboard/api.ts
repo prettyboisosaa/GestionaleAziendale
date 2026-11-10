@@ -1,5 +1,6 @@
 import { chiedi } from '../api/http'
 import type { StatoLavoro, StatoTask } from '../stato/stati'
+import type { UrgenzaTask } from '../task/api'
 
 /** Una task assegnata a chi guarda, come la restituisce il backend. */
 export type MiaTask = {
@@ -27,10 +28,24 @@ export type MiaTask = {
   nomeLavoro: string
   statoLavoro: StatoLavoro
   responsabile: string | null
+  /**
+   * Quanto questa task viene prima delle altre. **Può essere nulla**: le task
+   * create prima della `V19` non hanno un'urgenza, e il server risponde
+   * `null` invece di inventarne una.
+   */
+  urgenzaTask: UrgenzaTask | null
 }
 
 export type ContatoriDashboard = {
-  scadute: number
+  /**
+   * Task aperte marcate «Urgente» dal PM.
+   *
+   * Ha preso il posto di `scadute`: una scadenza passata è un fatto che la
+   * lista e il calendario già raccontano — «in ritardo di tre giorni», la
+   * barra alle spalle di oggi — mentre l'urgenza, che è una decisione, non si
+   * vedeva da nessuna parte.
+   */
+  critiche: number
   oggi: number
   settimana: number
   inCorso: number

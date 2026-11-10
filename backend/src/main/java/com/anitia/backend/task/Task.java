@@ -16,6 +16,7 @@ import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+
 import org.hibernate.annotations.Generated;
 import org.hibernate.generator.EventType;
 
@@ -107,13 +108,16 @@ public class Task {
     @Column(nullable = false)
     private int versione;
 
+    @Column()
+    private String urgenzaTask;
+
     /** Richiesto da JPA. */
     protected Task() {
     }
 
     /** Una task nuova, da fare. */
     public static Task nuova(Lavoro lavoro, String titolo, String descrizione,
-                             LocalDate dataInizio, LocalDate scadenza, BigDecimal stimaOre) {
+                             LocalDate dataInizio, LocalDate scadenza, BigDecimal stimaOre, String urgenzaTask) {
         Task task = new Task();
         task.lavoro = lavoro;
         task.titolo = titolo;
@@ -128,6 +132,7 @@ public class Task {
         // senza budget: le ore gliele alloca il PM dal pool del lavoro, in un
         // secondo momento e con un movimento che lo registra.
         task.oreAllocate = BigDecimal.ZERO;
+        task.urgenzaTask = urgenzaTask;
         return task;
     }
 
@@ -200,6 +205,17 @@ public class Task {
 
     public BigDecimal getStimaOre() {
         return stimaOre;
+    }
+
+    /**
+     * L'urgenza come è salvata: una stringa, e può essere nulla.
+     *
+     * <p>Nulla per tutte le task create prima della {@code V19}, che ha
+     * aggiunto la colonna senza riempire le righe esistenti. Chi la mostra
+     * deve saper non mostrare niente.
+     */
+    public String getUrgenzaTask() {
+        return urgenzaTask;
     }
 
     /** Mai nullo: zero se alla task non sono ancora state allocate ore. */
