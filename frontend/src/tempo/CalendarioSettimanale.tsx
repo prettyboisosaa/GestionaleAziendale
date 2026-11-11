@@ -20,6 +20,14 @@ import {
 import type { RigaSessione, SettimanaDiTempo, SituazioneTempo } from './api'
 import PannelloSessione from './PannelloSessione'
 import type { Apertura, LavoroScrivibile, TaskScrivibile } from './PannelloSessione'
+import {
+  ORA_LAVORO_FINE,
+  ORA_LAVORO_INIZIO,
+  ORA_SCALA_FINE,
+  ORA_SCALA_INIZIO,
+  fascia,
+  scrollIniziale,
+} from './orario'
 import { testo } from '../api/http'
 import { tintaLavoro } from '../stato/stati'
 
@@ -236,14 +244,21 @@ export default function CalendarioSettimanale({
           firstDay={1}
           allDaySlot={false}
           nowIndicator
-          slotMinTime="07:00:00"
-          slotMaxTime="21:00:00"
+          // La scala arriva da `dashboard/orario.ts` e non è più scritta qui:
+          // nella dashboard questa griglia sta sotto quella del pianificato, e
+          // due blocchi alla stessa altezza devono essere la stessa ora. Due
+          // valori in due file si sposterebbero l'uno senza l'altro.
+          slotMinTime={fascia(ORA_SCALA_INIZIO)}
+          slotMaxTime={fascia(ORA_SCALA_FINE)}
           slotDuration="00:30:00"
+          // Si arriva all'ora corrente invece che alle sette del mattino: la
+          // parte della giornata su cui si scrive è quella vicina ad adesso.
+          scrollTime={scrollIniziale()}
           // L'orario di lavoro. Non limita niente: dice dov'è.
           businessHours={{
             daysOfWeek: [1, 2, 3, 4, 5],
-            startTime: '09:00',
-            endTime: '18:00',
+            startTime: fascia(ORA_LAVORO_INIZIO).slice(0, 5),
+            endTime: fascia(ORA_LAVORO_FINE).slice(0, 5),
           }}
           // Le sessioni di una persona non si sovrappongono — lo garantisce il
           // server — quindi un blocco può prendersi tutta la larghezza della
@@ -251,7 +266,11 @@ export default function CalendarioSettimanale({
           // arriverà.
           slotEventOverlap={false}
           expandRows
-          height="auto"
+          // Alta quanto il pannello che la contiene, e scorre dentro di sé:
+          // con `auto` la griglia cresceva fino a quattordici ore di altezza
+          // e la pagina scorreva per contenerla, che è esattamente ciò che la
+          // dashboard a due colonne vuole evitare.
+          height="100%"
           events={eventi}
           eventContent={contenutoSessione}
           datesSet={periodoCambiato}

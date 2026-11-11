@@ -124,6 +124,17 @@
 
   /* Il raggio cresce con la superficie che arrotonda: un valore unico su
      tutto è il segno più riconoscibile di un modello preconfezionato. */
+  /* La barra laterale: quanto occupa chiusa e quanto da aperta.
+
+     Sono due variabili e non due valori scritti dove servono perché la
+     larghezza da chiusa la deve sapere anche il corpo della pagina, che tiene
+     quel margine: la barra si allarga **sopra** il contenuto e non lo spinge,
+     così i calendari della dashboard non si ridimensionano a ogni passaggio
+     del mouse. Due numeri in due posti si sposterebbero l'uno senza l'altro,
+     e la barra coprirebbe il contenuto o lascerebbe una striscia vuota. */
+  --sidebar-chiusa: 56px;
+  --sidebar-aperta: 220px;
+
   --raggio-controllo: 10px;
   --raggio-carta: 16px;
   --raggio-foglio: 22px;

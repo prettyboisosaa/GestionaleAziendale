@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router'
+import Icona from './Icona'
 import type { UtenteCorrente } from '../autenticazione/api'
-import { ha } from '../autenticazione/permessi'
 import { durata, pausa } from '../tempo/api'
 import type { SituazioneTempo } from '../tempo/api'
 
@@ -11,77 +11,55 @@ type Proprieta = {
   tempo: SituazioneTempo | null
   onTempo: (situazione: SituazioneTempo) => void
   onEsci: () => void
+  /** Vero da schermo stretto, dove la navigazione è un menù da aprire. */
+  mostraMenu: boolean
+  onMenu: () => void
 }
 
 /**
- * La barra in alto: identità, dove si può andare, chi è collegato.
+ * La barra in alto: il timer, chi è collegato, l'uscita.
  *
- * Le voci che dipendono da un permesso compaiono in base a quello. Come in
- * `Protetta`, serve a non mostrare porte chiuse, non a tenerle chiuse: quello
- * lo fa il backend.
+ * **Le voci di navigazione non sono più qui**: stanno nella sidebar, che è
+ * comune a tutta l'app e le dichiara in `componenti/voci.ts`. Una riga di
+ * voci in testata e una colonna di icone a sinistra sarebbero due
+ * navigazioni, e la seconda volta che se ne aggiunge una ne verrebbe
+ * aggiornata una sola.
  *
- * Le prime tre non hanno condizione: poggiano su permessi di base, che ogni
- * utente attivo ha per costruzione. Una guardia che è sempre vera non protegge
- * niente e fa credere il contrario a chi legge.
+ * Quello che resta è ciò che non è un luogo: che cosa sto facendo adesso, chi
+ * sono, come esco. Da schermo stretto si aggiunge il pulsante che apre la
+ * sidebar, perché lì l'hover non esiste e qualcosa deve poterlo fare.
  *
- * Qui vive anche la **barra del timer**, quando una task sta scorrendo. È il
- * posto dove il dipendente si accorge di averla avviata senza andare a
- * cercarla: il gestionale non ha notifiche, e ciò che una notifica
- * annuncerebbe si mette in evidenza nelle schermate.
+ * Qui vive la **barra del timer**, quando una task sta scorrendo. È il posto
+ * dove il dipendente si accorge di averla avviata senza andare a cercarla: il
+ * gestionale non ha notifiche, e ciò che una notifica annuncerebbe si mette in
+ * evidenza nelle schermate.
  */
-export default function Intestazione({ utente, tempo, onTempo, onEsci }: Proprieta) {
+export default function Intestazione({
+  utente,
+  tempo,
+  onTempo,
+  onEsci,
+  mostraMenu,
+  onMenu,
+}: Proprieta) {
   return (
     <header className="barra">
-      <div className="barra-marchio">
-        <span className="azienda">Anitia</span>
-        <Link to="/lavori">Gestionale</Link>
-      </div>
-
-      {/* NavLink invece di Link: segna da sé la voce della pagina aperta, così
-          la barra dice anche dove si è e non solo dove si può andare. */}
-      <nav className="barra-voci">
-        {/* Prima voce perché è la pagina di atterraggio: la barra racconta
-            l'ordine in cui si attraversa il gestionale, e si comincia da
-            «cosa devo fare oggi». */}
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) => (isActive ? 'attivo' : undefined)}
+      {mostraMenu && (
+        <button
+          type="button"
+          className="barra-menu"
+          onClick={onMenu}
+          aria-label="Apri la navigazione"
         >
-          Oggi
-        </NavLink>
-        <NavLink to="/lavori" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
-          Lavori
-        </NavLink>
-        {ha(utente, 'ORE_RICHIESTE_GESTISCI', 'ORE_RICHIEDI') && (
-          <NavLink
-            to="/richieste-ore"
-            className={({ isActive }) => (isActive ? 'attivo' : undefined)}
-          >
-            Richieste ore
-          </NavLink>
-        )}
-        <NavLink to="/assenze" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
-          Assenze
-        </NavLink>
-        {/* Due voci distinte e non una pagina che si comporta in due modi come
-            «Richieste ore»: qui le righe non sono le stesse. Il dipendente vede
-            le proprie, l'amministratore quelle di tutti, e fonderle vorrebbe
-            dire una tabella con una colonna che a metà degli utenti non dice
-            niente. */}
-        {ha(utente, 'ASSENZE_GESTISCI') && (
-          <NavLink
-            to="/richieste-assenza"
-            className={({ isActive }) => (isActive ? 'attivo' : undefined)}
-          >
-            Richieste assenza
-          </NavLink>
-        )}
-        {ha(utente, 'UTENTI_VISUALIZZA') && (
-          <NavLink to="/utenti" className={({ isActive }) => (isActive ? 'attivo' : undefined)}>
-            Utenti
-          </NavLink>
-        )}
-      </nav>
+          <Icona nome="menu" />
+        </button>
+      )}
+
+      {/* Il marchio resta anche qui, in piccolo: da schermo stretto la
+          sidebar è chiusa, e senza di esso la testata non direbbe dove si è. */}
+      <div className="barra-marchio">
+        <Link to="/dashboard">Gestionale</Link>
+      </div>
 
       {tempo?.inCorso != null && (
         <BarraTimer inCorso={tempo.inCorso} onTempo={onTempo} />

@@ -1575,3 +1575,561 @@ button.minuscolo:disabled {
 .requisito-ok {
   color: var(--stato-completato);
 }
+
+/* --- impalcatura: la barra laterale e il corpo ---------------------------- */
+
+/* La barra copre il contenuto quando si allarga, invece di spingerlo: il
+   corpo tiene sempre il margine della barra **chiusa**, e l'espansione
+   avviene sopra. Spingere vorrebbe dire ridisegnare i calendari a ogni
+   passaggio del mouse, con le colonne che si stringono e i blocchi che
+   saltano. */
+.corpo-app {
+  margin-left: var(--sidebar-chiusa);
+  min-height: 100vh;
+  /* Senza questo, una tabella larga dentro una pagina figlia allargherebbe
+     tutto il corpo. */
+  min-width: 0;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-chiusa);
+  padding: 0.5rem;
+  border-right: 1px solid var(--riga-tenue);
+  background-color: var(--superficie);
+  /* Le etichette esistono nel DOM anche da chiusa — gli assistenti vocali le
+     leggono — e qui vengono tagliate invece di essere rimosse. */
+  overflow: hidden;
+  transition:
+    width var(--transizione),
+    box-shadow var(--transizione);
+}
+
+.sidebar-larga {
+  width: var(--sidebar-aperta);
+  box-shadow: var(--ombra-foglio);
+}
+
+/* Il logo in cima: da chiusa il solo simbolo, da aperta il nome intero. */
+.sidebar-marchio {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.375rem;
+  border: 0;
+  border-radius: var(--raggio-controllo);
+  background: none;
+  color: var(--inchiostro);
+  cursor: pointer;
+}
+
+.sidebar-simbolo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--azione);
+  color: var(--superficie);
+  font-weight: 600;
+}
+
+/* L'etichetta non si nasconde con display:none, che la toglierebbe anche a
+   chi legge con un assistente vocale: la barra chiusa diventerebbe sei icone
+   senza nome. Si dissolve, e l'overflow della barra la taglia. */
+.sidebar-etichetta {
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--transizione);
+}
+
+.sidebar-larga .sidebar-etichetta {
+  opacity: 1;
+}
+
+.sidebar-voci {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.sidebar-voce {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.375rem;
+  border-radius: var(--raggio-controllo);
+  color: var(--inchiostro);
+  text-decoration: none;
+  transition:
+    background-color var(--transizione),
+    color var(--transizione);
+}
+
+.sidebar-voce .icona {
+  flex: none;
+}
+
+.sidebar-voce:hover {
+  background-color: var(--azione-velo);
+  color: var(--azione);
+}
+
+/* Dove si e' adesso. Fondo e colore si vedono anche da barra chiusa, dove
+   l'etichetta non c'e': e' l'unico modo di sapere su che pagina si sta
+   senza aprirla. */
+.sidebar-voce.attivo {
+  background-color: var(--azione-velo-fermo);
+  color: var(--azione);
+  font-weight: 500;
+}
+
+.sidebar-voce:focus-visible,
+.sidebar-marchio:focus-visible {
+  outline: 2px solid var(--azione);
+  outline-offset: 1px;
+}
+
+/* Da schermo stretto l'hover non esiste: la barra si ritira del tutto e torna
+   come menu sopra il contenuto, aperta dal pulsante in testata. */
+.sidebar-mobile {
+  width: var(--sidebar-aperta);
+  transform: translateX(-100%);
+  transition:
+    transform var(--transizione),
+    box-shadow var(--transizione);
+}
+
+.sidebar-mobile.sidebar-larga {
+  transform: translateX(0);
+}
+
+.sidebar-mobile .sidebar-etichetta {
+  opacity: 1;
+}
+
+.sidebar-velo {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  background-color: rgb(var(--inchiostro-rgb) / 28%);
+}
+
+/* Il pulsante che apre il menu: esiste solo dove la barra non si espande. */
+.barra-menu {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--campo-fondo);
+  color: var(--inchiostro);
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .corpo-app {
+    margin-left: 0;
+  }
+}
+
+/* --- il pannello della dashboard ------------------------------------------ */
+
+/* Il riquadro di cui sono fatti i blocchi. Si chiama `.pannello-blocco` e non
+   `.pannello`, che e' il dialogo modale: due cose diverse con lo stesso nome
+   si ruberebbero le regole a vicenda. */
+.pannello-blocco {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+}
+
+.pannello-testata {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--riga-tenue);
+}
+
+.pannello-titolo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.pannello-titolo h2 {
+  font-size: var(--scala-media);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-base);
+}
+
+.pannello-azioni {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: none;
+  font-size: var(--scala-piccola);
+}
+
+.pannello-corpo {
+  padding: 0.875rem 1rem;
+  min-width: 0;
+}
+
+.pannello-piede {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid var(--riga-tenue);
+}
+
+.pannello-piede label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+/* --- i due calendari dentro i pannelli ------------------------------------ */
+
+/* La griglia e' alta quanto il pannello e scorre dentro di se'. L'altezza
+   fissa serve: FullCalendar con height 100% vuole un genitore che sappia
+   quanto e' alto, e senza questa riga collasserebbe. */
+.pannello-calendario .pannello-corpo {
+  padding: 0;
+  height: 24rem;
+
+  --fc-border-color: var(--riga-tenue);
+  --fc-page-bg-color: var(--superficie);
+  --fc-neutral-bg-color: var(--campo-fondo);
+  --fc-today-bg-color: var(--azione-velo);
+  --fc-list-event-hover-bg-color: var(--azione-velo);
+  --fc-event-border-color: transparent;
+}
+
+/* Dentro un pannello la scheda del calendario non porta piu' il suo bordo:
+   sarebbero due cornici a un pixel di distanza. */
+.pannello-calendario .scheda-calendario {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.pannello-calendario .fc {
+  font-size: var(--scala-piccola);
+}
+
+/* Il totale della settimana stava sopra la griglia; adesso il contatore della
+   giornata e' nell'intestazione del pannello, e due totali vicini si
+   leggerebbero come due numeri in disaccordo. */
+.pannello-calendario .totale-settimana {
+  display: none;
+}
+
+/* «5h / 8h»: verde solo a giornata piena. */
+.contatore-ore strong {
+  color: var(--inchiostro);
+  font-weight: 600;
+}
+
+.contatore-ore.completa strong {
+  color: var(--stato-completato);
+}
+
+/* --- la dashboard a due colonne ------------------------------------------- */
+
+.pagina-dashboard {
+  max-width: 100rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 3rem;
+}
+
+/* Le due zone: i calendari a sinistra, task e richieste a destra. La colonna
+   destra parte alla stessa altezza del primo calendario, cosi' l'agenda e le
+   task del giorno si leggono insieme senza scorrere. */
+.griglia-dashboard {
+  display: grid;
+  grid-template-columns: 60fr 40fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.colonna-calendari,
+.colonna-laterale {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+/* Sotto questa larghezza due colonne non reggono: a mezza larghezza non si
+   legge ne' una griglia di sette giorni ne' la riga di una task. La destra
+   scende sotto i calendari. */
+@media (max-width: 1200px) {
+  .griglia-dashboard {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- le righe delle task -------------------------------------------------- */
+
+/* I quattro contatori, che sono i quattro filtri: hanno preso il posto delle
+   card che occupavano una riga intera sopra i calendari. */
+.contatori {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.375rem;
+  margin-bottom: 0.875rem;
+}
+
+.contatore {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--superficie);
+  color: var(--inchiostro);
+  cursor: pointer;
+  transition:
+    border-color var(--transizione),
+    background-color var(--transizione);
+}
+
+.contatore:hover {
+  border-color: var(--tinta-stato, var(--riga));
+}
+
+/* Il filtro acceso: il fondo velato della sua tinta, come ogni stato di
+   questa interfaccia. Si chiama `scelto` e non `attivo` perche' `attivo` e'
+   gia' il nome di una delle tinte, e le due classi si sovrapporrebbero. */
+.contatore-scelto {
+  border-color: var(--tinta-stato, var(--azione));
+  background-color: color-mix(in srgb, var(--tinta-stato, var(--azione)) 12%, var(--superficie));
+}
+
+.contatore-valore {
+  font-size: var(--scala-media);
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--tinta-stato, var(--inchiostro));
+}
+
+.contatore-etichetta {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.contatore-urgente {
+  --tinta-stato: var(--urgenza-urgente);
+}
+
+.contatore-attesa {
+  --tinta-stato: var(--stato-attesa);
+}
+
+.contatore-attivo {
+  --tinta-stato: var(--stato-attivo);
+}
+
+.contatore-in-corso {
+  --tinta-stato: var(--stato-in-corso);
+}
+
+.righe-task {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.riga-task {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--riga-tenue);
+}
+
+.riga-task:first-child {
+  border-top: 0;
+}
+
+.riga-task-capo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.125rem;
+}
+
+.riga-task-titolo {
+  flex: 1;
+  min-width: 0;
+  color: var(--inchiostro);
+  font-weight: 500;
+  text-decoration: none;
+  /* Un titolo lungo non deve mandare a capo la scadenza: si taglia lui. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.riga-task-titolo:hover {
+  color: var(--azione);
+}
+
+.riga-task-scadenza {
+  flex: none;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* In ritardo: e' un fatto, e queste righe stanno in cima all'elenco. */
+.riga-task-scadenza.in-ritardo {
+  color: var(--stato-annullato);
+  font-weight: 500;
+}
+
+.riga-task-coda {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  /* Allineata al titolo, non al punto dell'urgenza. */
+  padding-left: 1rem;
+}
+
+.riga-task-coda .nota {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.riga-task-azioni {
+  display: flex;
+  gap: 0.25rem;
+  flex: none;
+}
+
+.riga-task-azioni button.minuscolo {
+  margin-top: 0;
+}
+
+/* L'urgenza come punto accanto al titolo. `.punto` esiste gia': qui si
+   aggiungono le tinte che mancavano, perche' c'erano per la pillola e non
+   per il punto. */
+.punto-urgenza-bassa {
+  --tinta-stato: var(--urgenza-bassa);
+}
+
+.punto-urgenza-media {
+  --tinta-stato: var(--urgenza-media);
+}
+
+.punto-urgenza-alta {
+  --tinta-stato: var(--urgenza-alta);
+}
+
+.punto-urgenza-urgente {
+  --tinta-stato: var(--urgenza-urgente);
+}
+
+/* --- le righe delle richieste --------------------------------------------- */
+
+.righe-richiesta {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.riga-richiesta {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--riga-tenue);
+}
+
+.riga-richiesta:first-child {
+  border-top: 0;
+}
+
+/* L'icona distingue ore e assenze a colpo d'occhio; il nome del genere le sta
+   accanto, nascosto alla vista, per chi la vede come un quadratino. */
+.riga-richiesta-genere {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--campo-fondo);
+  color: var(--inchiostro-tenue);
+}
+
+.riga-richiesta-corpo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.riga-richiesta-titolo {
+  color: var(--inchiostro);
+  font-weight: 500;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.riga-richiesta-titolo:hover {
+  color: var(--azione);
+}
+
+.riga-richiesta-corpo .nota {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Quello che si legge solo con un assistente vocale. Non display:none, che lo
+   toglierebbe anche a loro: resta nel documento, fuori dalla vista. */
+.solo-lettori {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

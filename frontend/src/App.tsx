@@ -10,6 +10,8 @@ import Protetta from './componenti/Protetta'
 import PaginaUtenti from './utente/PaginaUtenti'
 import PaginaProfilo from './utente/PaginaProfilo'
 import ConfermaUscita from './componenti/ConfermaUscita'
+import Sidebar from './componenti/Sidebar'
+import { useSchermoStretto } from './componenti/schermo'
 import PaginaNuovoUtente from './utente/PaginaNuovoUtente'
 import PaginaPermessiUtente from './utente/PaginaPermessiUtente'
 import PaginaLavori from './lavoro/PaginaLavori'
@@ -56,6 +58,14 @@ export default function App() {
    * punto da cui si esce, compresi quelli che non esistono ancora.
    */
   const [chiedoSeUscire, setChiedoSeUscire] = useState(false)
+
+  /**
+   * Da mobile la navigazione è un menù a scomparsa, e lo stato di «aperto»
+   * vive qui: il pulsante che lo apre sta in testata e la barra che si apre è
+   * un altro componente, quindi nessuno dei due può possederlo.
+   */
+  const [menuAperto, setMenuAperto] = useState(false)
+  const stretto = useSchermoStretto()
 
   // Il cookie di sessione è HttpOnly, quindi invisibile a JavaScript: l'unico
   // modo di sapere se la sessione è ancora viva è chiederlo al server.
@@ -160,88 +170,103 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      {/* «Esci» non esce: chiede. Chi lo preme per sbaglio con una task
-          avviata perde la pagina su cui stava lavorando, e un clic non è un
-          motivo sufficiente per chiudere una sessione. */}
-      <Intestazione
+      {/* La navigazione è una barra laterale comune a tutta l'app, non più
+          una riga di voci in testata: da chiusa è una colonna di icone, da
+          aperta copre il contenuto invece di spostarlo — così i calendari
+          della dashboard non si ridimensionano al passaggio del mouse. */}
+      <Sidebar
         utente={utente}
-        tempo={tempo}
-        onTempo={setTempo}
-        onEsci={() => setChiedoSeUscire(true)}
+        mobile={stretto}
+        aperta={menuAperto}
+        onChiudi={() => setMenuAperto(false)}
       />
 
-      {chiedoSeUscire && (
-        <ConfermaUscita
-          onAnnulla={() => setChiedoSeUscire(false)}
-          onEsci={() => void esci()}
+      <div className="corpo-app">
+        {/* «Esci» non esce: chiede. Chi lo preme per sbaglio con una task
+            avviata perde la pagina su cui stava lavorando, e un clic non è un
+            motivo sufficiente per chiudere una sessione. */}
+        <Intestazione
+          utente={utente}
+          tempo={tempo}
+          onTempo={setTempo}
+          onEsci={() => setChiedoSeUscire(true)}
+          mostraMenu={stretto}
+          onMenu={() => setMenuAperto((prima) => !prima)}
         />
-      )}
 
-      <Routes>
-        <Route
-          path="/dashboard"
-          element={<PaginaDashboard utente={utente} tempo={tempo} onTempo={setTempo} />}
-        />
-        <Route path="/lavori" element={<PaginaLavori utente={utente} />} />
-        <Route
-          path="/lavori/nuovo"
-          element={
-            <Protetta utente={utente} permesso="LAVORI_CREA">
-              <PaginaNuovoLavoro utente={utente} />
-            </Protetta>
-          }
-        />
-        <Route
-          path="/lavori/:id"
-          element={<PaginaLavoro utente={utente} tempo={tempo} onTempo={setTempo} />}
-        />
-        <Route
-          path="/richieste-ore"
-          element={
-            <Protetta utente={utente} permesso={RICHIESTE_ORE}>
-              <PaginaRichiesteOre utente={utente} />
-            </Protetta>
-          }
-        />
-        {/* Nessuna `Protetta` attorno: il profilo è di chi è collegato, e
-            cambiarsi la password è parte dell'avere un accesso — non un
-            permesso da concedere. */}
-        <Route path="/profilo" element={<PaginaProfilo utente={utente} />} />
-        <Route path="/assenze" element={<PaginaMieAssenze />} />
-        <Route
-          path="/richieste-assenza"
-          element={
-            <Protetta utente={utente} permesso="ASSENZE_GESTISCI">
-              <PaginaAssenze />
-            </Protetta>
-          }
-        />
-        <Route
-          path="/utenti"
-          element={
-            <Protetta utente={utente} permesso="UTENTI_VISUALIZZA">
-              <PaginaUtenti utente={utente} />
-            </Protetta>
-          }
-        />
-        <Route
-          path="/utenti/nuovo"
-          element={
-            <Protetta utente={utente} modo="tutti" permesso={['UTENTI_CREA', 'RUOLI_ASSEGNA']}>
-              <PaginaNuovoUtente />
-            </Protetta>
-          }
-        />
-        <Route
-          path="/utenti/:id/permessi"
-          element={
-            <Protetta utente={utente} modo="tutti" permesso={['UTENTI_VISUALIZZA', 'RUOLI_ASSEGNA']}>
-              <PaginaPermessiUtente />
-            </Protetta>
-          }
-        />
-        <Route path="*" element={<Navigate to={iniziale} replace />} />
-      </Routes>
+        {chiedoSeUscire && (
+          <ConfermaUscita
+            onAnnulla={() => setChiedoSeUscire(false)}
+            onEsci={() => void esci()}
+          />
+        )}
+
+        <Routes>
+          <Route
+            path="/dashboard"
+            element={<PaginaDashboard utente={utente} tempo={tempo} onTempo={setTempo} />}
+          />
+          <Route path="/lavori" element={<PaginaLavori utente={utente} />} />
+          <Route
+            path="/lavori/nuovo"
+            element={
+              <Protetta utente={utente} permesso="LAVORI_CREA">
+                <PaginaNuovoLavoro utente={utente} />
+              </Protetta>
+            }
+          />
+          <Route
+            path="/lavori/:id"
+            element={<PaginaLavoro utente={utente} tempo={tempo} onTempo={setTempo} />}
+          />
+          <Route
+            path="/richieste-ore"
+            element={
+              <Protetta utente={utente} permesso={RICHIESTE_ORE}>
+                <PaginaRichiesteOre utente={utente} />
+              </Protetta>
+            }
+          />
+          {/* Nessuna `Protetta` attorno: il profilo è di chi è collegato, e
+              cambiarsi la password è parte dell'avere un accesso — non un
+              permesso da concedere. */}
+          <Route path="/profilo" element={<PaginaProfilo utente={utente} />} />
+          <Route path="/assenze" element={<PaginaMieAssenze />} />
+          <Route
+            path="/richieste-assenza"
+            element={
+              <Protetta utente={utente} permesso="ASSENZE_GESTISCI">
+                <PaginaAssenze />
+              </Protetta>
+            }
+          />
+          <Route
+            path="/utenti"
+            element={
+              <Protetta utente={utente} permesso="UTENTI_VISUALIZZA">
+                <PaginaUtenti utente={utente} />
+              </Protetta>
+            }
+          />
+          <Route
+            path="/utenti/nuovo"
+            element={
+              <Protetta utente={utente} modo="tutti" permesso={['UTENTI_CREA', 'RUOLI_ASSEGNA']}>
+                <PaginaNuovoUtente />
+              </Protetta>
+            }
+          />
+          <Route
+            path="/utenti/:id/permessi"
+            element={
+              <Protetta utente={utente} modo="tutti" permesso={['UTENTI_VISUALIZZA', 'RUOLI_ASSEGNA']}>
+                <PaginaPermessiUtente />
+              </Protetta>
+            }
+          />
+          <Route path="*" element={<Navigate to={iniziale} replace />} />
+        </Routes>
+      </div>
     </BrowserRouter>
   )
 }
