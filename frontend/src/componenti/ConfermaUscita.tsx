@@ -46,7 +46,10 @@ export default function ConfermaUscita({
 
   return (
     <dialog
-      className="pannello"
+      // Nell'angolo in alto a destra, non in mezzo: nasce dal pulsante
+      // «Esci» della testata e compare accanto al punto in cui si è premuto,
+      // invece di coprire la pagina al centro per una domanda da un clic.
+      className="pannello pannello-angolo"
       ref={riferimento}
       // onCancel è Esc: il browser lo manda da sé, e senza questo il dialogo
       // si chiuderebbe lasciando lo stato che dice che è aperto.

@@ -1443,6 +1443,12 @@ button.minuscolo:disabled {
    ombra piena, perche' sta sopra la pagina invece che dentro di essa. */
 .pannello {
   width: min(26rem, calc(100vw - 2rem));
+  /* ⚠️ Questo `margin: auto` e' cio' che centra il dialogo, e va dichiarato
+     qui: il browser lo mette da se' su un `<dialog>` modale, ma il reset
+     `* { margin: 0 }` di `index.css` glielo porta via. Con il margine a zero e
+     l'`inset: 0` del top layer, il riquadro finisce nell'angolo in alto a
+     sinistra — ed e' esattamente il difetto che si vedeva. */
+  margin: auto;
   border: 1px solid var(--riga);
   border-radius: var(--raggio-foglio);
   padding: 1.5rem;
@@ -1453,6 +1459,21 @@ button.minuscolo:disabled {
 
 .pannello::backdrop {
   background-color: rgb(var(--inchiostro-rgb) / 28%);
+}
+
+/* Il dialogo che non sta in mezzo ma nell'angolo in alto a destra: ci va la
+   conferma d'uscita, che nasce dal pulsante «Esci» della testata e compare
+   accanto al punto in cui si e' premuto, invece di coprire la pagina al
+   centro.
+
+   I quattro margini espliciti, e non `inset`: su un dialogo del top layer la
+   posizione la decide il margine dentro un contenitore che e' gia' tutto lo
+   schermo, quindi `auto` a sinistra e in basso lo spinge in alto a destra.
+   Il margine superiore scavalca la barra, cosi' il riquadro non si siede
+   sopra il pulsante che lo ha aperto. Deve stare **dopo** `.pannello`: stessa
+   specificita', vince l'ultimo. */
+.pannello-angolo {
+  margin: 4rem 1rem auto auto;
 }
 
 .pannello .testata {
