@@ -95,6 +95,30 @@ public class Task {
     @Column(nullable = false, length = 20)
     private StatoTask stato;
 
+    /**
+     * Quando la task è stata completata. Nulla su ogni altro stato, e lo
+     * pretende {@code ck_task_completato}.
+     *
+     * <p>Nulla anche sulle task completate <strong>prima della V21</strong>:
+     * quella migrazione non l'ha riempita di proposito, perché
+     * {@code aggiornato_il} cambia a ogni modifica successiva e avrebbe dato
+     * una data di consegna sbagliata con l'aspetto di una vera. Chi conta le
+     * consegne in tempo deve quindi dire su quante task sta contando.
+     */
+    @Column(name = "completato_il")
+    private LocalDateTime completatoIl;
+
+    /**
+     * L'ultimo cambio di stato, qualunque esso sia.
+     *
+     * <p>Non è {@code aggiornato_il}: quello si muove anche se si corregge un
+     * titolo, e una task ferma da due settimane sembrerebbe toccata ieri.
+     * Serve a misurare da quanto una task è ferma, ed è l'unica cosa che lo
+     * sa dire.
+     */
+    @Column(name = "stato_aggiornato_il", nullable = false)
+    private LocalDateTime statoAggiornatoIl;
+
     /** Valorizzate dal database, e rilette subito dopo la scrittura. */
     @Generated(event = {EventType.INSERT, EventType.UPDATE})
     @Column(name = "creato_il")
@@ -132,6 +156,10 @@ public class Task {
         // senza budget: le ore gliele alloca il PM dal pool del lavoro, in un
         // secondo momento e con un movimento che lo registra.
         task.oreAllocate = BigDecimal.ZERO;
+        // E ancora per il DEFAULT CURRENT_TIMESTAMP di stato_aggiornato_il: la
+        // colonna e' NOT NULL, e JPA la scriverebbe a null nell'INSERT.
+        // Nascere e' il primo cambio di stato.
+        task.statoAggiornatoIl = LocalDateTime.now();
         task.urgenzaTask = urgenzaTask;
         return task;
     }
@@ -174,9 +202,28 @@ public class Task {
         return residuo;
     }
 
-    /** Cambia lo stato della task. */
+    /**
+     * Cambia lo stato della task, e con esso i due istanti che lo datano.
+     *
+     * <p>È l'<strong>imbuto</strong> di ogni cambio di stato: ci passano
+     * {@code ServizioTask.cambiaStato}, le tre scritture di
+     * {@code ServizioTempo} — avviare una task la mette in corso, completarla
+     * la chiude — e il controller. Mettendo qui la datazione, nessun chiamante
+     * deve ricordarsene.
+     *
+     * <p>⚠️ L'unica scrittura che <strong>non</strong> passa da qui è
+     * {@code TaskRepository.annullaTutteDelLavoro}, una UPDATE in blocco: si
+     * datа da sé, e deve farlo.
+     *
+     * <p>Riaprire una task completata <strong>azzera</strong> la data di
+     * completamento. Non è un dettaglio di pulizia: {@code ck_task_completato}
+     * la rifiuta su uno stato diverso da {@code COMPLETATO}, e lasciarla
+     * farebbe fallire la transazione.
+     */
     public void cambiaStato(StatoTask nuovoStato) {
         this.stato = nuovoStato;
+        this.statoAggiornatoIl = LocalDateTime.now();
+        this.completatoIl = nuovoStato == StatoTask.COMPLETATO ? LocalDateTime.now() : null;
     }
 
     public Long getId() {
@@ -221,6 +268,15 @@ public class Task {
     /** Mai nullo: zero se alla task non sono ancora state allocate ore. */
     public BigDecimal getOreAllocate() {
         return oreAllocate;
+    }
+
+    /** Nulla se la task non è completata, o se lo è da prima della V21. */
+    public LocalDateTime getCompletatoIl() {
+        return completatoIl;
+    }
+
+    public LocalDateTime getStatoAggiornatoIl() {
+        return statoAggiornatoIl;
     }
 
     public StatoTask getStato() {

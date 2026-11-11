@@ -7,11 +7,21 @@ import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
 import { Pillola } from '../componenti/Stato'
 import { chiusoLavoro, ETICHETTA_LAVORO, tinta } from '../stato/stati'
+import type { StatoLavoro } from '../stato/stati'
 
 type Azione = {
   id: number
   tipo: 'annulla' | 'elimina'
 }
+
+/** Il filtro per stato: gli stati, più «tutti». */
+type Filtro = StatoLavoro | 'TUTTI'
+
+/**
+ * L'ordine della tendina, che non è quello dell'enum: prima quello che si
+ * guarda di più.
+ */
+const FILTRI: Filtro[] = ['TUTTI', 'ATTIVO', 'IN_CORSO', 'BOZZA', 'COMPLETATO', 'ANNULLATO']
 
 /** Da «2027-01-01» a «01/01/2027». */
 function data(iso: string): string {
@@ -29,6 +39,15 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
    * che poi si buttano, e l'ordinamento — annullati in fondo — resta uno solo.
    */
   const [mostraAnnullati, setMostraAnnullati] = useState(false)
+  /**
+   * Ricerca e stato filtrano **in locale**, al contrario dell'interruttore
+   * degli annullati: quelli cambiano quali righe il server manda, questi solo
+   * quali di quelle già in mano si mostrano. Un giro di rete per nascondere
+   * delle righe che si hanno già è un giro di rete sprecato, e la ricerca
+   * reagirebbe a ogni lettera battuta.
+   */
+  const [cerca, setCerca] = useState('')
+  const [filtro, setFiltro] = useState<Filtro>('TUTTI')
 
   // Due permessi, due portate. `LAVORI_MODIFICA_TUTTI` annulla e cancella
   // qualunque lavoro; `LAVORI_MODIFICA_PROPRI` annulla solo quelli di cui si è
@@ -36,9 +55,6 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
   // all'amministratore.
   const puoModificareTutti = ha(utente, 'LAVORI_MODIFICA_TUTTI')
   const puoModificarePropri = ha(utente, 'LAVORI_MODIFICA_PROPRI')
-
-  /** La colonna si mostra se almeno un'azione è possibile su qualche riga. */
-  const mostraAzioni = puoModificareTutti || puoModificarePropri
 
   /**
    * Chi ha solo il permesso sui propri annulla il lavoro di cui è
@@ -92,6 +108,28 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
     }
   }
 
+  const cercato = cerca.trim().toLowerCase()
+  const visibili = (righe ?? []).filter((riga) => {
+    if (filtro !== 'TUTTI' && riga.stato !== filtro) {
+      return false
+    }
+    if (cercato === '') {
+      return true
+    }
+    // Si cerca anche nella descrizione: il nome di un lavoro è spesso un
+    // codice interno, e la parola che si ricorda sta nel testo.
+    return (
+      riga.nome.toLowerCase().includes(cercato)
+      || riga.codice.toLowerCase().includes(cercato)
+      || (riga.descrizione ?? '').toLowerCase().includes(cercato)
+    )
+  })
+
+  function azzera() {
+    setCerca('')
+    setFiltro('TUTTI')
+  }
+
   return (
     <main className="pagina-larga">
       <div className="testata">
@@ -109,8 +147,34 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
         </p>
       )}
 
-      <div className="filtro">
-        <label>
+      <div className="barra-lavori">
+        <div className="campo campo-cerca">
+          <label htmlFor="cerca-lavoro">Cerca</label>
+          <input
+            id="cerca-lavoro"
+            type="search"
+            placeholder="Nome, codice o descrizione"
+            value={cerca}
+            onChange={(evento) => setCerca(evento.target.value)}
+          />
+        </div>
+
+        <div className="campo">
+          <label htmlFor="stato-lavoro">Stato</label>
+          <select
+            id="stato-lavoro"
+            value={filtro}
+            onChange={(evento) => setFiltro(evento.target.value as Filtro)}
+          >
+            {FILTRI.map((uno) => (
+              <option key={uno} value={uno}>
+                {uno === 'TUTTI' ? 'Tutti' : ETICHETTA_LAVORO[uno]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <label className="interruttore-annullati">
           <input
             type="checkbox"
             checked={mostraAnnullati}
@@ -138,96 +202,156 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
         <p className="sommario">Nessun lavoro da mostrare.</p>
       )}
 
-      {righe !== null && righe.length > 0 && (
-        <div className="scheda-tabella">
-          <table className="tabella">
-            <thead>
-              <tr>
-                <th>Codice</th>
-                <th>Nome</th>
-                <th>Stato</th>
-                <th>Responsabile</th>
-                <th>Periodo</th>
-                {mostraAzioni && <th>Azioni</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {righe.map((riga) => (
-                <tr
-                  key={riga.id}
-                  className={riga.stato === 'ANNULLATO' ? 'riga-annullata' : undefined}
-                >
-                  <td>
-                    <Link to={`/lavori/${riga.id}`}>{riga.codice}</Link>
-                  </td>
-                  <td>{riga.nome}</td>
-                  <td>
-                    <Pillola tinta={tinta(riga.stato)}>{ETICHETTA_LAVORO[riga.stato]}</Pillola>
-                  </td>
-                  <td>{riga.responsabile ?? 'Da assegnare'}</td>
-                  <td>
-                    {data(riga.dataInizio)} – {data(riga.dataFinePrevista)}
-                  </td>
+      {/* Nessun risultato è una cosa diversa da nessun lavoro: qui c'è un
+          rimedio da offrire, perché è un filtro acceso a nascondere tutto. */}
+      {righe !== null && righe.length > 0 && visibili.length === 0 && (
+        <p className="sommario">
+          Nessun lavoro con questi filtri.{' '}
+          <button type="button" className="minuscolo" onClick={azzera}>
+            Azzera filtri
+          </button>
+        </p>
+      )}
 
-                  {mostraAzioni && (
-                    <td className="azioni">
-                      {azione !== null && azione.id === riga.id ? (
-                        <span className="conferma">
-                          {azione.tipo === 'annulla' ? 'Annullare?' : 'Cancellare?'}
-                          <button
-                            type="button"
-                            onClick={() => void esegui(azione)}
-                            disabled={inCorso}
-                          >
-                            Sì
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAzione(null)}
-                            disabled={inCorso}
-                          >
-                            No
-                          </button>
-                        </span>
-                      ) : (
-                        <>
-                          {/* Un lavoro completato non si annulla, e uno già
-                              annullato nemmeno: il server rifiuta entrambi, e
-                              offrire il pulsante sarebbe una promessa falsa.
-                              Lo stesso vale per il lavoro di un altro, se si
-                              ha solo il permesso sui propri. */}
-                          {!chiusoLavoro(riga.stato) && puoAnnullare(riga) && (
-                            <button
-                              type="button"
-                              onClick={() => setAzione({ id: riga.id, tipo: 'annulla' })}
-                            >
-                              Annulla
-                            </button>
-                          )}
-                          {/* La cancellazione si offre solo sulle bozze, e solo
-                              a chi ha il permesso su tutti i lavori: cancellare
-                              è definitivo, e `LAVORI_MODIFICA_PROPRI` non lo
-                              concede. Se poi quella bozza ha delle task, il
-                              server risponde 409 e il messaggio spiega di
-                              annullarla. */}
-                          {riga.stato === 'BOZZA' && puoModificareTutti && (
-                            <button
-                              type="button"
-                              onClick={() => setAzione({ id: riga.id, tipo: 'elimina' })}
-                            >
-                              Elimina
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {visibili.length > 0 && (
+        <div className="griglia-lavori">
+          {visibili.map((riga) => (
+            <CardLavoro
+              key={riga.id}
+              riga={riga}
+              azione={azione !== null && azione.id === riga.id ? azione : null}
+              inCorso={inCorso}
+              puoAnnullare={puoAnnullare(riga)}
+              puoEliminare={puoModificareTutti}
+              onChiedi={setAzione}
+              onEsegui={(scelta) => void esegui(scelta)}
+              onDesisti={() => setAzione(null)}
+            />
+          ))}
         </div>
       )}
     </main>
+  )
+}
+
+/**
+ * Un lavoro come scheda: nome, descrizione e stato, che è quello che serve a
+ * scegliere dove entrare.
+ *
+ * **L'intera scheda è un collegamento vero**, non un `onClick` su un `div`: il
+ * nome è dentro un `<a>` che si allarga a coprire la scheda con un `::after`,
+ * così si apre in una nuova finestra con il tasto centrale, si copia
+ * l'indirizzo col destro e la tastiera ci arriva una volta sola invece che su
+ * ogni riga. I pulsanti delle azioni stanno **sopra** quel velo, altrimenti
+ * premerli aprirebbe il dettaglio.
+ */
+function CardLavoro({
+  riga,
+  azione,
+  inCorso,
+  puoAnnullare,
+  puoEliminare,
+  onChiedi,
+  onEsegui,
+  onDesisti,
+}: {
+  riga: RigaLavoro
+  /** L'azione in attesa di conferma su *questo* lavoro, se c'è. */
+  azione: Azione | null
+  inCorso: boolean
+  puoAnnullare: boolean
+  puoEliminare: boolean
+  onChiedi: (azione: Azione) => void
+  onEsegui: (azione: Azione) => void
+  onDesisti: () => void
+}) {
+  // Un lavoro completato non si annulla, e uno già annullato nemmeno: il
+  // server rifiuta entrambi, e offrire il pulsante sarebbe una promessa falsa.
+  // La cancellazione si offre solo sulle bozze, e solo a chi ha il permesso su
+  // tutti i lavori: cancellare è definitivo, e `LAVORI_MODIFICA_PROPRI` non lo
+  // concede. Se poi quella bozza ha delle task, il server risponde 409 e il
+  // messaggio spiega di annullarla.
+  const annullabile = !chiusoLavoro(riga.stato) && puoAnnullare
+  const eliminabile = riga.stato === 'BOZZA' && puoEliminare
+
+  return (
+    <article
+      className={
+        riga.stato === 'ANNULLATO' ? 'card-lavoro card-lavoro-spenta' : 'card-lavoro'
+      }
+    >
+      <div className="card-lavoro-capo">
+        <span className="card-lavoro-codice">{riga.codice}</span>
+        <Pillola tinta={tinta(riga.stato)}>{ETICHETTA_LAVORO[riga.stato]}</Pillola>
+      </div>
+
+      <h2 className="card-lavoro-nome">
+        <Link to={`/lavori/${riga.id}`}>{riga.nome}</Link>
+      </h2>
+
+      {/* Una descrizione che manca si dice: uno spazio vuoto farebbe pensare
+          che la scheda non si sia caricata del tutto. */}
+      <p
+        className={
+          riga.descrizione === null
+            ? 'card-lavoro-descrizione card-lavoro-senza'
+            : 'card-lavoro-descrizione'
+        }
+      >
+        {riga.descrizione ?? 'Nessuna descrizione.'}
+      </p>
+
+      <div className="card-lavoro-piede">
+        <span className="nota">{riga.responsabile ?? 'Da assegnare'}</span>
+        <span className="nota">entro {data(riga.dataFinePrevista)}</span>
+      </div>
+
+      {(annullabile || eliminabile || azione !== null) && (
+        <div className="card-lavoro-azioni">
+          {azione !== null ? (
+            <span className="conferma">
+              {azione.tipo === 'annulla' ? 'Annullare?' : 'Cancellare?'}
+              <button
+                type="button"
+                className="minuscolo"
+                onClick={() => onEsegui(azione)}
+                disabled={inCorso}
+              >
+                Sì
+              </button>
+              <button
+                type="button"
+                className="minuscolo"
+                onClick={onDesisti}
+                disabled={inCorso}
+              >
+                No
+              </button>
+            </span>
+          ) : (
+            <>
+              {annullabile && (
+                <button
+                  type="button"
+                  className="minuscolo"
+                  onClick={() => onChiedi({ id: riga.id, tipo: 'annulla' })}
+                >
+                  Annulla
+                </button>
+              )}
+              {eliminabile && (
+                <button
+                  type="button"
+                  className="minuscolo"
+                  onClick={() => onChiedi({ id: riga.id, tipo: 'elimina' })}
+                >
+                  Elimina
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </article>
   )
 }

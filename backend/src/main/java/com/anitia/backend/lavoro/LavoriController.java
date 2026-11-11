@@ -23,9 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 class LavoriController {
 
     private final ServizioLavori servizio;
+    private final ServizioKpiLavoro kpi;
 
-    LavoriController(ServizioLavori servizio) {
+    LavoriController(ServizioLavori servizio, ServizioKpiLavoro kpi) {
         this.servizio = servizio;
+        this.kpi = kpi;
     }
 
     /**
@@ -97,6 +99,28 @@ class LavoriController {
                                @Valid @RequestBody RichiestaMonteOre richiesta,
                                @AuthenticationPrincipal UserDetails utente) {
         return servizio.cambiaMonteOre(utente, id, richiesta.monteOre(), richiesta.motivo());
+    }
+
+    /**
+     * Gli indicatori di avanzamento: scostamento sulle ore, avanzamento,
+     * consegne in tempo, stagnazione.
+     *
+     * <p>Stesso permesso del dettaglio, e stesso controllo di visibilità nel
+     * servizio: qui non c'è niente che non si possa già ricavare dalla pagina
+     * del lavoro — sono le stesse ore e le stesse task, messe in rapporto —
+     * quindi un permesso proprio sarebbe un permesso da concedere sempre
+     * insieme a un altro.
+     *
+     * <p>Una rotta a sé e non un campo di {@code GET /api/lavori/{id}}: i
+     * quattro numeri costano una query aggregata in più, e chi apre l'elenco
+     * dei lavori non li guarda. Così il pannello dell'avanzamento carica per
+     * conto suo e un suo errore non porta via il resto della pagina.
+     */
+    @GetMapping("/{id}/kpi")
+    @PreAuthorize("hasAnyAuthority('LAVORI_VISUALIZZA_TUTTI','LAVORI_VISUALIZZA_PROPRI')")
+    public KpiLavoro kpi(@PathVariable Long id,
+                         @AuthenticationPrincipal UserDetails utente) {
+        return kpi.diUnLavoro(utente, id);
     }
 
     /**

@@ -1,8 +1,10 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { cambiaMonteOre, dettaglioLavoro } from './api'
-import type { RigaLavoro } from './api'
+import { cambiaMonteOre, dettaglioLavoro, kpiLavoro } from './api'
+import type { KpiLavoro, RigaLavoro } from './api'
+import BarraTemporale from './BarraTemporale'
+import PannelloKpi from './PannelloKpi'
 import {
   assegna,
   assegnabili as caricaAssegnabili,
@@ -120,6 +122,16 @@ export default function PaginaLavoro({
   const [lavoro, setLavoro] = useState<RigaLavoro | null>(null)
   const [task, setTask] = useState<RigaTask[] | null>(null)
   const [richieste, setRichieste] = useState<RigaRichiestaOre[]>([])
+  /**
+   * Gli indicatori, con il loro errore a parte.
+   *
+   * Non entrano nel `Promise.all` del caricamento principale: costano una
+   * query aggregata in più, e se quella fallisse si porterebbe via anche il
+   * lavoro, le task e le richieste. Il pannello dell'avanzamento è la cosa
+   * meno importante della pagina, e non deve poter spegnere il resto.
+   */
+  const [kpi, setKpi] = useState<KpiLavoro | null>(null)
+  const [erroreKpi, setErroreKpi] = useState<string | null>(null)
   const [storico, setStorico] = useState<RigaMovimento[] | null>(null)
   const [candidati, setCandidati] = useState<Assegnatario[]>([])
   const [errore, setErrore] = useState<string | null>(null)
@@ -191,6 +203,16 @@ export default function PaginaLavoro({
     setLavoro(dettaglio)
     setTask(elenco)
     setRichieste(loro)
+    // Gli indicatori si rileggono con il resto: chiudere una task o allocare
+    // ore li cambia tutti e quattro, e lasciarli vecchi accanto a una tabella
+    // nuova sarebbe peggio di non mostrarli. Un errore qui non ferma la
+    // ricarica di ciò che conta.
+    kpiLavoro(id)
+      .then((numeri) => {
+        setKpi(numeri)
+        setErroreKpi(null)
+      })
+      .catch((motivo: unknown) => setErroreKpi(testo(motivo)))
   }, [id])
 
   // Il primo caricamento chiama le API direttamente invece di passare da
@@ -212,6 +234,28 @@ export default function PaginaLavoro({
       .catch((motivo: unknown) => {
         if (!annullato) {
           setErrore(testo(motivo))
+        }
+      })
+
+    return () => {
+      annullato = true
+    }
+  }, [id])
+
+  // Gli indicatori in un effetto loro, per la stessa ragione per cui hanno un
+  // errore loro: sono un'aggiunta alla pagina, non una sua precondizione.
+  useEffect(() => {
+    let annullato = false
+
+    kpiLavoro(id)
+      .then((numeri) => {
+        if (!annullato) {
+          setKpi(numeri)
+        }
+      })
+      .catch((motivo: unknown) => {
+        if (!annullato) {
+          setErroreKpi(testo(motivo))
         }
       })
 
@@ -422,6 +466,38 @@ export default function PaginaLavoro({
         </div>
       )}
 
+      {/* Due colonne: a sinistra come va il lavoro — nel tempo e sulle ore —
+          a destra che cosa c'è dentro. Prima era una pila, e per arrivare
+          allo storico delle ore si scorreva oltre tutte le task. Sotto i
+          1200px la destra scende, con la stessa soglia della dashboard. */}
+      <div className="griglia-lavoro">
+        <div className="colonna-avanzamento">
+
+      {/* L'avanzamento: le task collocate nel tempo e i quattro indicatori.
+          Carica per conto suo, così un errore sui KPI non porta via il resto
+          della pagina. */}
+      {lavoro !== null && (
+        <section className="scheda-ore">
+          <div className="testata">
+            <h2>Avanzamento</h2>
+          </div>
+
+          {kpi === null && erroreKpi === null && (
+            <p className="sommario" role="status">
+              Calcolo gli indicatori…
+            </p>
+          )}
+          {erroreKpi !== null && (
+            <p className="errore" role="alert">
+              {erroreKpi}
+            </p>
+          )}
+          {kpi !== null && <PannelloKpi kpi={kpi} />}
+
+          {task !== null && <BarraTemporale lavoro={lavoro} task={ordinaTask(task)} />}
+        </section>
+      )}
+
       {/* Il monte ore. Le ore libere sono in evidenza perché sono il numero su
           cui si decide: tutto il resto è contesto. */}
       {lavoro !== null && (
@@ -519,6 +595,10 @@ export default function PaginaLavoro({
           )}
         </section>
       )}
+
+        </div>
+
+        <div className="colonna-dettagli">
 
       {/* Le richieste in attesa in evidenza: il gestionale non ha notifiche,
           quindi è qui che una richiesta aperta si fa notare. */}
@@ -1085,6 +1165,9 @@ export default function PaginaLavoro({
           </div>
         )}
       </section>
+
+        </div>
+      </div>
     </main>
   )
 }

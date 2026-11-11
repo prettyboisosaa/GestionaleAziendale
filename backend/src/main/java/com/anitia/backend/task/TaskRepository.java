@@ -1,6 +1,7 @@
 package com.anitia.backend.task;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -42,9 +43,18 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
      * <p>Le ore residue non si rilasciano: il monte ore libero di un lavoro
      * che non si fara' e' un numero senza significato, e restituirlo al pool
      * lo farebbe sembrare disponibile.
+     *
+     * <p>⚠️ <strong>Qui si datano gli istanti a mano</strong>, perche' questo
+     * e' il solo cambio di stato che non passa da {@code Task.cambiaStato}.
+     * E azzerare {@code completatoIl} non e' facoltativo: dalla V21
+     * {@code ck_task_completato} pretende che una data di completamento stia
+     * solo su una task {@code COMPLETATO}, quindi annullare un lavoro che
+     * contiene una task completata farebbe fallire l'intera transazione.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE Task t SET t.stato = com.anitia.backend.task.StatoTask.ANNULLATO "
+    @Query("UPDATE Task t SET t.stato = com.anitia.backend.task.StatoTask.ANNULLATO, "
+         + "       t.statoAggiornatoIl = CURRENT_TIMESTAMP, "
+         + "       t.completatoIl = NULL "
          + "WHERE t.lavoro.id = :lavoroId "
          + "  AND t.stato <> com.anitia.backend.task.StatoTask.ANNULLATO")
     int annullaTutteDelLavoro(@Param("lavoroId") Long lavoroId);
@@ -187,6 +197,75 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
                  + "ORDER BY (ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) - t.ore_allocate) DESC",
             nativeQuery = true)
     List<Sforamento> trovaSforamenti(@Param("lavoroId") Long lavoroId);
+
+    /**
+     * I conteggi da cui nascono i quattro KPI di un lavoro, in <strong>una
+     * query sola</strong>.
+     *
+     * <p>Una query e non sei: il costo non deve dipendere dal numero di task,
+     * e sei {@code COUNT} sulla stessa tabella sarebbero sei scansioni per
+     * rispondere a una domanda. Le somme si fanno con {@code SUM} su
+     * condizioni booleane, che in MySQL valgono 1 e 0.
+     *
+     * <p><strong>Le percentuali non si calcolano qui.</strong> Qui ci sono i
+     * numeratori e i denominatori; le divisioni, l'arrotondamento e il caso
+     * «denominatore zero» stanno in {@code ServizioKpiLavoro}, perché sono
+     * regole di business e non accesso ai dati — e perché in SQL il caso
+     * «niente da dividere» tornerebbe come un numero invece che come un
+     * «non disponibile».
+     *
+     * <p>La sottoquery sulle sessioni serve alla stagnazione: una task è ferma
+     * se non le è accaduto niente, e «niente» vuol dire né un cambio di stato
+     * né un'ora registrata. {@code GREATEST} prende il più recente dei due.
+     * Il {@code LEFT JOIN} conserva le task su cui nessuno ha mai lavorato,
+     * che sono proprio quelle che possono essere ferme da più tempo.
+     *
+     * <p>{@code DATE(completato_il) <= scadenza} confronta <strong>date</strong>
+     * e non istanti: una consegna alle 23:40 del giorno di scadenza è in
+     * tempo, e un confronto fra datetime la direbbe in ritardo di quaranta
+     * minuti.
+     */
+    @Query(value = "SELECT "
+                 + "  SUM(t.stato <> 'ANNULLATO') AS considerate, "
+                 + "  SUM(t.stato = 'COMPLETATO') AS completate, "
+                 + "  SUM(t.stato <> 'ANNULLATO' AND t.completato_il IS NOT NULL) AS conData, "
+                 + "  SUM(t.completato_il IS NOT NULL "
+                 + "      AND DATE(t.completato_il) <= t.scadenza) AS inTempo, "
+                 + "  SUM(t.stato = 'IN_CORSO') AS inCorso, "
+                 + "  SUM(t.stato = 'IN_CORSO' AND GREATEST(t.stato_aggiornato_il, "
+                 + "      COALESCE(s.ultima, t.stato_aggiornato_il)) < :limite) AS ferme "
+                 + "FROM task t "
+                 + "LEFT JOIN (SELECT task_id, MAX(avviata_il) AS ultima "
+                 + "           FROM sessione_task WHERE annullata_il IS NULL "
+                 + "           GROUP BY task_id) s ON s.task_id = t.id "
+                 + "WHERE t.lavoro_id = :lavoroId",
+            nativeQuery = true)
+    ContiAvanzamento contiAvanzamento(@Param("lavoroId") Long lavoroId,
+                                      @Param("limite") LocalDateTime limite);
+
+    /**
+     * Le righe di {@link #contiAvanzamento}.
+     *
+     * <p>Tutti {@code Long} e non {@code long}: su un lavoro senza nessuna
+     * task la {@code SUM} di MySQL risponde {@code NULL}, non zero, e un
+     * primitivo farebbe cadere la lettura con un NPE invece di dire «non c'è
+     * niente da contare».
+     */
+    interface ContiAvanzamento {
+        /** Le task non annullate: il denominatore di tutto il resto. */
+        Long getConsiderate();
+
+        Long getCompletate();
+
+        /** Quante completate hanno una data: le altre vengono da prima della V21. */
+        Long getConData();
+
+        Long getInTempo();
+
+        Long getInCorso();
+
+        Long getFerme();
+    }
 
     /** Una riga di {@link #trovaSforamenti(Long)}. */
     interface Sforamento {

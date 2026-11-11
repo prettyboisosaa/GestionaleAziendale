@@ -124,6 +124,24 @@
 
   /* Il raggio cresce con la superficie che arrotonda: un valore unico su
      tutto è il segno più riconoscibile di un modello preconfezionato. */
+  /* Quanto larga può diventare una pagina.
+
+     Un numero solo per tutte, invece di uno per schermata: la dashboard stava
+     a 100rem e tutto il resto a 56rem, cioè poco più di metà di un monitor
+     normale, con le tabelle strette e due fasce vuote ai lati. Una pagina usa
+     lo spazio che ha.
+
+     Un tetto però ci vuole, e non è una contraddizione: su un monitor da
+     2560px una riga di tabella larga tutto lo schermo costringe l'occhio a
+     attraversare mezzo metro per leggere una scadenza. Centosessanta
+     centimetri di testo sono il punto in cui si smette di guadagnare.
+
+     `--pagina-modulo` è per le schermate che sono **un solo modulo da
+     compilare**: lì non c'è niente da allargare, e una colonna di campi
+     larghi persa in mezzo a una pagina vuota si legge peggio. */
+  --pagina-massima: 100rem;
+  --pagina-modulo: 56rem;
+
   /* La barra laterale: quanto occupa chiusa e quanto da aperta.
 
      Sono due variabili e non due valori scritti dove servono perché la

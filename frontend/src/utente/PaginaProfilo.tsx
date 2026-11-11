@@ -14,7 +14,7 @@ import { codice, senzaCodice } from '../api/http'
  */
 export default function PaginaProfilo({ utente }: { utente: UtenteCorrente }) {
   return (
-    <main className="pagina-larga">
+    <main className="pagina-larga pagina-modulo">
       <div className="testata">
         <h1>Il mio profilo</h1>
       </div>

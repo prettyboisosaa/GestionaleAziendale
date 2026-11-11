@@ -74,6 +74,49 @@ export function dettaglioLavoro(id: number): Promise<RigaLavoro> {
   return chiedi<RigaLavoro>(`/api/lavori/${id}`)
 }
 
+/**
+ * Gli indicatori di avanzamento di un lavoro.
+ *
+ * **Ogni percentuale può essere null**, e va trattata come tale: vuol dire che
+ * il denominatore era zero, cioè che non c'era niente da misurare. Non è uno
+ * zero travestito — un lavoro senza ore allocate non ha «scostamento zero» —
+ * e l'interfaccia scrive «n/d».
+ *
+ * Le ore arrivano come **numeri** JSON: sono `BigDecimal` sul server e Jackson
+ * li serializza come decimali.
+ */
+export type KpiLavoro = {
+  /** Firmato: positivo sopra budget, negativo sotto. */
+  scostamentoOre: number | null
+  /** Ore consumate su allocate, in percentuale. */
+  avanzamento: number | null
+  consegneInTempo: number | null
+  stagnazione: number | null
+  oreAllocate: number
+  oreConsumate: number
+  /** Le task non annullate. */
+  taskConsiderate: number
+  taskCompletate: number
+  /**
+   * Su quante task è calcolato `consegneInTempo`. È minore di
+   * `taskCompletate` quando ci sono task chiuse prima della `V21`, che non
+   * hanno una data di completamento e restano fuori dal conto.
+   */
+  taskConDataCompletamento: number
+  taskInCorso: number
+  taskFerme: number
+  /** Da quanti giorni di immobilità una task si considera ferma. */
+  giorniDiStagnazione: number
+}
+
+/**
+ * I KPI del lavoro. Rotta a sé e non un campo del dettaglio: costano una query
+ * aggregata in più, e chi apre l'elenco non li guarda.
+ */
+export function kpiLavoro(id: number): Promise<KpiLavoro> {
+  return chiedi<KpiLavoro>(`/api/lavori/${id}/kpi`)
+}
+
 export function responsabiliPossibili(): Promise<CandidatoResponsabile[]> {
   return chiedi<CandidatoResponsabile[]>('/api/lavori/responsabili')
 }

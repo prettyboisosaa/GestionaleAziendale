@@ -66,7 +66,7 @@ export default function PaginaNuovoUtente() {
   }
 
   return (
-    <main className="pagina-larga">
+    <main className="pagina-larga pagina-modulo">
       <div className="testata">
         <h1>Nuovo utente</h1>
         <Link to="/utenti">Torna all'elenco</Link>

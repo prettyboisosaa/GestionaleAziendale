@@ -86,7 +86,7 @@ export default function PaginaNuovoLavoro({ utente }: { utente: UtenteCorrente }
   }
 
   return (
-    <main className="pagina-larga">
+    <main className="pagina-larga pagina-modulo">
       <div className="testata">
         <h1>Nuovo lavoro</h1>
         <Link to="/lavori">Torna all'elenco</Link>
