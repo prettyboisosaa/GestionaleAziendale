@@ -262,27 +262,77 @@ public class ServizioTempo {
      * assurde le ferma la finestra della settimana e il divieto di
      * sovrapposizione — in una settimana non ci stanno più di sette giorni di
      * ore che non si accavallano.
+     *
+     * <p>Resta come scorciatoia della rotta che nomina la task
+     * nell'indirizzo: compone la richiesta e lascia fare a
+     * {@link #registraAttivita}. Due strade per la stessa scrittura
+     * divergerebbero alla prima regola aggiunta a una sola delle due.
      */
     @Transactional
     public SituazioneTempo registraManuale(UserDetails chiLoChiede, Long idLavoro,
                                            Long idTask, LocalDateTime da,
                                            LocalDateTime a) {
+        // idLavoro serve ancora: la rotta lo porta, e una task chiesta a un
+        // lavoro che non è il suo deve restare un 404 e non diventare una
+        // scrittura sul lavoro giusto per caso.
+        taskDelLavoro(idTask, idLavoro);
+        return registraAttivita(chiLoChiede, RichiestaAttivita.suTask(idTask, da, a));
+    }
+
+    /**
+     * Registra a mano un'attività già fatta: due istanti, un tipo, e quello
+     * che quel tipo pretende.
+     *
+     * <p>Da qui passa tutto quello che il calendario scrive, task o non task.
+     * Con {@code LAVORO_TASK} è la registrazione di sempre — la rete per chi
+     * si dimentica il timer. Con gli altri tipi è la cosa che prima non si
+     * poteva dire: una riunione, una manutenzione, una trasferta sono ore vere
+     * che non stanno sotto nessuna task, e appenderle a una qualunque
+     * scriveva ore di sviluppo che non erano state fatte.
+     *
+     * <p><strong>L'ordine dei controlli è il messaggio.</strong> Si rifiuta
+     * per la ragione più vicina a quello che chi scrive ha sbagliato: prima la
+     * coerenza di quello che ha scelto nel modulo, poi i permessi su ciò che
+     * ha nominato, poi l'intervallo. Dire «non sei assegnato a questa task» a
+     * chi ha solo dimenticato di scegliere il lavoro è una risposta a una
+     * domanda che non ha fatto.
+     *
+     * <p>Nessun tetto alle ore, qui: il tetto serve a interrompere un timer
+     * dimenticato, e un intervallo scritto a mano ha già una fine. Le ore
+     * assurde le ferma la finestra della settimana e il divieto di
+     * sovrapposizione — in una settimana non ci stanno più di sette giorni di
+     * ore che non si accavallano.
+     */
+    @Transactional
+    public SituazioneTempo registraAttivita(UserDetails chiLoChiede,
+                                            RichiestaAttivita richiesta) {
         Utente io = autore(chiLoChiede);
-        Lavoro lavoro = lavori.lavoroVisibile(chiLoChiede, idLavoro);
-        Task destinazione = taskDelLavoro(idTask, idLavoro);
+        TipoAttivita tipo = richiesta.tipoAttivita();
+        vietaSeIncoerente(tipo, richiesta.taskId(), richiesta.lavoroId());
 
-        vietaSeNonAssegnato(io, destinazione);
-        vietaSeNonSiPuoLavorare(lavoro, destinazione);
-
-        if (!a.isAfter(da)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "INTERVALLO_ROVESCIATO: la fine deve venire dopo l'inizio.");
+        Task destinazione = null;
+        Lavoro citato = null;
+        if (richiesta.taskId() != null) {
+            destinazione = task.findById(richiesta.taskId()).orElseThrow(
+                    () -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Task non trovata."));
+            // Il lavoro si ricava dalla task e si fa verificare comunque: la
+            // visibilità è di chi chiede, non della task.
+            Lavoro suo = lavori.lavoroVisibile(chiLoChiede,
+                    destinazione.getLavoro().getId());
+            vietaSeNonAssegnato(io, destinazione);
+            vietaSeNonSiPuoLavorare(suo, destinazione);
+        } else if (richiesta.lavoroId() != null) {
+            // Niente controllo di assegnazione: un'attività che non è una task
+            // non si assegna a nessuno, e pretenderlo vorrebbe dire che la
+            // manutenzione di un lavoro consegnato la può registrare solo chi
+            // ha ancora una task aperta su quel lavoro. Basta vederlo.
+            citato = lavori.lavoroVisibile(chiLoChiede, richiesta.lavoroId());
         }
-        if (a.isAfter(LocalDateTime.now())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "TEMPO_NEL_FUTURO: non si registra tempo che non è ancora passato.");
-        }
 
+        LocalDateTime da = richiesta.avviataIl();
+        LocalDateTime a = richiesta.chiusaIl();
+        vietaSeIntervalloImpossibile(da, a);
         vietaSeFuoriDallaSettimana(da.toLocalDate());
 
         // Prima di cercare le sovrapposizioni si mette in pari il timer: una
@@ -292,14 +342,22 @@ public class ServizioTempo {
         chiudiSeOltreIlTetto(io.getId());
         vietaSeSiSovrappone(io.getId(), da, a, null);
 
+        String descrizione = ripulita(richiesta.descrizione());
+
+        if (destinazione == null) {
+            sessioni.save(SessioneTask.attivita(io, tipo, citato, descrizione, da, a));
+            return miaSituazione(chiLoChiede);
+        }
+
         // Averci lavorato è averla messa in corso, come per l'avvio del
         // timer: chiedere di dirlo anche con la tendina sarebbe l'adempimento
-        // che questo cambiamento ha tolto.
+        // che questo cambiamento ha tolto. Vale solo dove c'è una task: una
+        // riunione non mette in corso niente.
         if (destinazione.getStato() == StatoTask.ATTIVO) {
             destinazione.cambiaStato(StatoTask.IN_CORSO);
         }
 
-        sessioni.save(SessioneTask.manuale(destinazione, io, da, a));
+        sessioni.save(SessioneTask.manuale(destinazione, io, tipo, descrizione, da, a));
 
         return miaSituazione(chiLoChiede);
     }
@@ -330,21 +388,33 @@ public class ServizioTempo {
      * <p>Nessuna correzione per l'amministratore, di proposito: le ore sono di
      * chi le ha lavorate. Una sessione che nessuno conferma resta non
      * confermata e segnalata, e la strada è chiederlo alla persona.
+     *
+     * <p>Si correggono anche <strong>il tipo di attività, il lavoro citato e
+     * la descrizione</strong>: non sono misure ma cose scritte da una persona,
+     * e chi sbaglia tendina deve poter rimediare senza buttare via la riga. La
+     * task no — quella si cambia annullando e riscrivendo, e il perché sta su
+     * {@link RichiestaCorrezione}.
      */
     @Transactional
     public SituazioneTempo correggi(UserDetails chiLoChiede, Long idSessione,
-                                    LocalDateTime avviataIl, LocalDateTime chiusaIl) {
+                                    RichiestaCorrezione richiesta) {
         SessioneTask sessione = mia(chiLoChiede, idSessione);
         vietaSeFuoriDallaFinestra(sessione);
 
-        if (!chiusaIl.isAfter(avviataIl)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "INTERVALLO_ROVESCIATO: la fine deve venire dopo l'inizio.");
+        LocalDateTime avviataIl = richiesta.avviataIl();
+        LocalDateTime chiusaIl = richiesta.chiusaIl();
+        TipoAttivita tipo = richiesta.tipoAttivita();
+
+        boolean haTask = sessione.getTask() != null;
+        vietaSeIncoerente(tipo, haTask ? sessione.getTask().getId() : null,
+                richiesta.lavoroId());
+
+        Lavoro citato = null;
+        if (!haTask && richiesta.lavoroId() != null) {
+            citato = lavori.lavoroVisibile(chiLoChiede, richiesta.lavoroId());
         }
-        if (chiusaIl.isAfter(LocalDateTime.now())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "TEMPO_NEL_FUTURO: non si registra tempo che non è ancora passato.");
-        }
+
+        vietaSeIntervalloImpossibile(avviataIl, chiusaIl);
 
         // Anche la destinazione deve stare nella finestra, altrimenti la
         // finestra la si aggira spostando una sessione invece di scriverla.
@@ -361,6 +431,7 @@ public class ServizioTempo {
         vietaSeSiSovrappone(sessione.getUtente().getId(), avviataIl, chiusaIl, idSessione);
 
         sessione.correggi(avviataIl, chiusaIl);
+        sessione.ridescrivi(tipo, citato, ripulita(richiesta.descrizione()));
         return miaSituazione(chiLoChiede);
     }
 
@@ -534,6 +605,69 @@ public class ServizioTempo {
         vietaSeFuoriDallaSettimana(sessione.getAvviataIl().toLocalDate());
     }
 
+    /**
+     * Vieta un intervallo che non può essere accaduto: rovesciato, o nel
+     * futuro.
+     *
+     * <p>Gli stessi due controlli servono a chi scrive e a chi corregge, e
+     * stavano scritti due volte. Il codice in testa al messaggio è la
+     * convenzione con cui l'interfaccia riconosce l'errore senza leggerne il
+     * testo.
+     */
+    private static void vietaSeIntervalloImpossibile(LocalDateTime da, LocalDateTime a) {
+        if (!a.isAfter(da)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "INTERVALLO_ROVESCIATO: la fine deve venire dopo l'inizio.");
+        }
+        if (a.isAfter(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "TEMPO_NEL_FUTURO: non si registra tempo che non è ancora passato.");
+        }
+    }
+
+    /**
+     * Vieta una registrazione che non dice quello che il suo tipo pretende.
+     *
+     * <p>Tre regole, e tutte e tre vengono da {@link TipoAttivita}, che le
+     * pubblica perché le legge anche l'interfaccia: una tendina che si apre
+     * per far ricevere un 400 ha mentito a chi l'ha compilata. Qui si
+     * verificano comunque, perché un modulo non è un confine.
+     *
+     * <p>L'inverso del primo controllo esiste e il terzo non ce l'ha: una
+     * task su un tipo diverso da {@code LAVORO_TASK} è <strong>ammessa</strong>
+     * di proposito — una riunione sul lavoro X può ben essere agganciata alla
+     * sua task, e quelle ore restano ore di riunione. Quello che non si può è
+     * il contrario: {@code LAVORO_TASK} senza task non dice niente.
+     */
+    private static void vietaSeIncoerente(TipoAttivita tipo, Long idTask, Long idLavoro) {
+        if (tipo.richiedeTask() && idTask == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "TASK_RICHIESTA: «" + tipo.etichetta() + "» vuole la task su cui "
+                            + "hai lavorato.");
+        }
+        if (tipo.richiedeLavoro() && idLavoro == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "LAVORO_RICHIESTO: «" + tipo.etichetta() + "» vuole il lavoro a cui "
+                            + "si riferisce.");
+        }
+    }
+
+    /**
+     * La descrizione come va salvata: senza spazi ai bordi, e null se non
+     * c'era niente.
+     *
+     * <p>Una stringa vuota e un campo mai compilato sono la stessa cosa — «non
+     * l'ha scritto nessuno» — e salvarli diversamente vorrebbe dire due modi
+     * di essere vuoto da distinguere a ogni lettura.
+     */
+    private static String ripulita(String descrizione) {
+        if (descrizione == null) {
+            return null;
+        }
+        String pulita = descrizione.strip();
+        return pulita.isEmpty() ? null : pulita;
+    }
+
     /** Lo stesso confine, per un giorno che non è ancora una sessione. */
     private void vietaSeFuoriDallaSettimana(LocalDate giorno) {
         if (giorno.isBefore(inizioSettimanaCorrente())) {
@@ -573,13 +707,29 @@ public class ServizioTempo {
         sessioni.trovaSovrapposte(utenteId, da, a, escludi).stream().findFirst()
                 .ifPresent(scontro -> {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
-                            "In quelle ore hai già «" + scontro.getTask().getTitolo()
+                            "In quelle ore hai già «" + comeSiChiama(scontro)
                                     + "», dalle " + ora(scontro.getAvviataIl())
                                     + (scontro.getChiusaIl() == null
                                             ? " e ancora in corso"
                                             : " alle " + ora(scontro.getChiusaIl()))
                                     + ". Le ore non si sovrappongono.");
                 });
+    }
+
+    /**
+     * Come si chiama una sessione in un messaggio d'errore: il titolo della
+     * task, oppure l'etichetta del tipo di attività se una task non c'è.
+     *
+     * <p>Serve perché {@code getTask()} può essere null da quando una sessione
+     * può essere una riunione. Chi legge «in quelle ore hai già Riunione»
+     * capisce che cosa spostare esattamente come chi legge il titolo di una
+     * task — e la descrizione non entra qui, perché può essere lunga e un
+     * messaggio d'errore non è un posto dove leggerla.
+     */
+    private static String comeSiChiama(SessioneTask sessione) {
+        return sessione.getTask() == null
+                ? sessione.getTipoAttivita().etichetta()
+                : sessione.getTask().getTitolo();
     }
 
     /** Solo l'ora e i minuti: il giorno chi legge il messaggio lo sa già. */

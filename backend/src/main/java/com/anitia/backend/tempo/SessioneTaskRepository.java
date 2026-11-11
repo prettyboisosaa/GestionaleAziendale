@@ -17,12 +17,25 @@ public interface SessioneTaskRepository extends JpaRepository<SessioneTask, Long
      * questa query. Per questo torna un {@code Optional} e non una lista — se
      * un giorno ne trovasse due, il vincolo sarebbe stato tolto e la cosa
      * giusta è accorgersene qui.
+     *
+     * <p>Il join sulla task resta <strong>interno</strong> mentre le altre
+     * query di questa interfaccia sono passate a {@code LEFT JOIN} per le
+     * sessioni senza task: una sessione <em>aperta</em> ha sempre una task,
+     * perché la apre solo il timer e il timer parte da una task. Le attività
+     * senza task nascono già chiuse, scritte a mano. Se un giorno qualcosa
+     * aprisse una sessione senza task, questa query la salterebbe — ed è
+     * meglio che se ne accorga qui, dove la regola è scritta, che non si veda
+     * affatto.
      */
     @Query("SELECT s FROM SessioneTask s JOIN FETCH s.task t JOIN FETCH t.lavoro "
          + "WHERE s.utente.id = :utenteId AND s.chiusaIl IS NULL AND s.annullataIl IS NULL")
     Optional<SessioneTask> trovaInCorso(@Param("utenteId") Long utenteId);
 
-    /** La sessione in corso su una task precisa, per chiuderla quando la task si chiude. */
+    /**
+     * La sessione in corso su una task precisa, per chiuderla quando la task
+     * si chiude. Interroga la task, quindi le attività senza task non la
+     * riguardano: nessuna di loro è mai aperta.
+     */
     @Query("SELECT s FROM SessioneTask s WHERE s.task.id = :taskId "
          + "AND s.chiusaIl IS NULL AND s.annullataIl IS NULL")
     List<SessioneTask> trovaInCorsoDellaTask(@Param("taskId") Long taskId);
@@ -34,8 +47,16 @@ public interface SessioneTaskRepository extends JpaRepository<SessioneTask, Long
      * cui è cominciata, anche se è stata chiusa dopo la mezzanotte. Metterla a
      * cavallo di due giorni vorrebbe dire spezzarla, e spezzarla vorrebbe dire
      * inventare l'istante in cui tagliarla.
+     *
+     * <p>⚠️ I join sono <strong>esterni</strong> e devono restarlo. Una
+     * sessione può non avere una task — una riunione, una manutenzione
+     * interna — e con un join interno quelle righe spariscono dalla settimana
+     * senza che nessun errore lo dica: la griglia mostrerebbe un giorno
+     * mezzo vuoto e il totale non tornerebbe. Lo stesso vale per
+     * {@code s.lavoro}, che è popolato solo quando la task manca.
      */
-    @Query("SELECT s FROM SessioneTask s JOIN FETCH s.task t JOIN FETCH t.lavoro "
+    @Query("SELECT s FROM SessioneTask s LEFT JOIN FETCH s.task t LEFT JOIN FETCH t.lavoro "
+         + "LEFT JOIN FETCH s.lavoro "
          + "WHERE s.utente.id = :utenteId AND s.annullataIl IS NULL "
          + "AND s.avviataIl >= :da AND s.avviataIl < :a "
          + "ORDER BY s.avviataIl DESC")
@@ -62,8 +83,15 @@ public interface SessioneTaskRepository extends JpaRepository<SessioneTask, Long
      * estendesse all'infinito: è un filo severo, ma l'alternativa sarebbe
      * decidere dentro la query fino a quando arriva «adesso», e una sessione
      * che sta scorrendo è esattamente quella su cui non si deve scrivere.
+     *
+     * <p>⚠️ Anche qui i join sono <strong>esterni</strong>, e qui il danno di
+     * un join interno sarebbe peggiore che altrove: le attività senza task non
+     * farebbero da ostacolo a niente, e si potrebbero scrivere due ore sopra
+     * una riunione già registrata. Le ore di una persona si sommano solo
+     * perché non si sovrappongono.
      */
-    @Query("SELECT s FROM SessioneTask s JOIN FETCH s.task t JOIN FETCH t.lavoro "
+    @Query("SELECT s FROM SessioneTask s LEFT JOIN FETCH s.task t LEFT JOIN FETCH t.lavoro "
+         + "LEFT JOIN FETCH s.lavoro "
          + "WHERE s.utente.id = :utenteId AND s.annullataIl IS NULL "
          + "AND (:escludi IS NULL OR s.id <> :escludi) "
          + "AND s.avviataIl < :a AND (s.chiusaIl IS NULL OR s.chiusaIl > :da) "
@@ -74,7 +102,8 @@ public interface SessioneTaskRepository extends JpaRepository<SessioneTask, Long
                                         @Param("escludi") Long escludi);
 
     /** Le chiusure d'ufficio che questa persona non ha ancora guardato. */
-    @Query("SELECT s FROM SessioneTask s JOIN FETCH s.task t JOIN FETCH t.lavoro "
+    @Query("SELECT s FROM SessioneTask s LEFT JOIN FETCH s.task t LEFT JOIN FETCH t.lavoro "
+         + "LEFT JOIN FETCH s.lavoro "
          + "WHERE s.utente.id = :utenteId AND s.annullataIl IS NULL "
          + "AND s.confermata = FALSE ORDER BY s.avviataIl")
     List<SessioneTask> trovaDaConfermare(@Param("utenteId") Long utenteId);
@@ -111,6 +140,10 @@ public interface SessioneTaskRepository extends JpaRepository<SessioneTask, Long
      *
      * <p>Le chiude ad adesso e non al tetto: la sessione finisce nel momento
      * in cui il lavoro viene annullato, che è un istante noto e vero.
+     *
+     * <p>Il {@code JOIN} sulla task resta interno e non guarda
+     * {@code s.lavoro_id}: le attività che citano un lavoro senza averne una
+     * task nascono già chiuse, quindi non ce n'è mai una da chiudere qui.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "UPDATE sessione_task s "

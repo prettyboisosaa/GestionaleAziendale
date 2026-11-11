@@ -1377,6 +1377,24 @@ button.minuscolo:disabled {
 .scheda-settimana .lavoro-6 { --tinta-lavoro: var(--lavoro-6); }
 .scheda-settimana .lavoro-7 { --tinta-lavoro: var(--lavoro-7); }
 
+/* Le attivita' che non appartengono a nessun lavoro tingono la stessa
+   variabile dei lavori, invece di averne una loro: tutto quello che disegna un
+   blocco — la superficie diluita, il filetto, il tratteggio, l'ombra di quello
+   in corso — legge `--tinta-lavoro`, e una seconda variabile vorrebbe dire
+   ripetere ciascuna di quelle regole. Qui cambia solo da dove viene il colore.
+
+   `LAVORO_TASK` non e' in questa lista di proposito: un blocco di lavoro su
+   task ha sempre un lavoro, e la sua tinta e' quella. */
+.scheda-settimana .attivita-manutenzione { --tinta-lavoro: var(--attivita-manutenzione); }
+.scheda-settimana .attivita-interna { --tinta-lavoro: var(--attivita-interna); }
+.scheda-settimana .attivita-supporto { --tinta-lavoro: var(--attivita-supporto); }
+.scheda-settimana .attivita-sopralluogo { --tinta-lavoro: var(--attivita-sopralluogo); }
+.scheda-settimana .attivita-riunione { --tinta-lavoro: var(--attivita-riunione); }
+.scheda-settimana .attivita-formazione { --tinta-lavoro: var(--attivita-formazione); }
+.scheda-settimana .attivita-amministrazione { --tinta-lavoro: var(--attivita-amministrazione); }
+.scheda-settimana .attivita-trasferta { --tinta-lavoro: var(--attivita-trasferta); }
+.scheda-settimana .attivita-altro { --tinta-lavoro: var(--attivita-altro); }
+
 /* Il blocco la cui ora del giorno non l'ha misurata nessuno si vede che non
    e' stata misurata, e su una griglia che colloca per ora del giorno e' la
    distinzione che conta: la chiusura al tetto ha un'ora di fine di

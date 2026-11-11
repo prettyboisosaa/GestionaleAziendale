@@ -8,9 +8,11 @@ import itLocale from '@fullcalendar/core/locales/it'
 import type { DatesSetArg, EventClickArg, EventInput } from '@fullcalendar/core'
 import { miaDashboard, mioCalendario } from './api'
 import type { EventoCalendario, MiaTask, RiepilogoDashboard } from './api'
-import { avvia, completa, conferma, durata, pausa } from '../tempo/api'
+import { ETICHETTA_ATTIVITA, avvia, completa, conferma, durata, pausa } from '../tempo/api'
 import type { SituazioneTempo } from '../tempo/api'
 import CalendarioSettimanale from '../tempo/CalendarioSettimanale'
+import { elencoLavori } from '../lavoro/api'
+import type { RigaLavoro } from '../lavoro/api'
 import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
@@ -132,8 +134,21 @@ export default function PaginaDashboard({
   const [mostraCompletate, setMostraCompletate] = useState(false)
   /** L'id della task su cui è in corso il cambio di stato, per spegnerne i pulsanti. */
   const [inAggiornamento, setInAggiornamento] = useState<number | null>(null)
+  /** La chiusura d'ufficio che si sta confermando, per id di **sessione**. */
+  const [inConferma, setInConferma] = useState<number | null>(null)
   /** L'intervallo visibile del calendario, per poterlo ricaricare dopo un cambio di stato. */
   const [intervallo, setIntervallo] = useState<{ da: string; a: string } | null>(null)
+  /**
+   * I lavori visibili, per le attività del calendario che citano un lavoro
+   * senza averne una task — la manutenzione per il cliente X.
+   *
+   * Si chiedono con `elencoLavori`, che vuole `LAVORI_VISUALIZZA_PROPRI`: è
+   * un permesso **base** dalla V14, quindi ogni dipendente ce l'ha e la
+   * chiamata non va messa dietro un controllo. Un elenco vuoto non è un
+   * errore: vuol dire che non si è coinvolti in nessun lavoro, e le attività
+   * che non ne citano uno si registrano comunque.
+   */
+  const [lavori, setLavori] = useState<RigaLavoro[]>([])
 
   const navigate = useNavigate()
   const puoAggiornare = ha(utente, 'TASK_AGGIORNA_STATO')
@@ -157,6 +172,22 @@ export default function PaginaDashboard({
       .catch((motivo: unknown) => {
         if (!annullato) {
           setErrore(testo(motivo))
+        }
+      })
+
+    // I lavori servono solo a una tendina del pannello del calendario:
+    // un errore qui non deve coprire la dashboard di chi la stava guardando.
+    // Senza di loro si registra tutto tranne le attività che citano un
+    // lavoro, e quelle il pannello le rifiuta con un messaggio suo.
+    elencoLavori()
+      .then((elenco) => {
+        if (!annullato) {
+          setLavori(elenco)
+        }
+      })
+      .catch(() => {
+        if (!annullato) {
+          setLavori([])
         }
       })
 
@@ -190,14 +221,44 @@ export default function PaginaDashboard({
     setErrore(null)
     try {
       onTempo(await azione())
-      await caricaRiepilogo()
-      if (intervallo !== null) {
-        await caricaEventi(intervallo.da, intervallo.a)
-      }
+      await ricarica()
     } catch (motivo) {
       setErrore(testo(motivo))
     } finally {
       setInAggiornamento(null)
+    }
+  }
+
+  /**
+   * Accetta una chiusura d'ufficio così com'è.
+   *
+   * Non passa da `agisci`, che tiene l'attesa su un **id di task**: confermare
+   * riguarda una sessione, e due chiusure sulla stessa task spegnerebbero
+   * entrambi i bottoni. Da quando una sessione può non avere una task — una
+   * riunione, una manutenzione interna — quell'id poteva anche non esserci.
+   */
+  async function confermo(idSessione: number) {
+    setInConferma(idSessione)
+    setErrore(null)
+    try {
+      onTempo(await conferma(idSessione))
+      await ricarica()
+    } catch (motivo) {
+      setErrore(testo(motivo))
+    } finally {
+      setInConferma(null)
+    }
+  }
+
+  /**
+   * Quello che va riletto dopo una scrittura sul tempo: le ore consumate di
+   * una task stanno nel riepilogo, e le barre del calendario nel periodo in
+   * vista.
+   */
+  async function ricarica() {
+    await caricaRiepilogo()
+    if (intervallo !== null) {
+      await caricaEventi(intervallo.da, intervallo.a)
     }
   }
 
@@ -297,18 +358,21 @@ export default function PaginaDashboard({
           <ul className="elenco-conferme">
             {tempo.daConfermare.map((sessione) => (
               <li key={sessione.id}>
-                <span className="codice-permesso">{sessione.task}</span>
+                {/* Senza task la riga si nomina con l'attività: è la sola
+                    cosa che la descriva, e un posto vuoto farebbe sembrare
+                    che il dato manchi. */}
+                <span className="codice-permesso">
+                  {sessione.task ?? ETICHETTA_ATTIVITA[sessione.tipoAttivita]}
+                </span>
                 <span className="nota">
-                  {sessione.codiceLavoro} · {breve(sessione.avviataIl.slice(0, 10))} ·{' '}
-                  {durata(sessione.minuti)}
+                  {sessione.codiceLavoro !== null && `${sessione.codiceLavoro} · `}
+                  {breve(sessione.avviataIl.slice(0, 10))} · {durata(sessione.minuti)}
                 </span>
                 <button
                   type="button"
                   className="minuscolo"
-                  disabled={inAggiornamento === sessione.taskId}
-                  onClick={() =>
-                    void agisci(sessione.taskId, () => conferma(sessione.id))
-                  }
+                  disabled={inConferma === sessione.id}
+                  onClick={() => void confermo(sessione.id)}
                 >
                   Confermo
                 </button>
@@ -413,6 +477,10 @@ export default function PaginaDashboard({
             // rifiuterebbe — su una task completata le ore residue sono già
             // tornate nel pool del lavoro.
             task={tutte.filter((una) => apertaTask(una.stato))}
+            // I lavori che un'attività può citare. Gli annullati restano
+            // fuori — `elencoLavori` li esclude di suo — perché non si fa
+            // manutenzione su un lavoro che non si farà.
+            lavori={lavori}
             onErrore={setErrore}
             onScritto={(situazione) => {
               onTempo(situazione)

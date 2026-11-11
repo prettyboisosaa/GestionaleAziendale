@@ -10,7 +10,8 @@ import org.springframework.web.bind.annotation.RestController;
 /** {@code GET /api/ruoli}: l'elenco dei ruoli assegnabili. */
 @RestController
 @RequestMapping("/api/ruoli")
-class RuoliController {
+class
+RuoliController {
 
     private final RuoloRepository ruoli;
 

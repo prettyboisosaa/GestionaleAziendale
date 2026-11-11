@@ -25,13 +25,124 @@ import { chiedi, postJson, putJson } from '../api/http'
  */
 export type OrigineSessione = 'TIMER' | 'AUTOMATICA' | 'IMPORTATA' | 'MANUALE'
 
-/** Una sessione di lavoro su una task. */
+/**
+ * Che genere di attività è stata registrata.
+ *
+ * Non è `OrigineSessione`: quella dice **quanto il dato è stato misurato**,
+ * questa dice **che cosa si stava facendo**. Sono due domande indipendenti —
+ * una riunione può essere cronometrata col timer o scritta a mano la sera.
+ *
+ * Il tipo sta qui, nell'`api.ts` del dominio, e non in `stato/stati`: là
+ * vivono gli stati di lavori e task, che compaiono in cinque schermate. È la
+ * stessa collocazione di `UrgenzaTask` in `task/api.ts`, per la stessa
+ * ragione.
+ */
+export type TipoAttivita =
+  | 'LAVORO_TASK'
+  | 'MANUTENZIONE_CLIENTE'
+  | 'MANUTENZIONE_INTERNA'
+  | 'SUPPORTO'
+  | 'SOPRALLUOGO'
+  | 'RIUNIONE'
+  | 'FORMAZIONE'
+  | 'AMMINISTRAZIONE'
+  | 'TRASFERTA'
+  | 'ALTRO'
+
+/**
+ * L'ordine della **tendina**, che non è quello dell'enum sul server.
+ *
+ * Il lavoro su task è primo perché è il caso quotidiano, le manutenzioni
+ * subito dopo perché sono la ragione per cui questo campo esiste, e `ALTRO`
+ * ultimo perché è il ripiego: metterlo in mezzo lo farebbe scegliere a chi
+ * non ha letto il resto.
+ */
+export const ATTIVITA: TipoAttivita[] = [
+  'LAVORO_TASK',
+  'MANUTENZIONE_CLIENTE',
+  'MANUTENZIONE_INTERNA',
+  'SUPPORTO',
+  'SOPRALLUOGO',
+  'RIUNIONE',
+  'FORMAZIONE',
+  'AMMINISTRAZIONE',
+  'TRASFERTA',
+  'ALTRO',
+]
+
+/** Il tipo con cui il modulo parte: il caso normale di gran lunga. */
+export const ATTIVITA_INIZIALE: TipoAttivita = 'LAVORO_TASK'
+
+export const ETICHETTA_ATTIVITA: Record<TipoAttivita, string> = {
+  LAVORO_TASK: 'Lavoro su task',
+  MANUTENZIONE_CLIENTE: 'Manutenzione cliente',
+  MANUTENZIONE_INTERNA: 'Manutenzione interna',
+  SUPPORTO: 'Supporto e assistenza',
+  SOPRALLUOGO: 'Sopralluogo',
+  RIUNIONE: 'Riunione',
+  FORMAZIONE: 'Formazione',
+  AMMINISTRAZIONE: 'Amministrazione',
+  TRASFERTA: 'Trasferta',
+  ALTRO: 'Altro',
+}
+
+/**
+ * Il modificatore di colore del blocco sulla griglia, per tipo.
+ *
+ * Come `TINTA_URGENZA` in `task/api.ts` e `tinta()` in `stato/stati`: qui
+ * stanno i **nomi delle classi**, i colori stanno in `index.css`.
+ *
+ * `LAVORO_TASK` non ha una tinta sua, e non è una dimenticanza: quei blocchi
+ * prendono il colore del **loro lavoro**, che è il colpo d'occhio che la
+ * griglia esiste per dare. Una tinta per il tipo lo cancellerebbe proprio nel
+ * caso in cui serve.
+ */
+export const TINTA_ATTIVITA: Record<TipoAttivita, string | null> = {
+  LAVORO_TASK: null,
+  MANUTENZIONE_CLIENTE: 'attivita-manutenzione',
+  MANUTENZIONE_INTERNA: 'attivita-interna',
+  SUPPORTO: 'attivita-supporto',
+  SOPRALLUOGO: 'attivita-sopralluogo',
+  RIUNIONE: 'attivita-riunione',
+  FORMAZIONE: 'attivita-formazione',
+  AMMINISTRAZIONE: 'attivita-amministrazione',
+  TRASFERTA: 'attivita-trasferta',
+  ALTRO: 'attivita-altro',
+}
+
+/**
+ * I tipi che **pretendono** la task, e quelli che pretendono il lavoro.
+ *
+ * Le due regole le fa valere il server (`TipoAttivita.richiedeTask()` e
+ * `richiedeLavoro()`), e stanno anche qui perché decidono quale tendina
+ * mostrare: un modulo che si apre per far ricevere un 400 ha mentito a chi
+ * l'ha compilato. Due liste e non `includes` sparsi, così la regola si legge
+ * in un posto.
+ */
+export const RICHIEDE_TASK: TipoAttivita[] = ['LAVORO_TASK']
+export const RICHIEDE_LAVORO: TipoAttivita[] = ['MANUTENZIONE_CLIENTE']
+
+/**
+ * Una sessione registrata: di solito su una task, a volte un'altra attività.
+ *
+ * **Quattro campi possono essere null** — `taskId`, `task`, `lavoroId`,
+ * `codiceLavoro` — perché una riunione o una manutenzione interna non stanno
+ * sotto nessuna task né riguardano un lavoro. Quello che c'è sempre è
+ * `tipoAttivita`: senza task è la sola cosa che dica di quelle ore che cosa
+ * sono state.
+ */
 export type RigaSessione = {
   id: number
-  taskId: number
-  task: string
-  lavoroId: number
-  codiceLavoro: string
+  /** Null per un'attività che non è una task. */
+  taskId: number | null
+  /** Il titolo della task, null se non c'è una task. */
+  task: string | null
+  /** Il lavoro della task, o quello citato dall'attività. Null se nessuno. */
+  lavoroId: number | null
+  codiceLavoro: string | null
+  tipoAttivita: TipoAttivita
+  /** Cosa si è fatto, a parole. Null se nessuno l'ha scritto. */
+  descrizione: string | null
   avviataIl: string
   /** Null se sta ancora scorrendo. */
   chiusaIl: string | null
@@ -150,28 +261,39 @@ export function completa(idLavoro: number, idTask: number): Promise<SituazioneTe
   })
 }
 
+/** Quello che si manda per registrare un'attività già fatta. */
+export type NuovaAttivita = {
+  tipoAttivita: TipoAttivita
+  /** Richiesto se il tipo lo pretende, altrimenti null. */
+  taskId: number | null
+  /** Richiesto per la manutenzione cliente, ammesso altrove, null se nessuno. */
+  lavoroId: number | null
+  /** Sempre facoltativa: nessuno la impone. Al massimo 500 caratteri. */
+  descrizione: string | null
+  avviataIl: string
+  chiusaIl: string
+}
+
 /**
- * Registra a mano del lavoro già fatto: due istanti su una task.
+ * Registra a mano un'attività già fatta: due istanti, un tipo, e quello che
+ * quel tipo pretende.
  *
- * È la rete per chi si dimentica di premere avvia, non un ritorno alla
- * dichiarazione giornaliera: lì si compilava ogni sera una giornata intera,
- * qui si riempie un buco su un calendario che per il resto si riempie da sé.
+ * È la rete per chi si dimentica di premere avvia, e insieme il modo di
+ * registrare quello che non è una task — una riunione, una manutenzione, una
+ * trasferta. Non è un ritorno alla dichiarazione giornaliera: lì si compilava
+ * ogni sera una giornata intera, qui si riempie un buco su un calendario che
+ * per il resto si riempie da sé.
  *
- * L'indirizzo nomina la task, come `avvia` e `completa`: è la task che si
- * registra, e il tempo viene dietro. Il server rifiuta un intervallo nel
- * futuro, fuori dalla settimana corrente, su una task non propria, o che si
- * accavalla a un'altra sessione.
+ * **L'indirizzo non nomina la task**, al contrario di `avvia` e `completa`: la
+ * task può non esserci, e un indirizzo non sa nominare una cosa facoltativa.
+ * Sta quindi sotto `/api/mio-tempo/`, con la task nel corpo.
+ *
+ * Il server rifiuta un intervallo nel futuro, fuori dalla settimana corrente,
+ * su una task non propria, che si accavalla a un'altra sessione, o che non
+ * dice quello che il suo tipo pretende (`TASK_RICHIESTA`, `LAVORO_RICHIESTO`).
  */
-export function registraManuale(
-  idLavoro: number,
-  idTask: number,
-  avviataIl: string,
-  chiusaIl: string,
-): Promise<SituazioneTempo> {
-  return chiedi<SituazioneTempo>(
-    `/api/lavori/${idLavoro}/task/${idTask}/sessioni`,
-    postJson({ avviataIl, chiusaIl }),
-  )
+export function registraAttivita(attivita: NuovaAttivita): Promise<SituazioneTempo> {
+  return chiedi<SituazioneTempo>('/api/mio-tempo/sessioni', postJson(attivita))
 }
 
 /** Accetta una chiusura d'ufficio così com'è. */
@@ -190,18 +312,29 @@ export function conferma(idSessione: number): Promise<SituazioneTempo> {
  * quella finestra, e 409 anche se gli orari nuovi finirebbero addosso a
  * un'altra sessione: le ore di una persona non si sovrappongono.
  *
- * La task non si cambia: la richiesta porta due istanti e nient'altro. Una
- * sessione è il tempo passato su *quella* task, e spostarlo su un'altra non è
- * correggere un orario — si annulla e si riscrive.
+ * Si correggono anche **tipo di attività, lavoro citato e descrizione**: non
+ * sono misure ma cose scritte da una persona, e chi sbaglia tendina deve poter
+ * rimediare senza buttare via la riga. I tre campi **sostituiscono**: si manda
+ * sempre quello che il modulo ha in mano, e una descrizione svuotata la
+ * cancella.
+ *
+ * La task invece non si cambia, e la richiesta non la porta. Una sessione è il
+ * tempo passato su *quella* task, e spostarlo su un'altra non è correggere un
+ * orario — si annulla e si riscrive.
  */
 export function correggi(
   idSessione: number,
-  avviataIl: string,
-  chiusaIl: string,
+  correzione: {
+    tipoAttivita: TipoAttivita
+    lavoroId: number | null
+    descrizione: string | null
+    avviataIl: string
+    chiusaIl: string
+  },
 ): Promise<SituazioneTempo> {
   return chiedi<SituazioneTempo>(
     `/api/mio-tempo/sessioni/${idSessione}`,
-    putJson({ avviataIl, chiusaIl }),
+    putJson(correzione),
   )
 }
 

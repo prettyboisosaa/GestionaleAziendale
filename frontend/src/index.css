@@ -94,6 +94,31 @@
   --lavoro-6: #2e8f6f;
   --lavoro-7: #5c6b7a;
 
+  /* Le tinte delle attivita' che non appartengono a nessun lavoro: una
+     riunione, una manutenzione interna, una formazione.
+
+     Servono perche' quei blocchi non hanno un lavoro da cui prendere il
+     colore, e un rettangolo grigio in mezzo agli altri sembrerebbe un errore
+     invece di una categoria. Un'attivita' che cita un lavoro prende invece la
+     tinta del lavoro, non una di queste: il colpo d'occhio della griglia e'
+     «su quali progetti e' andata la settimana», e colorare per categoria lo
+     cancellerebbe.
+
+     Sono smorzate come le tinte dei lavori e alla stessa intensita', per la
+     stessa ragione: vanno distinte fra loro, non lette. Si tengono piu'
+     neutre — grigi, bruni, verdi spenti — perche' queste ore sono il contorno
+     della settimana e non il suo contenuto: i blu e i viola restano ai
+     lavori, che sono quello che si guarda. */
+  --attivita-manutenzione: #7a6a4f;
+  --attivita-interna: #5f7a6a;
+  --attivita-supporto: #4a7a8a;
+  --attivita-sopralluogo: #8a7a4a;
+  --attivita-riunione: #6f6a8a;
+  --attivita-formazione: #4f7a5f;
+  --attivita-amministrazione: #7a6a7a;
+  --attivita-trasferta: #8a6f5f;
+  --attivita-altro: #77838a;
+
   /* L'inchiostro scomposto, per tingere le ombre. */
   --inchiostro-rgb: 21 48 61;
 

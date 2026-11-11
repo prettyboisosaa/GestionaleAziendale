@@ -288,6 +288,240 @@ class SessioniEOreTest {
                 .hasMessageContaining("TEMPO_NEL_FUTURO");
     }
 
+    // --- l'attività che non è una task ---------------------------------------
+
+    /**
+     * Un'attività senza task si scrive, e nella settimana si vede.
+     *
+     * <p>È il caso che la {@code V20} esiste per permettere: una manutenzione
+     * interna non sta sotto nessuna task, e appenderla a una qualunque
+     * scriveva ore di sviluppo che non erano state fatte.
+     *
+     * <p>Che compaia in {@code trovaDelPeriodo} non è ovvio e va verificato
+     * qui: quella query fa {@code LEFT JOIN FETCH} sulla task proprio perché
+     * una riga così non ha una task, e con un join interno spariva senza che
+     * nessun errore lo dicesse.
+     */
+    @Test
+    void unAttivitaSenzaTaskSiScriveESiVedeNellaSettimana() {
+        Postazione dove = unaPostazione();
+        Intervallo quando = unIntervalloScrivibile();
+
+        tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.MANUTENZIONE_INTERNA, null, null,
+                        "Aggiornato il server di posta", quando.da(), quando.a()));
+        sessioni.flush();
+
+        assertThat(sessioni.trovaDelPeriodo(dove.persona().getId(),
+                quando.da(), quando.a().plusMinutes(1)))
+                .singleElement()
+                .satisfies(scritta -> {
+                    assertThat(scritta.getTask()).isNull();
+                    assertThat(scritta.lavoroCitato()).isNull();
+                    assertThat(scritta.getTipoAttivita())
+                            .isEqualTo(TipoAttivita.MANUTENZIONE_INTERNA);
+                    assertThat(scritta.getDescrizione())
+                            .isEqualTo("Aggiornato il server di posta");
+                    assertThat(scritta.getOrigine()).isEqualTo(OrigineSessione.MANUALE);
+                    assertThat(scritta.isConfermata()).isTrue();
+                    assertThat(scritta.inCorso()).isFalse();
+                });
+
+        // La task della postazione non è stata toccata: un'attività che non è
+        // una task non mette in corso niente.
+        assertThat(dove.task().getStato()).isEqualTo(StatoTask.ATTIVO);
+    }
+
+    /**
+     * ⚠️ La prova della decisione che tiene in piedi tutto il resto: le ore di
+     * manutenzione su un lavoro <strong>non consumano il suo monte ore</strong>,
+     * ma entrano nel tempo della persona.
+     *
+     * <p>Si registrano come fatte, non come consumate. La manutenzione di un
+     * lavoro consegnato non erode il budget con cui quel lavoro è stato
+     * sviluppato, e il consuntivo che un responsabile guarda resta quello
+     * dello sviluppo. Il tempo della persona invece è tempo lavorato, e lì ci
+     * deve essere.
+     *
+     * <p>Il comportamento nasce da come il consuntivo è fatto — le somme
+     * partono dalle task, e una sessione senza task ne resta fuori — e proprio
+     * per questo va fissato in un test: è una proprietà che si romperebbe in
+     * silenzio il giorno in cui qualcuno riscrivesse quelle query partendo
+     * dalle sessioni.
+     */
+    @Test
+    void leOreDiManutenzioneNonConsumanoIlMonteOreDelLavoro() {
+        Postazione dove = unaPostazione();
+        Lavoro contenitore = dove.task().getLavoro();
+        Intervallo quando = unIntervalloScrivibile();
+        long minuti = ChronoUnit.MINUTES.between(quando.da(), quando.a());
+
+        tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.MANUTENZIONE_CLIENTE, null,
+                        contenitore.getId(), "Sistemato un disservizio in produzione",
+                        quando.da(), quando.a()));
+        sessioni.flush();
+
+        assertThat(task.sommaOreConsumate(contenitore.getId()))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(task.sommaOreConsumateDellaTask(dove.task().getId()))
+                .isEqualByComparingTo(BigDecimal.ZERO);
+
+        assertThat(tempo.miaSettimana(collegata(dove.persona()), LocalDate.now())
+                .minutiTotali()).isEqualTo(minuti);
+    }
+
+    /** Il lavoro citato si ritrova, ed è quello che il lavoro della task sarebbe. */
+    @Test
+    void unAttivitaSuUnLavoroLoCita() {
+        Postazione dove = unaPostazione();
+        Lavoro contenitore = dove.task().getLavoro();
+        Intervallo quando = unIntervalloScrivibile();
+
+        tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.MANUTENZIONE_CLIENTE, null,
+                        contenitore.getId(), null, quando.da(), quando.a()));
+        sessioni.flush();
+
+        assertThat(sessioni.trovaDelPeriodo(dove.persona().getId(),
+                quando.da(), quando.a().plusMinutes(1)))
+                .singleElement()
+                .satisfies(scritta -> {
+                    assertThat(scritta.getTask()).isNull();
+                    assertThat(scritta.lavoroCitato().getId()).isEqualTo(contenitore.getId());
+                    // Non scritta vuol dire non scritta: una stringa vuota e
+                    // un campo mai compilato sono la stessa cosa.
+                    assertThat(scritta.getDescrizione()).isNull();
+                });
+    }
+
+    /** Una manutenzione cliente senza dire su che cosa non si può né leggere né fatturare. */
+    @Test
+    void unaManutenzioneClienteSenzaLavoroNonSiPuo() {
+        Postazione dove = unaPostazione();
+        Intervallo quando = unIntervalloScrivibile();
+
+        assertThat(catchThrowable(() -> tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.MANUTENZIONE_CLIENTE, null, null,
+                        null, quando.da(), quando.a()))))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("LAVORO_RICHIESTO");
+    }
+
+    /** E il contrario: del lavoro su task senza la task non dice niente. */
+    @Test
+    void lavoroSuTaskSenzaLaTaskNonSiPuo() {
+        Postazione dove = unaPostazione();
+        Intervallo quando = unIntervalloScrivibile();
+
+        assertThat(catchThrowable(() -> tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.LAVORO_TASK, null, null,
+                        null, quando.da(), quando.a()))))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("TASK_RICHIESTA");
+    }
+
+    /**
+     * Una riunione su una task invece si può: quelle ore restano ore di
+     * riunione, e il divieto vale solo nel verso opposto.
+     */
+    @Test
+    void unaRiunioneSuUnaTaskSiPuo() {
+        Postazione dove = unaPostazione();
+        Intervallo quando = unIntervalloScrivibile();
+
+        tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.RIUNIONE, dove.task().getId(), null,
+                        "Allineamento col cliente", quando.da(), quando.a()));
+        sessioni.flush();
+
+        assertThat(sessioni.trovaDelPeriodo(dove.persona().getId(),
+                quando.da(), quando.a().plusMinutes(1)))
+                .singleElement()
+                .satisfies(scritta -> {
+                    assertThat(scritta.getTask().getId()).isEqualTo(dove.task().getId());
+                    assertThat(scritta.getTipoAttivita()).isEqualTo(TipoAttivita.RIUNIONE);
+                });
+    }
+
+    /**
+     * ⚠️ Un'attività senza task fa da ostacolo a quello che le si accavalla.
+     *
+     * <p>È il test che tiene onesto il {@code LEFT JOIN FETCH} di
+     * {@code trovaSovrapposte}. Con un join interno quelle righe non
+     * ostacolerebbero niente, e si potrebbero scrivere due ore sopra una
+     * riunione già registrata: le ore di una persona si sommano solo perché
+     * non si sovrappongono, e due ore scritte due volte diventano quattro nel
+     * consuntivo di un lavoro.
+     */
+    @Test
+    void unAttivitaSenzaTaskOstacolaQuelloCheLeSiAccavalla() {
+        Postazione dove = unaPostazione();
+        Intervallo quando = unIntervalloScrivibile();
+
+        tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.RIUNIONE, null, null,
+                        null, quando.da(), quando.a()));
+        sessioni.flush();
+
+        assertThat(catchThrowable(() -> tempo.registraManuale(collegata(dove.persona()),
+                dove.task().getLavoro().getId(), dove.task().getId(),
+                quando.da(), quando.a())))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("non si sovrappongono")
+                // Il messaggio nomina l'attività con l'etichetta del tipo,
+                // perché un titolo di task non c'è.
+                .hasMessageContaining("Riunione");
+    }
+
+    /**
+     * Il tipo e la descrizione si correggono: chi registra può sbagliare
+     * tendina, e quei due dati non sono misure.
+     */
+    @Test
+    void correggereIlTipoELaDescrizioneDiUnAttivita() {
+        Postazione dove = unaPostazione();
+        Intervallo quando = unIntervalloScrivibile();
+
+        tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.MANUTENZIONE_INTERNA, null, null,
+                        "Non era questo", quando.da(), quando.a()));
+        sessioni.flush();
+
+        SessioneTask scritta = sessioni.trovaDelPeriodo(dove.persona().getId(),
+                quando.da(), quando.a().plusMinutes(1)).getFirst();
+
+        tempo.correggi(collegata(dove.persona()), scritta.getId(),
+                new RichiestaCorrezione(TipoAttivita.FORMAZIONE, null,
+                        "Corso su Spring", quando.da(), quando.a()));
+        sessioni.flush();
+
+        assertThat(scritta.getTipoAttivita()).isEqualTo(TipoAttivita.FORMAZIONE);
+        assertThat(scritta.getDescrizione()).isEqualTo("Corso su Spring");
+    }
+
+    /** Una descrizione svuotata si cancella: il PUT sostituisce, non aggiorna. */
+    @Test
+    void correggendoSiPuoCancellareLaDescrizione() {
+        Postazione dove = unaPostazione();
+        Intervallo quando = unIntervalloScrivibile();
+
+        tempo.registraAttivita(collegata(dove.persona()),
+                new RichiestaAttivita(TipoAttivita.ALTRO, null, null,
+                        "Scritta per sbaglio", quando.da(), quando.a()));
+        sessioni.flush();
+
+        SessioneTask scritta = sessioni.trovaDelPeriodo(dove.persona().getId(),
+                quando.da(), quando.a().plusMinutes(1)).getFirst();
+
+        tempo.correggi(collegata(dove.persona()), scritta.getId(),
+                new RichiestaCorrezione(TipoAttivita.ALTRO, null, "   ",
+                        quando.da(), quando.a()));
+        sessioni.flush();
+
+        assertThat(scritta.getDescrizione()).isNull();
+    }
+
     // --- la sessione scritta a mano ------------------------------------------
 
     /**
@@ -306,7 +540,7 @@ class SessioniEOreTest {
         Task destinazione = dove.task();
 
         SessioneTask aMano = sessioni.saveAndFlush(SessioneTask.manuale(
-                destinazione, dove.persona(),
+                destinazione, dove.persona(), TipoAttivita.LAVORO_TASK, null,
                 LocalDateTime.parse("2026-11-09T14:00:00"),
                 LocalDateTime.parse("2026-11-09T17:30:00")));
 
@@ -329,6 +563,7 @@ class SessioniEOreTest {
         Postazione dove = unaPostazione();
         Task destinazione = dove.task();
         sessioni.saveAndFlush(SessioneTask.manuale(destinazione, dove.persona(),
+                TipoAttivita.LAVORO_TASK, null,
                 LocalDateTime.parse("2026-11-09T14:00:00"),
                 LocalDateTime.parse("2026-11-09T15:00:00")));
 
@@ -348,6 +583,7 @@ class SessioniEOreTest {
         Postazione dove = unaPostazione();
         Task destinazione = dove.task();
         sessioni.saveAndFlush(SessioneTask.manuale(destinazione, dove.persona(),
+                TipoAttivita.LAVORO_TASK, null,
                 LocalDateTime.parse("2026-11-09T14:00:00"),
                 LocalDateTime.parse("2026-11-09T15:00:00")));
 

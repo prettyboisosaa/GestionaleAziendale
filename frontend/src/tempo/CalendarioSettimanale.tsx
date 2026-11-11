@@ -10,10 +10,16 @@ import type {
   EventContentArg,
   EventInput,
 } from '@fullcalendar/core'
-import { durata, istanteLocale, miaSettimana } from './api'
+import {
+  ETICHETTA_ATTIVITA,
+  TINTA_ATTIVITA,
+  durata,
+  istanteLocale,
+  miaSettimana,
+} from './api'
 import type { RigaSessione, SettimanaDiTempo, SituazioneTempo } from './api'
 import PannelloSessione from './PannelloSessione'
-import type { Apertura, TaskScrivibile } from './PannelloSessione'
+import type { Apertura, LavoroScrivibile, TaskScrivibile } from './PannelloSessione'
 import { testo } from '../api/http'
 import { tintaLavoro } from '../stato/stati'
 
@@ -38,6 +44,7 @@ import { tintaLavoro } from '../stato/stati'
 export default function CalendarioSettimanale({
   tempo,
   task,
+  lavori,
   onErrore,
   onScritto,
 }: {
@@ -54,6 +61,12 @@ export default function CalendarioSettimanale({
    * `RiepilogoDashboard.task` — invece di chiederle con una rotta propria.
    */
   task: TaskScrivibile[]
+  /**
+   * I lavori visibili, per le attività che citano un lavoro senza averne una
+   * task: la manutenzione per il cliente X. Arrivano da chi sta sopra, come
+   * le task, e non da una rotta di questo componente.
+   */
+  lavori: LavoroScrivibile[]
   onErrore: (messaggio: string) => void
   /**
    * Chiamata dopo una scrittura dal pannello. Non ricarica la settimana — a
@@ -167,13 +180,25 @@ export default function CalendarioSettimanale({
 
   const eventi: EventInput[] = (settimana?.sessioni ?? []).map((sessione) => ({
     id: String(sessione.id),
-    title: sessione.task,
+    // Senza task il titolo è l'etichetta dell'attività: è la sola cosa che
+    // nomini quel blocco, e un rettangolo senza titolo non si legge.
+    title: sessione.task ?? ETICHETTA_ATTIVITA[sessione.tipoAttivita],
     start: sessione.avviataIl,
     // Una sessione aperta si disegna fino ad adesso: è l'unico blocco della
     // griglia che sta ancora crescendo, e senza una fine non avrebbe altezza.
     end: sessione.chiusaIl ?? istanteLocale(new Date(adesso)),
     classNames: classiSessione(sessione),
-    extendedProps: { codiceLavoro: sessione.codiceLavoro },
+    extendedProps: {
+      // In coda al titolo: il codice del lavoro se c'è, altrimenti niente —
+      // un'attività interna non ne ha uno, e un trattino non direbbe nulla.
+      codiceLavoro: sessione.codiceLavoro,
+      // La descrizione finisce nel `title` del blocco, cioè nel suggerimento
+      // del browser: su una griglia a fasce orarie un blocco di mezz'ora non
+      // ha lo spazio per una riga di testo, e troncarla la renderebbe
+      // illeggibile. Chi vuole leggerla apre il pannello o ci passa sopra.
+      descrizione: sessione.descrizione,
+      attivita: ETICHETTA_ATTIVITA[sessione.tipoAttivita],
+    },
   }))
 
   const vuota = settimana !== null && settimana.sessioni.length === 0
@@ -277,6 +302,7 @@ export default function CalendarioSettimanale({
         <PannelloSessione
           apertura={apertura}
           task={task}
+          lavori={lavori}
           onChiudi={() => setApertura(null)}
           onFatto={onScritto}
         />
@@ -301,9 +327,26 @@ export default function CalendarioSettimanale({
  * Entrambe contano nei totali — non contarle farebbe sparire lavoro vero dal
  * consuntivo di un lavoro — ma un blocco pieno rivendicherebbe una precisione
  * che quel dato non ha.
+ *
+ * **La tinta dice il lavoro, non il tipo di attività** — tranne dove un lavoro
+ * non c'è. Il colpo d'occhio che questa griglia esiste per dare è «su quali
+ * progetti è andata la settimana», e colorare per tipo lo cancellerebbe
+ * proprio nel caso quotidiano. Le attività che non appartengono a un lavoro
+ * prendono invece una tinta del loro tipo: non avrebbero nessun colore, e un
+ * blocco grigio in mezzo agli altri sembrerebbe un errore.
  */
 function classiSessione(sessione: RigaSessione): string[] {
-  const classi = ['sessione', tintaLavoro(sessione.lavoroId)]
+  const classi = ['sessione']
+
+  const tintaDelTipo = TINTA_ATTIVITA[sessione.tipoAttivita]
+  if (sessione.lavoroId !== null) {
+    // Un lavoro c'è: la tinta è la sua, anche per una manutenzione. Che cosa
+    // sia quell'ora lo dice il titolo del blocco, che senza una task porta
+    // l'etichetta dell'attività.
+    classi.push(tintaLavoro(sessione.lavoroId))
+  } else if (tintaDelTipo !== null) {
+    classi.push(tintaDelTipo)
+  }
 
   // Scritta a mano: l'ora del giorno l'ha scelta una persona a memoria. È una
   // classe sua e non `sessione-dedotta` perché le due cose non si somigliano
@@ -327,22 +370,36 @@ function classiSessione(sessione: RigaSessione): string[] {
 }
 
 /**
- * Dentro il blocco: l'ora, la task e il codice del lavoro.
+ * Dentro il blocco: l'ora, il titolo e il codice del lavoro.
  *
  * Il codice c'è perché le tinte sono otto e i lavori possono essere più di
  * otto: quando due coincidono l'informazione non va persa — si legge invece
- * di vedersi, ma c'è.
+ * di vedersi, ma c'è. Dove un lavoro non c'è non si scrive niente al suo
+ * posto: un trattino occuperebbe lo spazio senza dire nulla.
+ *
+ * Il suggerimento del browser porta la descrizione, se qualcuno l'ha scritta.
+ * Nel blocco non ci starebbe — mezz'ora di griglia sono poche righe di pixel
+ * — e troncarla a tre parole la renderebbe meno utile di non averla.
  */
 function contenutoSessione(arg: EventContentArg) {
-  const codice = arg.event.extendedProps.codiceLavoro as string
+  const codice = arg.event.extendedProps.codiceLavoro as string | null
+  const descrizione = arg.event.extendedProps.descrizione as string | null
+  const attivita = arg.event.extendedProps.attivita as string
+
+  // Il titolo già nomina la task, oppure l'attività dove una task non c'è:
+  // ripetere l'attività in quel secondo caso direbbe due volte la stessa cosa.
+  const suggerimento = [arg.event.title === attivita ? null : attivita, descrizione]
+    .filter((pezzo) => pezzo !== null)
+    .join(' · ')
+
   return (
-    <>
+    <div title={suggerimento === '' ? undefined : suggerimento}>
       <div className="fc-event-time">{arg.timeText}</div>
       <div className="fc-event-title">
         {arg.event.title}
-        <span className="lavoro-del-blocco">{codice}</span>
+        {codice !== null && <span className="lavoro-del-blocco">{codice}</span>}
       </div>
-    </>
+    </div>
   )
 }
 

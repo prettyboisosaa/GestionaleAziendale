@@ -67,6 +67,7 @@ class TempoControllerTest {
     private static final String AVVIA = "/api/lavori/1/task/2/avvia";
     private static final String COMPLETA = "/api/lavori/1/task/2/completa";
     private static final String SESSIONI = "/api/lavori/1/task/2/sessioni";
+    private static final String ATTIVITA = "/api/mio-tempo/sessioni";
 
     @Autowired
     private MockMvc mockMvc;
@@ -96,6 +97,24 @@ class TempoControllerTest {
 
     private static SituazioneTempo vuota() {
         return new SituazioneTempo(null, 0, List.of());
+    }
+
+    /**
+     * Il corpo di una correzione che non cambia il tipo di attività: due
+     * istanti su del lavoro su task, che è quello che era prima della
+     * {@code V20}.
+     *
+     * <p>C'è perché {@code tipoAttivita} è obbligatorio e in queste prove non
+     * è ciò che si sta verificando: ripeterlo in ogni stringa JSON
+     * nasconderebbe la riga che conta, che è l'orario.
+     */
+    private static final String CORREZIONE =
+            "{\"tipoAttivita\":\"LAVORO_TASK\",\"avviataIl\":\"%s\",\"chiusaIl\":\"%s\"}";
+
+    /** La stessa correzione, come il controller la passa al servizio. */
+    private static RichiestaCorrezione correzione(String da, String a) {
+        return new RichiestaCorrezione(TipoAttivita.LAVORO_TASK, null, null,
+                LocalDateTime.parse(da), LocalDateTime.parse(a));
     }
 
     // --- il proprio tempo ----------------------------------------------------
@@ -138,6 +157,7 @@ class TempoControllerTest {
         given(servizio.miaSettimana(any(), any())).willReturn(new SettimanaDiTempo(
                 LocalDate.of(2026, 11, 9), LocalDate.of(2026, 11, 15), 95, true,
                 List.of(new RigaSessione(7L, 2L, "Revisione contratto", 1L, "LAV-001",
+                        TipoAttivita.LAVORO_TASK, null,
                         LocalDateTime.of(2026, 11, 9, 9, 0),
                         LocalDateTime.of(2026, 11, 9, 10, 35), 95,
                         OrigineSessione.TIMER, true))));
@@ -392,6 +412,102 @@ class TempoControllerTest {
                         org.hamcrest.Matchers.containsString("Preventivo Rossi")));
     }
 
+    // --- l'attività che non è una task ---------------------------------------
+
+    /**
+     * La rotta nuova sta sotto {@code /api/mio-tempo/} perché la task può non
+     * esserci, e un indirizzo non sa nominare una cosa facoltativa.
+     *
+     * <p>Nessun permesso nuovo: registrare una riunione non è un potere in
+     * più di registrare del lavoro su task — è la stessa giornata, raccontata
+     * meglio.
+     */
+    @Test
+    void registrareUnAttivitaSenzaTaskRisponde200() throws Exception {
+        RichiestaAttivita attesa = new RichiestaAttivita(TipoAttivita.MANUTENZIONE_INTERNA,
+                null, null, "Aggiornato il server di posta",
+                LocalDateTime.of(2026, 11, 9, 9, 0),
+                LocalDateTime.of(2026, 11, 9, 11, 0));
+        given(servizio.registraAttivita(any(), eq(attesa))).willReturn(vuota());
+
+        mockMvc.perform(post(ATTIVITA).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tipoAttivita\":\"MANUTENZIONE_INTERNA\","
+                                + "\"descrizione\":\"Aggiornato il server di posta\","
+                                + "\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T11:00:00\"}"))
+                .andExpect(status().isOk());
+
+        then(servizio).should().registraAttivita(any(), eq(attesa));
+    }
+
+    @Test
+    void registrareUnAttivitaSenzaIlPermessoDiBaseRisponde403() throws Exception {
+        mockMvc.perform(post(ATTIVITA).session(sessioneCon("TEMPO_VISUALIZZA_TUTTI"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tipoAttivita\":\"RIUNIONE\","
+                                + "\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T11:00:00\"}"))
+                .andExpect(status().isForbidden());
+
+        then(servizio).shouldHaveNoInteractions();
+    }
+
+    /**
+     * Senza tipo non si sa che cosa sia stata quell'ora, e senza task non lo
+     * si può dedurre: il 400 esce dalla validazione, prima del servizio.
+     */
+    @Test
+    void registrareUnAttivitaSenzaIlTipoRisponde400() throws Exception {
+        mockMvc.perform(post(ATTIVITA).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T11:00:00\"}"))
+                .andExpect(status().isBadRequest());
+
+        then(servizio).shouldHaveNoInteractions();
+    }
+
+    /**
+     * Una descrizione più lunga del campo si rifiuta qui e non al database:
+     * un 500 su un troncamento sarebbe un errore senza un rimedio da
+     * mostrare.
+     */
+    @Test
+    void registrareUnAttivitaConUnaDescrizioneTroppoLungaRisponde400() throws Exception {
+        mockMvc.perform(post(ATTIVITA).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tipoAttivita\":\"ALTRO\",\"descrizione\":\""
+                                + "a".repeat(501) + "\","
+                                + "\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T11:00:00\"}"))
+                .andExpect(status().isBadRequest());
+
+        then(servizio).shouldHaveNoInteractions();
+    }
+
+    /**
+     * Che il tipo pretenda una task o un lavoro lo decide il servizio, non la
+     * validazione: una regola che dipende dal valore di un altro campo
+     * un'annotazione non la sa dire.
+     */
+    @Test
+    void registrareUnaManutenzioneSenzaLavoroRisponde400() throws Exception {
+        given(servizio.registraAttivita(any(), any())).willThrow(
+                new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "LAVORO_RICHIESTO: «Manutenzione cliente» vuole il lavoro a cui "
+                                + "si riferisce."));
+
+        mockMvc.perform(post(ATTIVITA).session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tipoAttivita\":\"MANUTENZIONE_CLIENTE\","
+                                + "\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T11:00:00\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(
+                        org.hamcrest.Matchers.containsString("LAVORO_RICHIESTO")));
+    }
+
     // --- conferme e correzioni -----------------------------------------------
 
     @Test
@@ -426,15 +542,15 @@ class TempoControllerTest {
      */
     @Test
     void correggereIlTempoDiUnaSettimanaChiusaRisponde409() throws Exception {
-        given(servizio.correggi(any(), anyLong(), any(), any())).willThrow(
+        given(servizio.correggi(any(), anyLong(), any())).willThrow(
                 new ResponseStatusException(HttpStatus.CONFLICT,
                         "Il tempo del 2026-11-02 non si scrive più: si sistema entro la "
                                 + "settimana in cui si è lavorato."));
 
         mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"avviataIl\":\"2026-11-02T09:00:00\","
-                                + "\"chiusaIl\":\"2026-11-02T11:00:00\"}"))
+                        .content(CORREZIONE.formatted("2026-11-02T09:00:00",
+                                "2026-11-02T11:00:00")))
                 .andExpect(status().isConflict());
     }
 
@@ -445,15 +561,15 @@ class TempoControllerTest {
      */
     @Test
     void correggereSopraUnAltraSessioneRisponde409() throws Exception {
-        given(servizio.correggi(any(), anyLong(), any(), any())).willThrow(
+        given(servizio.correggi(any(), anyLong(), any())).willThrow(
                 new ResponseStatusException(HttpStatus.CONFLICT,
                         "In quelle ore hai già «Preventivo Rossi», dalle 14:00 alle 16:00. "
                                 + "Le ore non si sovrappongono."));
 
         mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"avviataIl\":\"2026-11-10T14:30:00\","
-                                + "\"chiusaIl\":\"2026-11-10T15:30:00\"}"))
+                        .content(CORREZIONE.formatted("2026-11-10T14:30:00",
+                                "2026-11-10T15:30:00")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.detail").value(
                         org.hamcrest.Matchers.containsString("Preventivo Rossi")));
@@ -462,28 +578,65 @@ class TempoControllerTest {
     /** Il tempo di un altro giorno della settimana si corregge: è la finestra nuova. */
     @Test
     void correggereUnAltroGiornoDellaSettimanaRisponde200() throws Exception {
-        given(servizio.correggi(any(), eq(7L),
-                eq(LocalDateTime.of(2026, 11, 9, 9, 0)),
-                eq(LocalDateTime.of(2026, 11, 9, 13, 0)))).willReturn(vuota());
+        given(servizio.correggi(any(), eq(7L), eq(correzione(
+                "2026-11-09T09:00:00", "2026-11-09T13:00:00")))).willReturn(vuota());
 
         mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"avviataIl\":\"2026-11-09T09:00:00\","
-                                + "\"chiusaIl\":\"2026-11-09T13:00:00\"}"))
+                        .content(CORREZIONE.formatted("2026-11-09T09:00:00",
+                                "2026-11-09T13:00:00")))
                 .andExpect(status().isOk());
     }
 
     @Test
     void correggereConGliEstremiRisponde200() throws Exception {
-        given(servizio.correggi(any(), eq(7L),
-                eq(LocalDateTime.of(2026, 11, 9, 9, 0)),
-                eq(LocalDateTime.of(2026, 11, 9, 11, 0)))).willReturn(vuota());
+        given(servizio.correggi(any(), eq(7L), eq(correzione(
+                "2026-11-09T09:00:00", "2026-11-09T11:00:00")))).willReturn(vuota());
 
+        mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CORREZIONE.formatted("2026-11-09T09:00:00",
+                                "2026-11-09T11:00:00")))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * Si corregge anche il <strong>tipo di attività</strong>: due ore che si
+     * erano registrate come lavoro su task erano una riunione.
+     *
+     * <p>La task non si cambia, e la richiesta non la porta: una sessione è il
+     * tempo passato su quella task, e spostarlo altrove si fa annullando e
+     * riscrivendo.
+     */
+    @Test
+    void correggereIlTipoDiAttivitaRisponde200() throws Exception {
+        RichiestaCorrezione attesa = new RichiestaCorrezione(TipoAttivita.RIUNIONE, null,
+                "Allineamento col cliente",
+                LocalDateTime.of(2026, 11, 9, 9, 0),
+                LocalDateTime.of(2026, 11, 9, 11, 0));
+        given(servizio.correggi(any(), eq(7L), eq(attesa))).willReturn(vuota());
+
+        mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tipoAttivita\":\"RIUNIONE\","
+                                + "\"descrizione\":\"Allineamento col cliente\","
+                                + "\"avviataIl\":\"2026-11-09T09:00:00\","
+                                + "\"chiusaIl\":\"2026-11-09T11:00:00\"}"))
+                .andExpect(status().isOk());
+
+        then(servizio).should().correggi(any(), eq(7L), eq(attesa));
+    }
+
+    /** Una correzione che non dice che attività era non è una correzione. */
+    @Test
+    void correggereSenzaIlTipoDiAttivitaRisponde400() throws Exception {
         mockMvc.perform(put(MIO + "/sessioni/7").session(sessioneCon("TASK_AGGIORNA_STATO"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"avviataIl\":\"2026-11-09T09:00:00\","
                                 + "\"chiusaIl\":\"2026-11-09T11:00:00\"}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest());
+
+        then(servizio).shouldHaveNoInteractions();
     }
 
     // --- il tempo degli altri ------------------------------------------------

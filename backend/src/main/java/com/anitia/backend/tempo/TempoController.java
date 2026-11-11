@@ -132,6 +132,33 @@ public class TempoController {
                 richiesta.avviataIl(), richiesta.chiusaIl());
     }
 
+    /**
+     * Registra a mano un'attività già fatta, dal calendario settimanale: una
+     * task, oppure una riunione, una manutenzione, una trasferta.
+     *
+     * <p>Sta sotto {@code /api/mio-tempo/} e non sotto
+     * {@code /api/lavori/{l}/task/{t}/} per una ragione precisa: la task
+     * <strong>può non esserci</strong>, e un indirizzo non sa nominare una
+     * cosa facoltativa. Quello che la rotta per task diceva nel percorso, qui
+     * lo dice il corpo, e lo dice anche quando non c'è niente da dire.
+     *
+     * <p>La rotta per task resta: continua a valere per quello che sapeva
+     * fare, e dentro il servizio le due strade confluiscono subito.
+     *
+     * <p>Nessun permesso nuovo, con lo stesso argomento di tutte le altre
+     * rotte di chi lavora. Registrare un'attività che non è una task non è un
+     * potere in più di registrarne una che lo è: è la stessa giornata,
+     * raccontata meglio. Il confine sui dati — la task propria, il lavoro
+     * visibile — lo verifica il servizio.
+     */
+    @PostMapping("/api/mio-tempo/sessioni")
+    @PreAuthorize("hasAuthority('TASK_AGGIORNA_STATO')")
+    public SituazioneTempo registraAttivita(
+            @Valid @RequestBody RichiestaAttivita richiesta,
+            @AuthenticationPrincipal UserDetails utente) {
+        return servizio.registraAttivita(utente, richiesta);
+    }
+
     /** Accetta una chiusura d'ufficio così com'è. */
     @PostMapping("/api/mio-tempo/sessioni/{id}/conferma")
     @PreAuthorize("hasAuthority('TASK_AGGIORNA_STATO')")
@@ -141,15 +168,19 @@ public class TempoController {
     }
 
     /**
-     * Corregge gli estremi di una propria sessione: entro la giornata, oppure
-     * sempre se è una chiusura d'ufficio ancora da confermare.
+     * Corregge una propria sessione — gli estremi, il tipo di attività, il
+     * lavoro citato, la descrizione — entro la settimana, oppure sempre se è
+     * una chiusura d'ufficio ancora da confermare.
+     *
+     * <p>La task non si cambia da qui: il perché sta su
+     * {@link RichiestaCorrezione}.
      */
     @PutMapping("/api/mio-tempo/sessioni/{id}")
     @PreAuthorize("hasAuthority('TASK_AGGIORNA_STATO')")
     public SituazioneTempo correggi(@PathVariable Long id,
                                     @Valid @RequestBody RichiestaCorrezione richiesta,
                                     @AuthenticationPrincipal UserDetails utente) {
-        return servizio.correggi(utente, id, richiesta.avviataIl(), richiesta.chiusaIl());
+        return servizio.correggi(utente, id, richiesta);
     }
 
     /**
