@@ -36,9 +36,21 @@ jobs:
           --health-retries=30
 
     env:
-      # Il database della corsa e' vuoto: Flyway ci costruisce sopra V1..V17
-      # piu' il seed di db/dev, che e' la stessa fixture su cui girano i test
-      # in locale. Niente dump da portarsi dietro.
+      # Il database della corsa e' vuoto: Flyway ci costruisce sopra tutte le
+      # migrazioni di db/migration piu' il seed ripetibile di db/dev, che e' la
+      # stessa fixture su cui girano i test in locale. Niente dump da portarsi
+      # dietro.
+      #
+      # Il numero dell'ultima migrazione non si scrive qui: era "V1..V17" e
+      # intanto siamo alla V21, cioe' un commento che diceva il falso. Quante
+      # sono lo dice la cartella.
+      #
+      # ⚠️ Che il database sia **vuoto** non e' un dettaglio: e' la ragione per
+      # cui UtenteRepositoryTest passa qui e puo' fallire in locale. Quel test
+      # verifica che l'utenza chiusa di prova non abbia permessi, e il seed la
+      # crea chiusa; su un database di sviluppo in cui qualcuno l'ha riattivata
+      # a mano, il seed ripetibile non la richiude — Flyway lo rilancia solo
+      # quando cambia il file, non quando cambiano i dati.
       SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/gestionale
       SPRING_DATASOURCE_USERNAME: gestionale
       SPRING_DATASOURCE_PASSWORD: gestionale_dev

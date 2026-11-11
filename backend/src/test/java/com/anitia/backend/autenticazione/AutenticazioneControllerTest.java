@@ -46,6 +46,20 @@ class AutenticazioneControllerTest {
     @MockitoBean
     private UserDetailsService dettagliUtente;
 
+    /**
+     * Non lo usa nessuna prova di questa classe, e serve comunque.
+     *
+     * <p>{@code @WebMvcTest} costruisce il controller vero, quindi ogni
+     * collaboratore del suo costruttore deve esistere nel contesto: senza
+     * questo finto, le nove prove qui sotto non fallivano una per una —
+     * cadeva il contesto, e con lui tutta la classe.
+     *
+     * <p>Il cambio password ha la sua rotta e nessun test: login, {@code io}
+     * e la disattivazione non lo toccano.
+     */
+    @MockitoBean
+    private ServizioPassword password;
+
     private static UserDetails utente(boolean attivo) {
         return User.withUsername(EMAIL).password(HASH).disabled(!attivo)
                 .authorities("LAVORI_CREA", "UTENTI_VISUALIZZA").build();

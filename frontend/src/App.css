@@ -1843,12 +1843,22 @@ button.minuscolo:disabled {
 
 /* --- i due calendari dentro i pannelli ------------------------------------ */
 
-/* La griglia e' alta quanto il pannello e scorre dentro di se'. L'altezza
-   fissa serve: FullCalendar con height 100% vuole un genitore che sappia
-   quanto e' alto, e senza questa riga collasserebbe. */
+/* La griglia e' alta quanto il pannello e scorre dentro di se'. Un'altezza
+   esplicita serve: FullCalendar con height 100% vuole un genitore che sappia
+   quanto e' alto, e senza questa riga collasserebbe.
+
+   Da quando «Da fare oggi» non c'e' piu', questa colonna ha un pannello solo e
+   il calendario del registrato si prende lo spazio libero: `clamp` lo fa
+   crescere con la finestra senza lasciarlo andare all'infinito. Il minimo
+   tiene la griglia leggibile su un portatile; la sottrazione lascia fuori
+   testata, saluto e margini; il massimo evita che su un monitor in verticale
+   una settimana diventi un muro da scorrere.
+
+   `.pannello-assenze` la sovrascrive piu' in basso: un mese ha cinque righe di
+   celle e vuole la sua misura. */
 .pannello-calendario .pannello-corpo {
   padding: 0;
-  height: 24rem;
+  height: clamp(26rem, calc(100vh - 15rem), 46rem);
 
   --fc-border-color: var(--riga-tenue);
   --fc-page-bg-color: var(--superficie);

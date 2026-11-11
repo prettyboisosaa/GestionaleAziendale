@@ -10,7 +10,6 @@ import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
 import { apertaTask } from '../stato/stati'
 import { breve, dataDiOggi, saluto } from './orario'
-import PannelloDaFare from './PannelloDaFare'
 import PannelloFatto from './PannelloFatto'
 import PannelloMieTask from './PannelloMieTask'
 import type { Filtro } from './PannelloMieTask'
@@ -236,15 +235,19 @@ export default function PaginaDashboard({
         </div>
       )}
 
-      {/* Le due zone. Sotto i 1200px la destra scende sotto i calendari: due
+      {/* Le due zone. Sotto i 1200px la destra scende sotto il calendario: due
           colonne da mezza larghezza non reggono né una griglia di sette
-          giorni né una riga di task. */}
+          giorni né una riga di task.
+
+          A sinistra c'era anche «Da fare oggi», una griglia a fasce orarie del
+          giorno: è stata tolta perché in questo modello una task ha una
+          data d'inizio e una scadenza, non una fascia oraria, quindi quella
+          griglia non aveva niente da disegnare e restava vuota. Lo spazio è
+          andato al calendario del registrato, che invece ha dei dati per ogni
+          ora. Che cosa c'è da fare lo dicono «Le mie task» e i suoi contatori,
+          nella colonna a destra. */}
       <div className="griglia-dashboard">
         <div className="colonna-calendari">
-          {/* Il segnale di ricarica è `tempo`: cambia solo quando qualcosa è
-              stato scritto davvero, e in questa applicazione non c'è polling. */}
-          <PannelloDaFare segnale={tempo} />
-
           <PannelloFatto
             tempo={tempo}
             // Le task su cui si può scrivere sono quelle a cui si è assegnati

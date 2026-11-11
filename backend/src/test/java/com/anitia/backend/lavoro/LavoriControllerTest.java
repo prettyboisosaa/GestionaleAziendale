@@ -63,6 +63,20 @@ class LavoriControllerTest {
     private ServizioLavori servizio;
 
     /**
+     * Non lo usa nessuna prova di questa classe, e serve comunque.
+     *
+     * <p>{@code @WebMvcTest} costruisce il controller vero, quindi ogni
+     * collaboratore del suo costruttore deve esistere nel contesto: senza
+     * questo finto, le trenta prove qui sotto non fallivano una per una —
+     * cadeva il contesto, e con lui tutta la classe.
+     *
+     * <p>I KPI hanno la loro rotta e nessun test: l'elenco e il dettaglio
+     * dei lavori non li toccano.
+     */
+    @MockitoBean
+    private ServizioKpiLavoro kpi;
+
+    /**
      * Una sessione con un utente collegato e i permessi indicati. Il finto
      * {@code UserDetailsService} deve restituire un'istanza nuova a ogni
      * chiamata, perché {@code ProviderManager} azzera le credenziali del
