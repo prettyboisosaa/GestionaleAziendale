@@ -13,6 +13,7 @@ import {
 } from './api'
 import type { MotivoPermesso, NuovaAssenza, RigaAssenza, TipoAssenza } from './api'
 import { testo } from '../api/http'
+import Pannello from '../componenti/Pannello'
 import { Pillola } from '../componenti/Stato'
 
 const TIPI: TipoAssenza[] = ['FERIE', 'PERMESSO_ORARIO', 'PERMESSO_RETRIBUITO']
@@ -52,11 +53,24 @@ function oggi(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
-/** Lo stato del pannello: chiuso, aperto su una tipologia, o in modifica. */
-type Pannello =
-  | { fase: 'chiuso' }
-  | { fase: 'scelta' }
-  | { fase: 'compila'; tipo: TipoAssenza; modifica: number | null }
+/**
+ * Lo stato del modulo.
+ *
+ * **Una fase sola, non tre.** Prima erano `chiuso` → `scelta` → `compila`, e
+ * con `modifica` che raddoppiava ciascuna facevano sei combinazioni di
+ * rendering nella stessa pagina: per arrivare al modulo si attraversavano tre
+ * schermate, e il pulsante «Nuova richiesta» spariva per strada. La tipologia
+ * ora si scegli *dentro* il modulo, come un campo qualunque — perché è un
+ * campo qualunque.
+ */
+type Modulo = {
+  aperto: boolean
+  tipo: TipoAssenza
+  /** Null per una richiesta nuova, l'id di quella che si sta correggendo. */
+  modifica: number | null
+}
+
+const MODULO_CHIUSO: Modulo = { aperto: false, tipo: 'FERIE', modifica: null }
 
 /** I campi del form, tutti insieme: quali contano lo dice la tipologia. */
 type Campi = {
@@ -93,12 +107,39 @@ function campiDa(riga: RigaAssenza): Campi {
   }
 }
 
+/**
+ * Le proprie ferie e i propri permessi: si chiedono, e si guarda come sono
+ * andati.
+ *
+ * **Due elenchi, non uno.** «In attesa» porta le richieste su cui c'è ancora
+ * qualcosa da fare — modificarle, ritirarle — e «Storico» quelle decise. Prima
+ * stavano nella stessa tabella, distinte solo dall'ordine che arriva dal
+ * server: per sapere se qualcosa era in sospeso bisognava leggere la colonna
+ * «Stato» riga per riga.
+ */
 export default function PaginaMieAssenze() {
   const [righe, setRighe] = useState<RigaAssenza[] | null>(null)
+  /**
+   * Due errori, non uno.
+   *
+   * Prima un solo banner in cima raccoglieva il caricamento, l'invio del
+   * modulo e il ritiro: un errore nato su una riga in fondo alla tabella
+   * compariva fuori dalla vista, dove nessuno lo leggeva.
+   */
   const [errore, setErrore] = useState<string | null>(null)
-  const [pannello, setPannello] = useState<Pannello>({ fase: 'chiuso' })
+  const [erroreModulo, setErroreModulo] = useState<string | null>(null)
+  const [modulo, setModulo] = useState<Modulo>(MODULO_CHIUSO)
   const [campi, setCampi] = useState<Campi>(CAMPI_VUOTI)
-  const [inCorso, setInCorso] = useState(false)
+  const [inInvio, setInInvio] = useState(false)
+  /**
+   * La riga su cui si sta ritirando, per id.
+   *
+   * Non un booleano globale: con quello, ritirare la richiesta in fondo
+   * spegneva i pulsanti di tutte le righe e del modulo.
+   */
+  const [inRitiro, setInRitiro] = useState<number | null>(null)
+  /** La richiesta per cui si sta chiedendo conferma del ritiro. */
+  const [daRitirare, setDaRitirare] = useState<number | null>(null)
 
   useEffect(() => {
     let annullato = false
@@ -120,75 +161,93 @@ export default function PaginaMieAssenze() {
     }
   }, [])
 
-  function apri(tipo: TipoAssenza) {
+  function apri() {
     setCampi(CAMPI_VUOTI)
-    setErrore(null)
-    setPannello({ fase: 'compila', tipo, modifica: null })
+    setErroreModulo(null)
+    setModulo({ aperto: true, tipo: 'FERIE', modifica: null })
   }
 
   function apriModifica(riga: RigaAssenza) {
     setCampi(campiDa(riga))
-    setErrore(null)
-    setPannello({ fase: 'compila', tipo: riga.tipo, modifica: riga.id })
+    setErroreModulo(null)
+    setDaRitirare(null)
+    setModulo({ aperto: true, tipo: riga.tipo, modifica: riga.id })
   }
 
   function chiudi() {
-    setPannello({ fase: 'chiuso' })
+    setModulo(MODULO_CHIUSO)
     setCampi(CAMPI_VUOTI)
+    setErroreModulo(null)
+  }
+
+  /**
+   * Cambiare tipologia azzera i campi, tranne quando si sta correggendo: lì
+   * la tipologia non si cambia, perché cambiarla vorrebbe dire un'altra
+   * richiesta.
+   */
+  function cambiaTipo(tipo: TipoAssenza) {
+    setCampi(CAMPI_VUOTI)
+    setErroreModulo(null)
+    setModulo((prima) => ({ ...prima, tipo }))
   }
 
   async function invia(evento: FormEvent) {
     evento.preventDefault()
-    if (pannello.fase !== 'compila') {
-      return
-    }
 
-    setInCorso(true)
-    setErrore(null)
+    setInInvio(true)
+    setErroreModulo(null)
     try {
-      const dati = corpo(pannello.tipo, campi)
+      const dati = corpo(modulo.tipo, campi)
       const salvata =
-        pannello.modifica === null
+        modulo.modifica === null
           ? await chiediAssenza(dati)
-          : await modificaAssenza(pannello.modifica, dati)
+          : await modificaAssenza(modulo.modifica, dati)
 
-      setRighe((attuali) => sostituisci(attuali, salvata, pannello.modifica === null))
+      setRighe((attuali) => sostituisci(attuali, salvata, modulo.modifica === null))
       chiudi()
     } catch (motivo) {
       // I messaggi del server spiegano già cosa manca o cosa si sovrappone:
       // CAMPI_MANCANTI, DATA_PASSATA, RICHIESTA_SOVRAPPOSTA. Il codice in
       // testa lo toglie `testo`, e resta la frase in italiano.
-      setErrore(testo(motivo))
+      setErroreModulo(testo(motivo))
     } finally {
-      setInCorso(false)
+      setInInvio(false)
     }
   }
 
   async function ritira(id: number) {
-    setInCorso(true)
+    setInRitiro(id)
     setErrore(null)
     try {
       const aggiornata = await ritiraAssenza(id)
       setRighe((attuali) => sostituisci(attuali, aggiornata, false))
+      setDaRitirare(null)
     } catch (motivo) {
       setErrore(testo(motivo))
     } finally {
-      setInCorso(false)
+      setInRitiro(null)
     }
   }
 
-  const tipo = pannello.fase === 'compila' ? pannello.tipo : null
   // Il permesso retribuito è l'unico che sceglie: le ferie sono sempre a
   // giornate, il permesso orario sempre a fascia.
   const aFascia =
-    tipo === 'PERMESSO_ORARIO' || (tipo === 'PERMESSO_RETRIBUITO' && !campi.aGiornate)
+    modulo.tipo === 'PERMESSO_ORARIO'
+    || (modulo.tipo === 'PERMESSO_RETRIBUITO' && !campi.aGiornate)
+
+  const tutte = righe ?? []
+  const inAttesa = tutte.filter((una) => una.stato === 'IN_ATTESA')
+  const decise = tutte.filter((una) => una.stato !== 'IN_ATTESA')
+  const carico = righe === null && errore === null
 
   return (
-    <main className="pagina-larga">
+    <main className="pagina-larga pagina-modulo">
       <div className="testata">
         <h1>Assenze</h1>
-        {pannello.fase === 'chiuso' && (
-          <button type="button" className="azione" onClick={() => setPannello({ fase: 'scelta' })}>
+        {/* Il pulsante **resta** anche col modulo aperto: prima spariva, e
+            chi lo cercava per tornare indietro non lo trovava più. */}
+        {!modulo.aperto && (
+          <button type="button" className="azione" onClick={apri}>
             Nuova richiesta
           </button>
         )}
@@ -200,33 +259,41 @@ export default function PaginaMieAssenze() {
         </p>
       )}
 
-      {/* Prima la tipologia, poi il form di quella tipologia: un form unico
-          con i campi di tutte e tre mostrerebbe sempre due terzi di campi che
-          non servono. */}
-      {pannello.fase === 'scelta' && (
-        <div className="modulo">
-          <h2>Che richiesta vuoi fare?</h2>
-          {TIPI.map((una) => (
-            <button key={una} type="button" className="scelta" onClick={() => apri(una)}>
-              {ETICHETTA_TIPO[una]}
-              <em>{SPIEGAZIONE_TIPO[una]}</em>
-            </button>
-          ))}
-          <div className="azioni">
-            <button type="button" className="secondario" onClick={chiudi}>
-              Annulla
-            </button>
-          </div>
-        </div>
-      )}
-
-      {pannello.fase === 'compila' && tipo !== null && (
+      {modulo.aperto && (
         <form className="modulo" onSubmit={(evento) => void invia(evento)}>
           <h2>
-            {pannello.modifica === null ? ETICHETTA_TIPO[tipo] : `Modifica: ${ETICHETTA_TIPO[tipo]}`}
+            {modulo.modifica === null
+              ? 'Nuova richiesta'
+              : `Modifica: ${ETICHETTA_TIPO[modulo.tipo]}`}
           </h2>
 
-          {tipo === 'PERMESSO_RETRIBUITO' && (
+          {/* La tipologia è il primo campo del modulo, non una schermata
+              prima: decide quali campi compaiono sotto, e tenerla qui fa
+              vedere subito l'effetto di un cambio d'idea.
+
+              Correggendo non si cambia: una ferie che diventa un permesso
+              orario non è la stessa richiesta corretta, è un'altra. */}
+          {modulo.modifica === null && (
+            <fieldset className="campo">
+              <legend>Che richiesta vuoi fare?</legend>
+              {TIPI.map((una) => (
+                <label key={una} className="scelta-riga">
+                  <input
+                    type="radio"
+                    name="tipo"
+                    checked={modulo.tipo === una}
+                    onChange={() => cambiaTipo(una)}
+                  />
+                  <span>
+                    {ETICHETTA_TIPO[una]}
+                    <em>{SPIEGAZIONE_TIPO[una]}</em>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
+
+          {modulo.tipo === 'PERMESSO_RETRIBUITO' && (
             <fieldset className="campo">
               <legend>Durata</legend>
               <div className="scelte-riga">
@@ -309,7 +376,7 @@ export default function PaginaMieAssenze() {
             </div>
           )}
 
-          {tipo === 'PERMESSO_RETRIBUITO' && (
+          {modulo.tipo === 'PERMESSO_RETRIBUITO' && (
             <div className="campo">
               <label htmlFor="motivo">Motivo</label>
               <select
@@ -330,7 +397,10 @@ export default function PaginaMieAssenze() {
 
           <div className="campo">
             <label htmlFor="note">
-              Note{tipo === 'PERMESSO_RETRIBUITO' && campi.motivo === 'ALTRO' ? '' : ' (facoltative)'}
+              Note
+              {modulo.tipo === 'PERMESSO_RETRIBUITO' && campi.motivo === 'ALTRO'
+                ? ''
+                : ' (facoltative)'}
             </label>
             <textarea
               id="note"
@@ -338,39 +408,120 @@ export default function PaginaMieAssenze() {
               maxLength={500}
               /* Col motivo «Altro» le note sono l'unica cosa che spieghi di
                  cosa si tratta, e il server le pretende. */
-              required={tipo === 'PERMESSO_RETRIBUITO' && campi.motivo === 'ALTRO'}
+              required={modulo.tipo === 'PERMESSO_RETRIBUITO' && campi.motivo === 'ALTRO'}
               value={campi.note}
               onChange={(evento) => setCampi({ ...campi, note: evento.target.value })}
             />
           </div>
 
-          <p className="sommario">
-            {riepilogoLocale(aFascia, campi)}
-          </p>
+          {/* Qui stava un conteggio dei giorni calcolato nel browser, che
+              saltava le festività e finiva accanto al numero esatto del server
+              nella tabella sotto: lo stesso dato con due definizioni nella
+              stessa pagina. È stato tolto. La durata vera compare nella riga
+              appena la richiesta è salvata, calcolata da chi conosce le
+              festività e i giorni lavorativi configurati. */}
+
+          {erroreModulo !== null && (
+            <p className="errore" role="alert">
+              {erroreModulo}
+            </p>
+          )}
 
           <div className="azioni">
-            <button type="submit" disabled={inCorso}>
-              {pannello.modifica === null ? 'Invia richiesta' : 'Salva'}
+            <button type="submit" disabled={inInvio}>
+              {modulo.modifica === null ? 'Invia richiesta' : 'Salva'}
             </button>
-            <button type="button" className="secondario" onClick={chiudi} disabled={inCorso}>
+            <button type="button" className="secondario" onClick={chiudi} disabled={inInvio}>
               Annulla
             </button>
           </div>
         </form>
       )}
 
-      {errore === null && righe === null && (
-        <p className="sommario" role="status">
-          Carico le richieste…
-        </p>
-      )}
+      <Pannello
+        titolo="In attesa"
+        sottotitolo="le puoi ancora correggere o ritirare"
+        azioni={
+          inAttesa.length > 0 ? (
+            <Pillola tinta="attesa">{String(inAttesa.length)}</Pillola>
+          ) : undefined
+        }
+        carico={carico}
+        vuoto={!carico && inAttesa.length === 0 ? 'Nessuna richiesta in sospeso.' : null}
+      >
+        <ul className="righe-assenza">
+          {inAttesa.map((riga) => (
+            <li key={riga.id} className="riga-assenza">
+              <span className="riga-assenza-corpo">
+                <span className="riga-assenza-titolo">
+                  {riga.tipoEtichetta}
+                  {riga.motivoEtichetta !== null && (
+                    <span className="nota"> · {riga.motivoEtichetta}</span>
+                  )}
+                </span>
+                <span className="nota">
+                  {periodo(riga)} · {riga.riepilogo}
+                </span>
+              </span>
 
-      {righe !== null && righe.length === 0 && (
-        <p className="sommario">Non hai ancora chiesto nessuna assenza.</p>
-      )}
+              <span className="riga-assenza-azioni">
+                {daRitirare === riga.id ? (
+                  // Ritirare è definitivo e non si disfa: prima partiva al
+                  // primo clic, senza nemmeno una domanda.
+                  <span className="conferma">
+                    Ritirare?
+                    <button
+                      type="button"
+                      className="minuscolo"
+                      disabled={inRitiro !== null}
+                      onClick={() => void ritira(riga.id)}
+                    >
+                      Sì
+                    </button>
+                    <button
+                      type="button"
+                      className="minuscolo"
+                      disabled={inRitiro !== null}
+                      onClick={() => setDaRitirare(null)}
+                    >
+                      No
+                    </button>
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="minuscolo"
+                      onClick={() => apriModifica(riga)}
+                      disabled={inRitiro !== null}
+                    >
+                      Modifica
+                    </button>
+                    <button
+                      type="button"
+                      className="minuscolo"
+                      onClick={() => setDaRitirare(riga.id)}
+                      disabled={inRitiro !== null}
+                    >
+                      Ritira
+                    </button>
+                  </>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Pannello>
 
-      {righe !== null && righe.length > 0 && (
-        <div className="scheda-tabella">
+      <Pannello
+        titolo="Storico"
+        sottotitolo="richieste già decise o ritirate"
+        carico={carico}
+        vuoto={
+          !carico && decise.length === 0 ? 'Non hai ancora richieste chiuse.' : null
+        }
+      >
+        <div className="scheda-tabella scheda-tabella-nuda">
           <table className="tabella">
             <thead>
               <tr>
@@ -379,11 +530,10 @@ export default function PaginaMieAssenze() {
                 <th>Durata</th>
                 <th>Stato</th>
                 <th>Esito</th>
-                <th>Azioni</th>
               </tr>
             </thead>
             <tbody>
-              {righe.map((riga) => (
+              {decise.map((riga) => (
                 <tr key={riga.id}>
                   <td>
                     {riga.tipoEtichetta}
@@ -399,34 +549,12 @@ export default function PaginaMieAssenze() {
                     </Pillola>
                   </td>
                   <td>{riga.notaEsito ?? '—'}</td>
-                  <td className="azioni">
-                    {/* Solo finché è in attesa: una richiesta decisa non si
-                        tocca più, e il server risponde 409. */}
-                    {riga.stato === 'IN_ATTESA' && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => apriModifica(riga)}
-                          disabled={inCorso}
-                        >
-                          Modifica
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void ritira(riga.id)}
-                          disabled={inCorso}
-                        >
-                          Ritira
-                        </button>
-                      </>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
+      </Pannello>
     </main>
   )
 }
@@ -447,66 +575,6 @@ function corpo(tipo: TipoAssenza, campi: Campi): NuovaAssenza {
     motivo: tipo === 'PERMESSO_RETRIBUITO' ? campi.motivo : null,
     note: campi.note.trim() === '' ? null : campi.note.trim(),
   }
-}
-
-/**
- * Il riepilogo mostrato <em>mentre</em> si compila.
- *
- * È un conto approssimato, e di proposito: i giorni lavorativi veri li sa
- * solo il server, che conosce le festività, e qui conta i giorni di calendario
- * togliendo i fine settimana. Il numero esatto compare nella tabella appena la
- * richiesta è salvata, nella colonna «Durata», che arriva dal server.
- */
-function riepilogoLocale(aFascia: boolean, campi: Campi): string {
-  if (aFascia) {
-    if (campi.oraInizio === '' || campi.oraFine === '') {
-      return 'Indica gli orari per vedere la durata.'
-    }
-    const minuti = minutiTra(campi.oraInizio, campi.oraFine)
-    if (minuti <= 0) {
-      return 'L’ora di fine deve venire dopo quella di inizio.'
-    }
-    const ore = Math.floor(minuti / 60)
-    const resto = minuti % 60
-    if (ore === 0) {
-      return `${resto} min`
-    }
-    return resto === 0 ? `${ore} h` : `${ore} h ${resto} min`
-  }
-
-  if (campi.dataInizio === '' || campi.dataFine === '') {
-    return 'Indica le date per vedere quanti giorni sono.'
-  }
-  const giorni = giorniFeriali(campi.dataInizio, campi.dataFine)
-  if (giorni < 0) {
-    return 'L’ultimo giorno non può precedere il primo.'
-  }
-  const coda = giorni === 1 ? 'giorno lavorativo' : 'giorni lavorativi'
-  return `${giorni} ${coda} (festività escluse dal server)`
-}
-
-function minutiTra(inizio: string, fine: string): number {
-  const [oreInizio, minutiInizio] = inizio.split(':').map(Number)
-  const [oreFine, minutiFine] = fine.split(':').map(Number)
-  return oreFine * 60 + minutiFine - (oreInizio * 60 + minutiInizio)
-}
-
-/** I giorni da lunedì a venerdì fra le due date, estremi compresi. */
-function giorniFeriali(da: string, a: string): number {
-  const inizio = new Date(da)
-  const fine = new Date(a)
-  if (fine < inizio) {
-    return -1
-  }
-
-  let quanti = 0
-  for (const giorno = new Date(inizio); giorno <= fine; giorno.setDate(giorno.getDate() + 1)) {
-    const settimana = giorno.getDay()
-    if (settimana !== 0 && settimana !== 6) {
-      quanti++
-    }
-  }
-  return quanti
 }
 
 /**

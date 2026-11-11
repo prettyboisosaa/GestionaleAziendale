@@ -7,10 +7,13 @@ import {
   tutteLeAssenze,
 } from './api'
 import type { RigaAssenza, StatoAssenza } from './api'
+import CalendarioAssenze from './CalendarioAssenze'
 import { testo } from '../api/http'
+import Pannello from '../componenti/Pannello'
 import { Pillola } from '../componenti/Stato'
 
-const STATI: StatoAssenza[] = ['IN_ATTESA', 'APPROVATA', 'RIFIUTATA', 'RITIRATA']
+/** Gli stati che il filtro dello storico offre, nell'ordine della tendina. */
+const STATI: StatoAssenza[] = ['APPROVATA', 'RIFIUTATA', 'RITIRATA', 'IN_ATTESA']
 
 function data(iso: string): string {
   return new Date(iso).toLocaleDateString('it-IT')
@@ -30,23 +33,47 @@ function periodo(riga: RigaAssenza): string {
   return `${data(riga.dataInizio)} – ${data(riga.dataFine)}`
 }
 
-/** La riga su cui si sta scrivendo la nota del rifiuto. */
-type Rifiuto = {
-  id: number
-  nota: string
-}
+/** La decisione in attesa di conferma su una riga. */
+type Decisione =
+  | { id: number; tipo: 'approva' }
+  | { id: number; tipo: 'rifiuta'; nota: string }
 
+/**
+ * Ferie e permessi di tutti, per chi li decide.
+ *
+ * **Tre blocchi, nell'ordine in cui si usano.** Prima ciò su cui si può agire —
+ * le richieste in attesa, che sono poche e hanno i due pulsanti. Poi il
+ * calendario di chi sarà via, che è il **contesto per decidere**: era la cosa
+ * che mancava, perché per sapere se nella settimana del 14 c'è già mezzo
+ * ufficio in ferie bisognava leggere le righe e tenere le date a mente. In
+ * fondo lo storico delle chiuse, che si consulta e non si tocca.
+ *
+ * Prima era una tabella sola con tutti gli stati mescolati e un filtro:
+ * decidere e consultare nello stesso elenco, distinti solo dall'ordinamento che
+ * arriva dal server.
+ */
 export default function PaginaAssenze() {
   const [righe, setRighe] = useState<RigaAssenza[] | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [filtro, setFiltro] = useState<StatoAssenza | ''>('')
-  const [rifiuto, setRifiuto] = useState<Rifiuto | null>(null)
-  const [inCorso, setInCorso] = useState(false)
+  /** Chi si sta guardando nello storico. Vuoto = tutti. */
+  const [chi, setChi] = useState('')
+  const [decisione, setDecisione] = useState<Decisione | null>(null)
+  /**
+   * La riga su cui una decisione è in corso, per id.
+   *
+   * Non un booleano globale: con quello, decidere la richiesta di Marco
+   * spegneva i pulsanti di tutte le altre righe.
+   */
+  const [inCorso, setInCorso] = useState<number | null>(null)
 
+  // Si chiede tutto una volta e si divide qui: i tre blocchi guardano lo stesso
+  // elenco, e tre chiamate con tre filtri diversi mostrerebbero tre
+  // fotografie scattate in momenti diversi.
   useEffect(() => {
     let annullato = false
 
-    tutteLeAssenze(filtro === '' ? null : filtro, null)
+    tutteLeAssenze(null, null)
       .then((elenco) => {
         if (!annullato) {
           setRighe(elenco)
@@ -61,31 +88,49 @@ export default function PaginaAssenze() {
     return () => {
       annullato = true
     }
-  }, [filtro])
+  }, [])
 
-  async function decidi(azione: () => Promise<RigaAssenza>) {
-    setInCorso(true)
+  async function decidi(id: number, azione: () => Promise<RigaAssenza>) {
+    setInCorso(id)
     setErrore(null)
     try {
       const aggiornata = await azione()
       // Si sostituisce la riga invece di ricaricare: il server restituisce la
-      // richiesta decisa, e rileggerla sarebbe una chiamata sprecata. Con un
-      // filtro acceso la riga può non appartenere più all'elenco, e resta
-      // visibile fino al prossimo caricamento: è il comportamento meno
-      // sorprendente, perché la riga che si è appena toccata non sparisce
-      // sotto il dito.
+      // richiesta decisa, e rileggerla sarebbe una chiamata sprecata. La riga
+      // esce da sé dal blocco «Da decidere» e compare nello storico, perché i
+      // due blocchi si ricavano dallo stesso elenco guardando lo stato.
       setRighe((attuali) =>
         attuali === null
           ? null
           : attuali.map((una) => (una.id === aggiornata.id ? aggiornata : una)),
       )
-      setRifiuto(null)
+      setDecisione(null)
     } catch (motivo) {
       setErrore(testo(motivo))
     } finally {
-      setInCorso(false)
+      setInCorso(null)
     }
   }
+
+  const tutte = righe ?? []
+  const daDecidere = tutte.filter((una) => una.stato === 'IN_ATTESA')
+  const chiuse = tutte.filter((una) => una.stato !== 'IN_ATTESA')
+
+  /**
+   * Le persone della tendina si ricavano dalle righe già caricate, non da
+   * `GET /api/utenti`: quella rotta vuole `UTENTI_VISUALIZZA`, e chi decide le
+   * assenze può non averlo. Chi non ha mai chiesto niente non compare, ed è
+   * giusto — non c'è niente da filtrare.
+   */
+  const persone = [...new Set(tutte.map((una) => una.richiedente))]
+    .filter((uno): uno is string => uno !== null)
+    .sort((uno, altro) => uno.localeCompare(altro))
+
+  const visibili = chiuse
+    .filter((una) => filtro === '' || una.stato === filtro)
+    .filter((una) => chi === '' || una.richiedente === chi)
+
+  const carico = righe === null && errore === null
 
   return (
     <main className="pagina-larga">
@@ -99,127 +144,244 @@ export default function PaginaAssenze() {
         </p>
       )}
 
-      <div className="filtro">
-        <label>
-          Stato
-          <select
-            value={filtro}
-            onChange={(evento) => {
-              // Svuotare l'elenco qui, e non dentro l'effetto, evita il doppio
-              // render: è l'evento che causa il ricaricamento.
-              setRighe(null)
-              setErrore(null)
-              setFiltro(evento.target.value as StatoAssenza | '')
-            }}
-          >
-            <option value="">Tutti</option>
-            {STATI.map((uno) => (
-              <option key={uno} value={uno}>
-                {ETICHETTA_STATO[uno]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {/* Da decidere: in cima, perché è l'unica cosa su cui si agisce. */}
+      <Pannello
+        titolo="Da decidere"
+        sottotitolo="richieste in attesa di una risposta"
+        azioni={
+          daDecidere.length > 0 ? (
+            <Pillola tinta="attesa">{String(daDecidere.length)}</Pillola>
+          ) : undefined
+        }
+        carico={carico}
+        vuoto={!carico && daDecidere.length === 0 ? 'Nessuna richiesta in attesa.' : null}
+      >
+        <Elenco
+          righe={daDecidere}
+          decisione={decisione}
+          inCorso={inCorso}
+          onChiedi={setDecisione}
+          onDesisti={() => setDecisione(null)}
+          onNota={(id, nota) => setDecisione({ id, tipo: 'rifiuta', nota })}
+          onDecidi={decidi}
+        />
+      </Pannello>
 
-      {errore === null && righe === null && (
-        <p className="sommario" role="status">
-          Carico le richieste…
-        </p>
-      )}
+      {/* Il contesto per decidere, a tutta larghezza: un mese si legge male
+          in mezza pagina. */}
+      <CalendarioAssenze />
 
-      {righe !== null && righe.length === 0 && (
-        <p className="sommario">Nessuna richiesta da mostrare.</p>
-      )}
+      <Pannello
+        titolo="Storico"
+        sottotitolo="richieste già decise o ritirate"
+        azioni={
+          <>
+            <label className="nota">
+              Stato{' '}
+              <select
+                value={filtro}
+                onChange={(evento) => setFiltro(evento.target.value as StatoAssenza | '')}
+              >
+                <option value="">Tutti</option>
+                {STATI.map((uno) => (
+                  <option key={uno} value={uno}>
+                    {ETICHETTA_STATO[uno]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {/* Il filtro per persona: l'API lo accetta da sempre, ma la pagina
+                lo passava a `null` e quindi non esisteva. Qui si applica in
+                locale sulle righe già in mano, senza un giro di rete per
+                nascondere qualcosa che si ha già. */}
+            <label className="nota">
+              Chi{' '}
+              <select value={chi} onChange={(evento) => setChi(evento.target.value)}>
+                <option value="">Tutti</option>
+                {persone.map((uno) => (
+                  <option key={uno} value={uno}>
+                    {uno}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        }
+        carico={carico}
+        vuoto={
+          !carico && visibili.length === 0
+            ? chiuse.length === 0
+              ? 'Nessuna richiesta decisa.'
+              : 'Nessuna richiesta con questi filtri.'
+            : null
+        }
+      >
+        <Elenco
+          righe={visibili}
+          decisione={null}
+          inCorso={null}
+          onChiedi={setDecisione}
+          onDesisti={() => setDecisione(null)}
+          onNota={() => undefined}
+          onDecidi={decidi}
+        />
+      </Pannello>
+    </main>
+  )
+}
 
-      {righe !== null && righe.length > 0 && (
-        <div className="scheda-tabella">
-          <table className="tabella">
-            <thead>
-              <tr>
-                <th>Chi</th>
-                <th>Tipologia</th>
-                <th>Quando</th>
-                <th>Durata</th>
-                <th>Stato</th>
-                <th>Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Le richieste in attesa arrivano in cima: le ordina il server,
-                  perché sono le uniche su cui c'è qualcosa da decidere. */}
-              {righe.map((riga) => (
-                <tr key={riga.id}>
-                  <td>{riga.richiedente}</td>
-                  <td>
-                    {riga.tipoEtichetta}
-                    {riga.motivoEtichetta !== null && (
-                      <span className="nota"> · {riga.motivoEtichetta}</span>
-                    )}
-                    {riga.note !== null && <p className="nota">{riga.note}</p>}
-                  </td>
-                  <td>{periodo(riga)}</td>
-                  <td>{riga.riepilogo}</td>
-                  <td>
-                    <Pillola tinta={TINTA_STATO[riga.stato]}>
-                      {ETICHETTA_STATO[riga.stato]}
-                    </Pillola>
-                    {riga.notaEsito !== null && <p className="nota">{riga.notaEsito}</p>}
-                  </td>
-                  <td className="azioni">
-                    {riga.stato !== 'IN_ATTESA' ? null : rifiuto !== null &&
-                      rifiuto.id === riga.id ? (
+/**
+ * La tabella delle richieste, la stessa nei due blocchi.
+ *
+ * I pulsanti compaiono solo sulle righe in attesa, quindi nello storico la
+ * colonna delle azioni non si disegna affatto: una colonna vuota su venti
+ * righe è spazio che toglie larghezza alle altre.
+ */
+function Elenco({
+  righe,
+  decisione,
+  inCorso,
+  onChiedi,
+  onDesisti,
+  onNota,
+  onDecidi,
+}: {
+  righe: RigaAssenza[]
+  decisione: Decisione | null
+  inCorso: number | null
+  onChiedi: (decisione: Decisione) => void
+  onDesisti: () => void
+  onNota: (id: number, nota: string) => void
+  onDecidi: (id: number, azione: () => Promise<RigaAssenza>) => void
+}) {
+  if (righe.length === 0) {
+    return null
+  }
+
+  const conAzioni = righe.some((una) => una.stato === 'IN_ATTESA')
+
+  return (
+    <div className="scheda-tabella scheda-tabella-nuda">
+      <table className="tabella">
+        <thead>
+          <tr>
+            <th>Chi</th>
+            <th>Tipologia</th>
+            <th>Quando</th>
+            <th>Durata</th>
+            <th>Stato</th>
+            {conAzioni && <th>Azioni</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {righe.map((riga) => (
+            <tr key={riga.id}>
+              <td>{riga.richiedente}</td>
+              <td>
+                {riga.tipoEtichetta}
+                {riga.motivoEtichetta !== null && (
+                  <span className="nota"> · {riga.motivoEtichetta}</span>
+                )}
+                {riga.note !== null && <p className="nota">{riga.note}</p>}
+              </td>
+              <td>{periodo(riga)}</td>
+              <td>{riga.riepilogo}</td>
+              <td>
+                <Pillola tinta={TINTA_STATO[riga.stato]}>
+                  {ETICHETTA_STATO[riga.stato]}
+                </Pillola>
+                {riga.notaEsito !== null && <p className="nota">{riga.notaEsito}</p>}
+              </td>
+
+              {conAzioni && (
+                <td className="azioni">
+                  {riga.stato !== 'IN_ATTESA' ? null : decisione !== null
+                    && decisione.id === riga.id ? (
+                    decisione.tipo === 'rifiuta' ? (
                       // Il rifiuto chiede la nota sul posto: un rifiuto senza
                       // motivazione fa riaprire la stessa richiesta domani, e
-                      // il server lo rifiuta con 422 NOTA_OBBLIGATORIA.
+                      // il server lo respinge con 422 NOTA_OBBLIGATORIA.
                       <span className="conferma">
                         <input
                           type="text"
                           placeholder="Perché no?"
                           maxLength={500}
-                          value={rifiuto.nota}
-                          onChange={(evento) =>
-                            setRifiuto({ id: riga.id, nota: evento.target.value })
-                          }
+                          value={decisione.nota}
+                          onChange={(evento) => onNota(riga.id, evento.target.value)}
                         />
                         <button
                           type="button"
-                          disabled={inCorso || rifiuto.nota.trim() === ''}
+                          className="minuscolo"
+                          disabled={inCorso !== null || decisione.nota.trim() === ''}
                           onClick={() =>
-                            void decidi(() => rifiutaAssenza(riga.id, rifiuto.nota.trim()))
+                            onDecidi(riga.id, () =>
+                              rifiutaAssenza(riga.id, decisione.nota.trim()),
+                            )
                           }
                         >
                           Rifiuta
                         </button>
-                        <button type="button" onClick={() => setRifiuto(null)} disabled={inCorso}>
+                        <button
+                          type="button"
+                          className="minuscolo"
+                          onClick={onDesisti}
+                          disabled={inCorso !== null}
+                        >
                           Lascia
                         </button>
                       </span>
                     ) : (
-                      <>
+                      // Anche approvare si conferma: concede giorni e sposta
+                      // la richiesta fuori dalla coda, e un clic solo su una
+                      // riga fra dieci è poco per una cosa che non si disfa.
+                      <span className="conferma">
+                        Approvare?
                         <button
                           type="button"
-                          disabled={inCorso}
-                          onClick={() => void decidi(() => approvaAssenza(riga.id, null))}
+                          className="minuscolo"
+                          disabled={inCorso !== null}
+                          onClick={() =>
+                            onDecidi(riga.id, () => approvaAssenza(riga.id, null))
+                          }
                         >
-                          Approva
+                          Sì
                         </button>
                         <button
                           type="button"
-                          disabled={inCorso}
-                          onClick={() => setRifiuto({ id: riga.id, nota: '' })}
+                          className="minuscolo"
+                          onClick={onDesisti}
+                          disabled={inCorso !== null}
                         >
-                          Rifiuta
+                          No
                         </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </main>
+                      </span>
+                    )
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="minuscolo"
+                        disabled={inCorso !== null}
+                        onClick={() => onChiedi({ id: riga.id, tipo: 'approva' })}
+                      >
+                        Approva
+                      </button>
+                      <button
+                        type="button"
+                        className="minuscolo"
+                        disabled={inCorso !== null}
+                        onClick={() => onChiedi({ id: riga.id, tipo: 'rifiuta', nota: '' })}
+                      >
+                        Rifiuta
+                      </button>
+                    </>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }

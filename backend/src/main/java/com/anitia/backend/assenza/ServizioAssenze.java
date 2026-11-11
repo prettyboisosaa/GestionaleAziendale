@@ -106,6 +106,36 @@ public class ServizioAssenze {
                 .toList();
     }
 
+    /**
+     * Chi sarà via, fra due date: il calendario aziendale di chi approva.
+     *
+     * <p>Risponde a una domanda che prima non si poteva porre. {@link #tutte}
+     * dice «quali richieste esistono», e per sapere chi è assente il 14
+     * bisognava leggere le righe e tenere le date a mente; questo dice «chi
+     * non c'è in questi giorni», che è l'informazione con cui si decide se
+     * approvare una ferie.
+     *
+     * <p>Restituisce {@link RigaCalendarioAssenza} e non {@code RigaAssenza},
+     * e non è una semplificazione gratuita: quella porta
+     * {@code giorniLavorativi}, che costa una query a {@code festivita} per
+     * ogni giorno di ogni assenza. Su un mese di assenze di dieci persone
+     * sarebbero centinaia di query per riempire due campi che sul calendario
+     * non si leggono.
+     *
+     * <p>Gli estremi si raddrizzano se arrivano invertiti, come fa già il
+     * calendario della dashboard: un intervallo al contrario è un errore di
+     * chi chiama, non una richiesta di zero giorni.
+     */
+    @Transactional(readOnly = true)
+    public List<RigaCalendarioAssenza> calendario(LocalDate da, LocalDate a) {
+        LocalDate dal = a.isBefore(da) ? a : da;
+        LocalDate al = a.isBefore(da) ? da : a;
+
+        return assenze.trovaDelPeriodo(dal, al).stream()
+                .map(RigaCalendarioAssenza::da)
+                .toList();
+    }
+
     @Transactional
     public RigaAssenza approva(UserDetails chiLoChiede, Long id, RichiestaEsitoAssenza esito) {
         Assenza assenza = daDecidere(id);

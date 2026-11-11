@@ -2531,3 +2531,136 @@ button.minuscolo:disabled {
     display: none;
   }
 }
+
+/* --- ferie e permessi ----------------------------------------------------- */
+
+/* I pannelli delle assenze si susseguono in colonna, come le sezioni di una
+   pagina: il margine lo porta il pannello e non chi lo contiene, cosi' due
+   pannelli di fila non si toccano. */
+.pagina-larga .pannello-blocco {
+  margin-top: 1.5rem;
+}
+
+/* Una tabella dentro un pannello non porta la sua cornice: il pannello ha gia'
+   bordo, raggio e ombra, e due schede a un pixel di distanza sono due cornici
+   per lo stesso elenco. */
+.scheda-tabella-nuda {
+  margin-top: 0;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* La scelta della tipologia dentro il modulo: una riga per tipo, con la
+   spiegazione sotto il nome. Prima era una schermata a parte con tre bottoni
+   grandi, e per cambiare idea si tornava indietro. */
+.scelta-riga {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.375rem 0;
+  cursor: pointer;
+}
+
+.scelta-riga input {
+  /* Allineato alla prima riga di testo, non al centro del blocco: con la
+     spiegazione sotto, il centro cade fra le due righe. */
+  margin-top: 0.3rem;
+  flex: none;
+}
+
+.scelta-riga span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.scelta-riga em {
+  font-style: normal;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* Le richieste in attesa come righe e non come tabella: sono poche, hanno due
+   pulsanti, e una tabella di cinque colonne per tre righe e' piu' cornice che
+   contenuto. */
+.righe-assenza {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.riga-assenza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.625rem 0;
+  border-top: 1px solid var(--riga-tenue);
+}
+
+.riga-assenza:first-child {
+  border-top: 0;
+}
+
+.riga-assenza-corpo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.riga-assenza-titolo {
+  font-weight: 500;
+}
+
+.riga-assenza-azioni {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: none;
+}
+
+.riga-assenza-azioni button.minuscolo {
+  margin-top: 0;
+}
+
+/* --- il calendario di chi e' via ------------------------------------------ */
+
+/* Piu' alto degli altri calendari: un mese ha cinque o sei righe di celle, e
+   con l'altezza del calendario settimanale le giornate si schiacciano. */
+.pannello-assenze .pannello-corpo {
+  height: 34rem;
+}
+
+/* Un'assenza approvata e' un fatto: tinta piena. */
+.assenza-evento {
+  border: 1px solid var(--assenza);
+  border-radius: var(--raggio-controllo);
+  padding: 0 0.25rem;
+  font-size: var(--scala-piccola);
+}
+
+.assenza-approvata {
+  background-color: color-mix(in srgb, var(--assenza) 22%, var(--superficie));
+  color: var(--inchiostro);
+}
+
+/* Una richiesta in attesa non e' ancora un'assenza: il tratteggio lo dice,
+   ed e' lo stesso significato che ha nel calendario del tempo per le ore che
+   nessun orologio ha misurato. Chi approva deve vederle — sono il rischio da
+   valutare — senza confonderle con i giorni concessi. */
+.assenza-in-attesa {
+  border-style: dashed;
+  background-color: color-mix(in srgb, var(--assenza) 8%, var(--superficie));
+  color: var(--inchiostro-tenue);
+}
+
+/* Il «+2» quando un giorno ha piu' assenze di quante ne stiano nella cella. */
+.pannello-assenze .fc-daygrid-more-link {
+  font-size: var(--scala-piccola);
+  color: var(--azione);
+}

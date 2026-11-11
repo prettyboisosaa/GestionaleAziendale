@@ -1,7 +1,9 @@
 package com.anitia.backend.assenza;
 
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -90,6 +92,31 @@ class AssenzeController {
                                    @RequestParam(name = "utente_id", required = false)
                                    Long utenteId) {
         return servizio.tutte(stato, utenteId);
+    }
+
+    /**
+     * Chi sarà via, fra due date: il calendario di chi approva.
+     *
+     * <p>Una rotta a sé e non due parametri in più su {@code /api/assenze},
+     * perché la risposta è un'altra cosa: {@link RigaCalendarioAssenza} non
+     * porta il riepilogo in giorni lavorativi, che su un calendario non si
+     * legge e costerebbe una query a {@code festivita} per ogni giorno di
+     * ogni assenza.
+     *
+     * <p>Gli estremi sono <strong>compresi</strong>, come in
+     * {@code /api/mio-calendario}: il giorno in più che FullCalendar vuole
+     * per una fine esclusiva lo aggiunge il frontend.
+     *
+     * <p>Stesso permesso dell'elenco: chi decide le assenze vede chi è via.
+     * Non ce n'è uno di sola lettura, e non avrebbe senso crearlo — sapere
+     * chi è in ferie è precisamente ciò che serve per decidere.
+     */
+    @GetMapping("/api/assenze/calendario")
+    @PreAuthorize("hasAuthority('ASSENZE_GESTISCI')")
+    public List<RigaCalendarioAssenza> calendario(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate da,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate a) {
+        return servizio.calendario(da, a);
     }
 
     @PostMapping("/api/assenze/{id}/approva")

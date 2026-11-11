@@ -145,6 +145,47 @@ export function tutteLeAssenze(
   return chiedi<RigaAssenza[]>('/api/assenze' + query)
 }
 
+/**
+ * Un'assenza come la disegna il calendario di chi approva.
+ *
+ * È una riga **snella**, non `RigaAssenza`: quella porta `giorniLavorativi` e
+ * `riepilogo`, che il server calcola interrogando le festività un giorno alla
+ * volta. Su un calendario quei due campi non si leggono — lì si guarda chi non
+ * c'è — e chiederli per un mese di assenze costerebbe centinaia di query.
+ *
+ * `dataFine` è **compresa**, come in tutto il resto: il giorno in più che
+ * FullCalendar vuole per una fine esclusiva lo aggiunge il componente.
+ *
+ * `stato` è solo `IN_ATTESA` o `APPROVATA`: le altre non sono assenze e il
+ * server non le manda.
+ */
+export type RigaCalendarioAssenza = {
+  id: number
+  richiedente: string
+  tipo: TipoAssenza
+  tipoEtichetta: string
+  dataInizio: string
+  dataFine: string
+  /** Null per le giornate intere. */
+  oraInizio: string | null
+  oraFine: string | null
+  stato: StatoAssenza
+}
+
+/**
+ * Chi sarà via fra due date, estremi compresi.
+ *
+ * Si chiede **il periodo in vista**, non l'anno: il calendario ricarica a ogni
+ * cambio di mese, e una risposta con tutto lo storico crescerebbe senza che
+ * nessuno se ne accorga. Vuole `ASSENZE_GESTISCI`, come l'elenco.
+ */
+export function calendarioAssenze(
+  da: string,
+  a: string,
+): Promise<RigaCalendarioAssenza[]> {
+  return chiedi<RigaCalendarioAssenza[]>(`/api/assenze/calendario?da=${da}&a=${a}`)
+}
+
 export function approvaAssenza(id: number, nota: string | null): Promise<RigaAssenza> {
   return chiedi<RigaAssenza>(`/api/assenze/${id}/approva`, postJson({ nota }))
 }

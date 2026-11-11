@@ -77,6 +77,37 @@ public interface AssenzaRepository extends JpaRepository<Assenza, Long> {
                                    @Param("escludi") Long escludi);
 
     /**
+     * Le assenze di <strong>tutti</strong> che toccano l'intervallo: è la
+     * lettura del calendario aziendale, quello su cui chi approva vede chi
+     * sarà via.
+     *
+     * <p>È l'unica query di questa interfaccia che non filtra per persona, e
+     * la differenza non è un dettaglio: {@link #trovaSovrapposte} e
+     * {@link #trovaApprovateDelPeriodo} pretendono un {@code utenteId} perché
+     * rispondono a «questa persona è libera?», mentre qui la domanda è «chi
+     * non c'è in questi giorni?». Prima non esisteva nessun modo di porla.
+     *
+     * <p>Gli stati sono gli stessi di {@link #trovaSovrapposte}: in attesa e
+     * approvate. Una rifiutata o ritirata non è un'assenza, e disegnarla
+     * farebbe pianificare attorno a un giorno in cui la persona c'è.
+     *
+     * <p>{@code JOIN FETCH} sul richiedente: il nome è la metà del senso di
+     * questo calendario, e senza di esso costerebbe una query per riga —
+     * {@code open-in-view} è disattivato.
+     *
+     * <p>⚠️ {@code ix_assenza_periodo} comincia con {@code utente_id}, quindi
+     * questa query non lo sfrutta. Non si aggiunge un indice: la tabella è
+     * piccola, e un indice messo prima di avere un problema misurato è peso
+     * senza guadagno. Resta scritto qui dove guardare se un giorno rallenta.
+     */
+    @Query("SELECT a FROM Assenza a JOIN FETCH a.utente "
+         + "WHERE a.stato IN (com.anitia.backend.assenza.StatoAssenza.IN_ATTESA, "
+         + "                  com.anitia.backend.assenza.StatoAssenza.APPROVATA) "
+         + "  AND a.dataInizio <= :a AND a.dataFine >= :da "
+         + "ORDER BY a.dataInizio")
+    List<Assenza> trovaDelPeriodo(@Param("da") LocalDate da, @Param("a") LocalDate a);
+
+    /**
      * Le assenze approvate di una persona che toccano l'intervallo: è la
      * lettura che serve a un calendario e all'avviso sulla registrazione di
      * ore in un giorno di assenza.
