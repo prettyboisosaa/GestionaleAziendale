@@ -1495,3 +1495,83 @@ button.minuscolo:disabled {
 .scheda-settimana .fc-highlight {
   background-color: var(--azione-velo-fermo);
 }
+
+/* --- il proprio profilo --------------------------------------------------- */
+
+/* La stessa carta di `.scheda-ore`: due sezioni impilate, ciascuna con il suo
+   titolo. Non si riusa quella classe perche' il nome direbbe «ore» su una
+   scheda che parla di password. */
+.scheda-profilo {
+  margin-top: 1.5rem;
+  padding: 1rem 1.25rem 1.25rem;
+  background-color: var(--superficie);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-carta);
+  box-shadow: var(--ombra-carta);
+}
+
+.scheda-profilo .testata {
+  margin-bottom: 0.75rem;
+}
+
+.scheda-profilo .testata h2 {
+  font-size: var(--scala-media);
+  font-weight: 600;
+  letter-spacing: var(--tracciatura-base);
+}
+
+.scheda-profilo .modulo {
+  margin-top: 1rem;
+  /* Il modulo non si allarga per tutta la carta: tre campi password su
+     cinquanta caratteri di larghezza sono piu' difficili da leggere, non piu'
+     comodi da compilare. */
+  max-width: 24rem;
+}
+
+/* Il campo e il suo interruttore mostra/nascondi stanno in riga: l'interruttore
+   appartiene al campo, e sotto sembrerebbe un'azione del modulo. */
+.campo-con-azione {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.campo-con-azione input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Il margine che `button.minuscolo` si da' per stare in una cella di tabella
+   qui lo disallineerebbe dal campo. */
+.campo-con-azione button.minuscolo {
+  margin-top: 0;
+  flex: 0 0 auto;
+}
+
+/* La spunta dei requisiti: non e' un elenco da leggere ma uno stato da
+   guardare mentre si scrive, quindi sta stretta sotto il campo e non ha i
+   pallini di una lista. */
+.requisiti {
+  list-style: none;
+  margin: -0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.requisiti li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+/* Il requisito soddisfatto si spegne invece di accendersi, ed e' voluto: a
+   modulo finito tutte e tre le righe devono smettere di chiedere attenzione.
+   Il verde e' quello di `--stato-completato`, che in questa interfaccia dice
+   gia' «fatto». */
+.requisito-ok {
+  color: var(--stato-completato);
+}

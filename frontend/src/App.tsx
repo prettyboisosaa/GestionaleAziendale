@@ -8,6 +8,8 @@ import type { UtenteCorrente } from './autenticazione/api'
 import Intestazione from './componenti/Intestazione'
 import Protetta from './componenti/Protetta'
 import PaginaUtenti from './utente/PaginaUtenti'
+import PaginaProfilo from './utente/PaginaProfilo'
+import ConfermaUscita from './componenti/ConfermaUscita'
 import PaginaNuovoUtente from './utente/PaginaNuovoUtente'
 import PaginaPermessiUtente from './utente/PaginaPermessiUtente'
 import PaginaLavori from './lavoro/PaginaLavori'
@@ -45,6 +47,15 @@ export default function App() {
    * che possiede l'utente collegato.
    */
   const [tempo, setTempo] = useState<SituazioneTempo | null>(null)
+
+  /**
+   * Vero mentre la conferma d'uscita è aperta.
+   *
+   * Sta qui e non in `Intestazione` perché l'uscita è di questo componente —
+   * è lui che possiede la sessione — e perché così la conferma vale per ogni
+   * punto da cui si esce, compresi quelli che non esistono ancora.
+   */
+  const [chiedoSeUscire, setChiedoSeUscire] = useState(false)
 
   // Il cookie di sessione è HttpOnly, quindi invisibile a JavaScript: l'unico
   // modo di sapere se la sessione è ancora viva è chiederlo al server.
@@ -95,6 +106,10 @@ export default function App() {
   }, [collegato])
 
   async function esci() {
+    // La modale si chiude prima della chiamata: lasciarla aperta mentre il
+    // server risponde la farebbe sembrare bloccata, e non c'è niente da
+    // annullare — a questo punto la decisione è presa.
+    setChiedoSeUscire(false)
     await logout()
     setStato({ fase: 'anonimo' })
     // Il tempo si azzera qui e non nell'effetto che lo carica: e' l'uscita a
@@ -145,7 +160,23 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Intestazione utente={utente} tempo={tempo} onTempo={setTempo} onEsci={esci} />
+      {/* «Esci» non esce: chiede. Chi lo preme per sbaglio con una task
+          avviata perde la pagina su cui stava lavorando, e un clic non è un
+          motivo sufficiente per chiudere una sessione. */}
+      <Intestazione
+        utente={utente}
+        tempo={tempo}
+        onTempo={setTempo}
+        onEsci={() => setChiedoSeUscire(true)}
+      />
+
+      {chiedoSeUscire && (
+        <ConfermaUscita
+          onAnnulla={() => setChiedoSeUscire(false)}
+          onEsci={() => void esci()}
+        />
+      )}
+
       <Routes>
         <Route
           path="/dashboard"
@@ -172,6 +203,10 @@ export default function App() {
             </Protetta>
           }
         />
+        {/* Nessuna `Protetta` attorno: il profilo è di chi è collegato, e
+            cambiarsi la password è parte dell'avere un accesso — non un
+            permesso da concedere. */}
+        <Route path="/profilo" element={<PaginaProfilo utente={utente} />} />
         <Route path="/assenze" element={<PaginaMieAssenze />} />
         <Route
           path="/richieste-assenza"

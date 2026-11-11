@@ -88,7 +88,16 @@ export default function Intestazione({ utente, tempo, onTempo, onEsci }: Proprie
       )}
 
       <div className="barra-utente">
-        <span>{utente.email}</span>
+        {/* L'email diventa la porta del profilo: era già il posto dove si
+            legge chi è collegato, ed è lì che si va a cercare le proprie
+            cose. Una voce «Profilo» nella barra delle sezioni la metterebbe
+            fra i luoghi del gestionale, che sono di tutti. */}
+        <NavLink
+          to="/profilo"
+          className={({ isActive }) => (isActive ? 'attivo' : undefined)}
+        >
+          {utente.email}
+        </NavLink>
         <button type="button" onClick={onEsci}>
           Esci
         </button>

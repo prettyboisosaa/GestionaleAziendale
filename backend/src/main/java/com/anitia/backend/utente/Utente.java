@@ -142,6 +142,22 @@ public class Utente {
         this.disattivatoIl = null;
     }
 
+    /**
+     * L'utente ha cambiato la propria password.
+     *
+     * <p>Prende l'<strong>hash</strong>, come {@link #nuovo}: qui dentro una
+     * password in chiaro non deve passare mai, nemmeno di passaggio. Chi
+     * chiama ha già verificato quella attuale e validato quella nuova — questo
+     * metodo registra il cambiamento, non lo autorizza.
+     *
+     * <p>È {@code public} e non riservato al package come {@link #disattiva}
+     * perché chi lo chiama vive in {@code autenticazione}: disattivare un
+     * utente è amministrazione, cambiarsi la password è accesso.
+     */
+    public void cambiaPassword(String nuovoHash) {
+        this.passwordHash = nuovoHash;
+    }
+
     public LocalDateTime getCreatoIl() {
         return creatoIl;
     }

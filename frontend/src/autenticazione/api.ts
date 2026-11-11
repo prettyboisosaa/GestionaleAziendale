@@ -35,6 +35,35 @@ export async function io(): Promise<UtenteCorrente | null> {
 }
 
 /**
+ * Cambia la propria password.
+ *
+ * L'utente non si manda: lo sa la sessione. Un identificativo nel corpo
+ * vorrebbe dire che chiunque può cambiare la password di qualcun altro.
+ *
+ * Non usa `chiedi` perché il server risponde **204 senza corpo**: non c'è
+ * niente da restituire, la sessione resta aperta e i permessi non cambiano.
+ *
+ * **L'errore conserva il codice in testa** — `WRONG_OLD_PASSWORD`,
+ * `WEAK_PASSWORD`, `SAME_PASSWORD` — perché è quello che permette di mettere
+ * il messaggio sotto il campo giusto. Chi lo riceve usa `codice()` per
+ * smistarlo e `senzaCodice()` per mostrarlo; `testo()`, che fa le due cose
+ * insieme, qui perderebbe l'informazione che serve.
+ */
+export async function cambiaPassword(
+  oldPassword: string,
+  newPassword: string,
+): Promise<void> {
+  const risposta = await chiama(
+    `${BASE}/cambio-password`,
+    postJson({ oldPassword, newPassword }),
+  )
+
+  if (!risposta.ok) {
+    throw new Error(await messaggioErrore(risposta))
+  }
+}
+
+/**
  * Chiude la sessione sul server. Non solleva: a chi voleva solo uscire non c'è
  * niente di utile da dire se la chiamata non va a buon fine, e il frontend
  * torna comunque alla schermata di accesso.

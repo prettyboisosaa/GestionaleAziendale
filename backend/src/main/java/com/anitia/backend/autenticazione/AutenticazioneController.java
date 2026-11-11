@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -29,6 +30,8 @@ import org.springframework.web.server.ResponseStatusException;
  *   <li>{@code POST /api/autenticazione/login} — credenziali in JSON, in
  *       risposta l'utente con i suoi permessi e il cookie di sessione.
  *   <li>{@code GET  /api/autenticazione/io} — chi e' collegato adesso.
+ *   <li>{@code POST /api/autenticazione/cambio-password} — la propria
+ *       password, con quella attuale a dimostrare di esserne il padrone.
  *   <li>{@code POST /api/autenticazione/logout} — chiude la sessione e
  *       risponde 204. Non ha un metodo qui: lo gestisce il filtro configurato
  *       in {@code ConfigurazioneSicurezza}.
@@ -46,13 +49,16 @@ class AutenticazioneController {
 
     private final AuthenticationManager gestoreAutenticazione;
     private final SecurityContextRepository contestoSicurezza;
+    private final ServizioPassword password;
     private final SecurityContextHolderStrategy strategiaContesto =
             SecurityContextHolder.getContextHolderStrategy();
 
     AutenticazioneController(AuthenticationManager gestoreAutenticazione,
-                             SecurityContextRepository contestoSicurezza) {
+                             SecurityContextRepository contestoSicurezza,
+                             ServizioPassword password) {
         this.gestoreAutenticazione = gestoreAutenticazione;
         this.contestoSicurezza = contestoSicurezza;
+        this.password = password;
     }
 
     @PostMapping("/login")
@@ -107,5 +113,26 @@ class AutenticazioneController {
     @GetMapping("/io")
     UtenteCorrente io(@AuthenticationPrincipal UserDetails utente) {
         return UtenteCorrente.da(utente);
+    }
+
+    /**
+     * Cambia la propria password.
+     *
+     * <p>Sta qui e non fra le rotte degli utenti perché non è
+     * amministrazione: {@code /api/utenti} serve a chi gestisce le persone, e
+     * questa è una cosa che ciascuno fa per sé. Non ha nessun
+     * {@code @PreAuthorize}, e la catena di filtri pretende già che la
+     * richiesta sia autenticata — è esattamente la condizione che serve, dato
+     * che l'utenza su cui si scrive è quella della sessione.
+     *
+     * <p>Risponde <strong>204</strong>: non c'è niente da restituire. La
+     * sessione resta aperta e i permessi non cambiano, quindi il frontend non
+     * ha nulla da ridisegnare oltre al proprio modulo.
+     */
+    @PostMapping("/cambio-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void cambioPassword(@Valid @RequestBody RichiestaCambioPassword richiesta,
+                        @AuthenticationPrincipal UserDetails utente) {
+        password.cambia(utente, richiesta);
     }
 }
