@@ -6,6 +6,7 @@ import com.anitia.backend.ore.RigaMovimento;
 import com.anitia.backend.sicurezza.Permessi;
 import com.anitia.backend.task.TaskRepository;
 import com.anitia.backend.tempo.SessioneTaskRepository;
+import com.anitia.backend.task.TaskRepository.ContiTask;
 import com.anitia.backend.task.TaskRepository.OrePerLavoro;
 import com.anitia.backend.utente.Utente;
 import com.anitia.backend.utente.UtenteRepository;
@@ -94,9 +95,15 @@ public class ServizioLavori {
     /**
      * Attacca a ciascun lavoro la situazione delle sue ore.
      *
-     * <p>Due query per tutto l'elenco, non due per riga: con
+     * <p>Tre query per tutto l'elenco, non tre per riga: con
      * {@code open-in-view} disattivato e una ventina di lavori, la variante
-     * ingenua sarebbe quaranta interrogazioni per una schermata sola.
+     * ingenua sarebbe sessanta interrogazioni per una schermata sola.
+     *
+     * <p>La terza sono i conteggi delle task, che la scheda di ogni lavoro
+     * mostra: quante ne ha, quante ne ha chiuse, quante sono urgenti o in
+     * ritardo. Costano un raggruppamento sulla stessa tabella da cui vengono
+     * già le ore allocate, e senza di loro una scheda dovrebbe chiedere le
+     * task di quel lavoro per contarle — cioè una richiesta per riquadro.
      */
     private List<RigaLavoro> conOre(List<Lavoro> elenco) {
         if (elenco.isEmpty()) {
@@ -106,11 +113,17 @@ public class ServizioLavori {
         List<Long> id = elenco.stream().map(Lavoro::getId).toList();
         Map<Long, BigDecimal> allocate = perLavoro(task.sommaOreAllocatePerLavoro(id));
         Map<Long, BigDecimal> consumate = perLavoro(task.sommaOreConsumatePerLavoro(id));
+        Map<Long, ContiTask> conti = task.contiTaskPerLavoro(id).stream()
+                .collect(Collectors.toMap(ContiTask::getLavoroId, riga -> riga));
 
         return elenco.stream()
                 .map(lavoro -> RigaLavoro.da(lavoro,
                         ore(allocate, lavoro.getId()),
-                        ore(consumate, lavoro.getId())))
+                        ore(consumate, lavoro.getId()),
+                        // Null quando il lavoro non ha nessuna task: il
+                        // raggruppamento omette le righe vuote, e `RigaLavoro`
+                        // legge quel null come quattro zeri.
+                        conti.get(lavoro.getId())))
                 .toList();
     }
 
@@ -248,11 +261,22 @@ public class ServizioLavori {
         return conOre(lavoro);
     }
 
-    /** La situazione delle ore di un lavoro solo, con le sue due somme. */
+    /**
+     * La situazione di un lavoro solo: le sue due somme di ore e i conteggi
+     * delle sue task.
+     *
+     * <p>I conteggi si chiedono con la stessa query dell'elenco, su una
+     * collezione di un elemento: una seconda query che contasse le task di un
+     * lavoro solo direbbe le stesse cose con un'altra {@code WHERE}, e sarebbe
+     * il secondo posto da correggere il giorno in cui «in ritardo» cambia
+     * definizione.
+     */
     private RigaLavoro conOre(Lavoro lavoro) {
         return RigaLavoro.da(lavoro,
                 task.sommaOreAllocate(lavoro.getId()),
-                task.sommaOreConsumate(lavoro.getId()));
+                task.sommaOreConsumate(lavoro.getId()),
+                task.contiTaskPerLavoro(List.of(lavoro.getId())).stream().findFirst()
+                        .orElse(null));
     }
 
     /**
@@ -423,8 +447,9 @@ public class ServizioLavori {
             }
 
             // Appena creato: nessuna task, quindi nessuna ora allocata o
-            // consumata. Le due query di conOre darebbero zero, e si evitano.
-            return RigaLavoro.da(creato, BigDecimal.ZERO, BigDecimal.ZERO);
+            // consumata e nessun conteggio. Le query di conOre darebbero zero
+            // su tutto, e si evitano.
+            return RigaLavoro.da(creato, BigDecimal.ZERO, BigDecimal.ZERO, null);
         } catch (DataIntegrityViolationException eccezione) {
             // uk_lavoro_codice. Fra il calcolo del progressivo e questo INSERT
             // due creazioni contemporanee possono scegliere lo stesso codice,

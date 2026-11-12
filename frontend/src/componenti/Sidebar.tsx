@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router'
 import Icona from './Icona'
+import SchedaTimer from './SchedaTimer'
 import { vociDi } from './voci'
 import type { UtenteCorrente } from '../autenticazione/api'
+import type { SituazioneTempo } from '../tempo/api'
 
 /**
  * Quanto si aspetta prima di aprire la barra al passaggio del mouse.
@@ -18,23 +20,36 @@ const RITARDO_APERTURA = 180
 /**
  * La navigazione laterale, comune a tutta l'app.
  *
- * Una barra di icone che si allarga al passaggio del mouse, **in
- * sovrapposizione**: da aperta copre il contenuto invece di spostarlo, così i
- * calendari della dashboard non si ridimensionano a ogni passaggio. È la
- * ragione per cui la larghezza da chiusa è una variabile CSS e non un valore
- * che il contenuto deve conoscere.
+ * Una barra di icone che si allarga al passaggio del mouse **spingendo** il
+ * contenuto: le sezioni si stringono per farle posto invece di sparirci
+ * sotto. È la ragione per cui le due larghezze sono variabili CSS e non
+ * valori scritti dove servono — il margine del corpo le deve conoscere
+ * entrambe, e lo fa da sé con un selettore di fratellanza.
  *
  * Su schermo stretto l'hover non esiste e l'espansione non ha senso: la barra
  * si ritira dietro un pulsante in testata e si apre come menù a scomparsa,
  * sopra il contenuto, con uno sfondo che la chiude al tocco.
+ *
+ * **In fondo c'è il timer**, quando una sessione sta scorrendo. Prima stava in
+ * testata; il design system lo mette qui, e la ragione sta nel fatto che la
+ * barra è l'unica cosa che non cambia mai pagina: ciò che deve restare sotto
+ * gli occhi mentre si lavora appartiene a lei.
  */
 export default function Sidebar({
   utente,
+  tempo,
+  onTempo,
+  onEsci,
   mobile,
   aperta,
   onChiudi,
 }: {
   utente: UtenteCorrente
+  /** Null finché non è stato caricato: la scheda del timer non compare. */
+  tempo: SituazioneTempo | null
+  onTempo: (situazione: SituazioneTempo) => void
+  /** Esce dalla sessione: il comando sta in fondo alla barra, accanto al nome. */
+  onEsci: () => void
   /** Vero sotto la soglia: niente hover, la barra è un menù. */
   mobile: boolean
   /** Da mobile: se il menù è aperto. Ignorato da desktop. */
@@ -148,6 +163,50 @@ export default function Sidebar({
             </li>
           ))}
         </ul>
+
+        {/* Dopo le voci e spinta in fondo dal `margin-top: auto` del foglio:
+            non è una voce di navigazione e non deve stare nel loro elenco. */}
+        {tempo?.inCorso != null && (
+          <SchedaTimer inCorso={tempo.inCorso} onTempo={onTempo} />
+        )}
+
+        {/* Il proprio spazio, in fondo alla barra.
+            Prima era l'email in testata, in alto a destra, in mezzo alle cose
+            del gestionale: ma il proprio account non è una sezione
+            dell'applicazione, è chi la sta usando — e il design system lo
+            mette qui, sotto a tutto, come fa ogni interfaccia che abbia una
+            barra laterale. Da chiusa resta la sola pastiglia con le
+            iniziali; da aperta compaiono il nome, l'email e l'uscita. */}
+        <div className="sidebar-conto">
+          <NavLink
+            to="/profilo"
+            className={({ isActive }) =>
+              isActive ? 'sidebar-io attivo' : 'sidebar-io'
+            }
+            title={`${utente.nome} ${utente.cognome} · il tuo profilo`}
+            onClick={mobile ? onChiudi : undefined}
+          >
+            <span className="sidebar-io-gettone" aria-hidden="true">
+              {utente.nome.charAt(0)}
+              {utente.cognome.charAt(0)}
+            </span>
+            <span className="sidebar-etichetta sidebar-io-testo">
+              <span className="sidebar-io-nome">
+                {utente.nome} {utente.cognome}
+              </span>
+              <span className="sidebar-io-email">{utente.email}</span>
+            </span>
+          </NavLink>
+
+          <button
+            type="button"
+            className="sidebar-esci sidebar-etichetta"
+            onClick={onEsci}
+            title="Esci"
+          >
+            Esci
+          </button>
+        </div>
       </nav>
     </>
   )

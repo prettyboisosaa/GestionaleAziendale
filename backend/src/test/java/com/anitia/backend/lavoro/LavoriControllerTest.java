@@ -114,7 +114,7 @@ class LavoriControllerTest {
                 LocalDate.of(2027, 1, 1), LocalDate.of(2027, 6, 30),
                 StatoLavoro.ATTIVO, null, 2L, "Bianchi Laura",
                 new BigDecimal("120.00"), BigDecimal.ZERO, BigDecimal.ZERO,
-                new BigDecimal("120.00"));
+                new BigDecimal("120.00"), 0L, 0L, 0L, 0L);
     }
 
     // --- elenco -------------------------------------------------------------
@@ -281,7 +281,7 @@ class LavoriControllerTest {
                 null, LocalDate.of(2026, 9, 1), LocalDate.of(2027, 3, 31),
                 StatoLavoro.ANNULLATO, LocalDateTime.of(2026, 11, 6, 12, 0), 2L, "Bianchi Laura",
                 new BigDecimal("400.00"), new BigDecimal("136.00"), new BigDecimal("38.00"),
-                new BigDecimal("264.00")));
+                new BigDecimal("264.00"), 8L, 3L, 0L, 0L));
 
         mockMvc.perform(post(LAVORI + "/1/annulla").session(sessioneCon("LAVORI_MODIFICA_TUTTI")))
                 .andExpect(status().isOk())
@@ -378,7 +378,7 @@ class LavoriControllerTest {
                         LocalDate.of(2026, 9, 1), LocalDate.of(2027, 3, 31),
                         StatoLavoro.ATTIVO, null, 2L, "Bianchi Laura",
                         new BigDecimal("500.00"), new BigDecimal("136.00"),
-                        new BigDecimal("38.00"), new BigDecimal("364.00")));
+                        new BigDecimal("38.00"), new BigDecimal("364.00"), 8L, 3L, 1L, 0L));
 
         mockMvc.perform(post(LAVORI + "/1/monte-ore").session(sessioneCon("ORE_MONTE_GESTISCI"))
                         .contentType(MediaType.APPLICATION_JSON)

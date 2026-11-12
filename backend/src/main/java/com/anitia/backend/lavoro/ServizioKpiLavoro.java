@@ -3,7 +3,13 @@ package com.anitia.backend.lavoro;
 import com.anitia.backend.task.TaskRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +50,13 @@ public class ServizioKpiLavoro {
 
     /** Un decimale: la seconda cifra di una percentuale non ha mai deciso niente. */
     private static final int DECIMALI = 1;
+
+    /**
+     * Quante settimane può lungo essere, al massimo, l'andamento di un lavoro:
+     * due anni. Oltre, il grafico non si legge più comunque, e il tetto
+     * protegge dalla data d'inizio sbagliata di dieci anni.
+     */
+    private static final int SETTIMANE_MASSIME = 104;
 
     private static final BigDecimal CENTO = BigDecimal.valueOf(100);
 
@@ -98,6 +111,94 @@ public class ServizioKpiLavoro {
                 inCorso,
                 ferme,
                 GIORNI_DI_STAGNAZIONE);
+    }
+
+    /**
+     * L'andamento settimanale di un lavoro: ore registrate e task chiuse,
+     * settimana per settimana.
+     *
+     * <p>Stesso controllo di visibilità dei KPI, e per la stessa ragione: non
+     * c'è qui niente che non si possa già ricavare dalla pagina del lavoro —
+     * sono le sue ore e le sue task, messe su un asse.
+     *
+     * <p><strong>Le settimane vuote si riempiono qui.</strong> Il database
+     * risponde solo per le settimane in cui è successo qualcosa, e una serie
+     * con i buchi disegnerebbe una linea che salta da un lunedì all'altro
+     * come se le settimane ferme non fossero passate: è esattamente il
+     * contrario di quello che un grafico del ritmo deve far vedere.
+     */
+    @Transactional(readOnly = true)
+    public AndamentoLavoro andamento(UserDetails chiLoChiede, Long idLavoro) {
+        Lavoro lavoro = lavori.lavoroVisibile(chiLoChiede, idLavoro);
+
+        // Le due query rispondono con il lunedì in ISO, non con una data: la
+        // conversione la fa `LocalDate.parse` qui, dove non dipende da quale
+        // tipo il driver restituisca per una colonna DATE.
+        Map<LocalDate, BigDecimal> ore = task.oreDelLavoroPerSettimana(lavoro.getId())
+                .stream()
+                .collect(Collectors.toMap(riga -> LocalDate.parse(riga.getInizio()),
+                        TaskRepository.OrePerSettimana::getOre));
+        Map<LocalDate, Long> chiuse = task.taskChiusePerSettimana(lavoro.getId()).stream()
+                .collect(Collectors.toMap(riga -> LocalDate.parse(riga.getInizio()),
+                        TaskRepository.TaskPerSettimana::getQuante));
+
+        LocalDate prima = lunedi(lavoro.getDataInizio());
+        LocalDate ultima = ultimaSettimana(lavoro, ore.keySet(), chiuse.keySet(), prima);
+
+        List<AndamentoLavoro.SettimanaLavoro> settimane = new ArrayList<>();
+        for (LocalDate settimana = prima;
+                !settimana.isAfter(ultima);
+                settimana = settimana.plusWeeks(1)) {
+            settimane.add(new AndamentoLavoro.SettimanaLavoro(
+                    settimana,
+                    ore.getOrDefault(settimana, BigDecimal.ZERO),
+                    chiuse.getOrDefault(settimana, 0L)));
+        }
+
+        return new AndamentoLavoro(lavoro.getMonteOre(), lavoro.getDataInizio(),
+                lavoro.getDataFinePrevista(), settimane);
+    }
+
+    /**
+     * L'ultima settimana che la serie deve contenere.
+     *
+     * <p>Non è semplicemente «questa settimana». Su un lavoro già finito mesi
+     * fa, arrivare fino a oggi aggiungerebbe decine di settimane vuote dopo
+     * l'ultima in cui qualcuno ha lavorato: il grafico diventerebbe una linea
+     * piatta lunghissima con il lavoro vero schiacciato a sinistra. Si arriva
+     * quindi alla più tarda fra la settimana corrente limitata alla fine
+     * prevista e l'ultima settimana in cui è successo qualcosa — perché il
+     * lavoro può benissimo essere andato oltre la sua scadenza, e quelle
+     * settimane sono le più importanti da vedere.
+     *
+     * <p>{@link #SETTIMANE_MASSIME} è il tetto: una data d'inizio sbagliata di
+     * dieci anni non deve poter chiedere cinquecento righe.
+     */
+    private static LocalDate ultimaSettimana(Lavoro lavoro,
+                                             Collection<LocalDate> conOre,
+                                             Collection<LocalDate> conTask,
+                                             LocalDate prima) {
+        LocalDate oggi = lunedi(LocalDate.now());
+        LocalDate fine = lunedi(lavoro.getDataFinePrevista());
+
+        LocalDate ultima = oggi.isBefore(fine) ? oggi : fine;
+        for (LocalDate quando : conOre) {
+            ultima = quando.isAfter(ultima) ? quando : ultima;
+        }
+        for (LocalDate quando : conTask) {
+            ultima = quando.isAfter(ultima) ? quando : ultima;
+        }
+
+        LocalDate tetto = prima.plusWeeks(SETTIMANE_MASSIME);
+        if (ultima.isAfter(tetto)) {
+            return tetto;
+        }
+        return ultima.isBefore(prima) ? prima : ultima;
+    }
+
+    /** Il lunedì della settimana di una data: lo stesso che fa {@code WEEKDAY} in SQL. */
+    private static LocalDate lunedi(LocalDate giorno) {
+        return giorno.minusDays(giorno.getDayOfWeek().getValue() - 1L);
     }
 
     /**

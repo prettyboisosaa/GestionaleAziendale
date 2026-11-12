@@ -98,6 +98,19 @@ export default function PannelloMieRichieste({
   puoOre: boolean
 }) {
   const [righe, setRighe] = useState<Richiesta[] | null>(null)
+  /**
+   * I due numeri delle tessere in cima.
+   *
+   * Il design system mette lì «Ferie residue» e «Permessi residui». Un monte
+   * ferie in questo gestionale **non esiste**: l'assenza ha un tipo e due
+   * date, e nessuna tabella dice quanti giorni spettano a chi. Inventare un
+   * residuo vorrebbe dire scrivere un numero che non ha una fonte, ed è la
+   * cosa peggiore che una dashboard possa fare.
+   *
+   * Restano le due tessere, con due numeri che esistono davvero: le ferie già
+   * approvate quest'anno e quante richieste aspettano ancora una risposta.
+   */
+  const [ferieApprovate, setFerieApprovate] = useState<number | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
 
   useEffect(() => {
@@ -111,6 +124,20 @@ export default function PannelloMieRichieste({
     ])
       .then(([ore, assenze]) => {
         if (!annullato) {
+          const anno = String(new Date().getFullYear())
+          setFerieApprovate(
+            // Si contano le **richieste**, non i giorni: i giorni lavorativi
+            // li sa il server, che li scrive in `riepilogo` come prosa, e
+            // ricavarli qui da `dataInizio`/`dataFine` vorrebbe dire una
+            // seconda definizione di giorno lavorativo — che prima o poi
+            // direbbe un numero diverso dal suo.
+            assenze.filter(
+              (una) =>
+                una.tipo === 'FERIE'
+                && una.stato === 'APPROVATA'
+                && una.dataInizio.startsWith(anno),
+            ).length,
+          )
           setRighe(
             ordina([
               ...ore.map((una) => daOre(una, '/richieste-ore')),
@@ -135,15 +162,13 @@ export default function PannelloMieRichieste({
 
   return (
     <Pannello
+      azioni={
+        <Link to="/assenze" className="azione-tenue">
+          + Nuova
+        </Link>
+      }
       titolo="Le mie richieste"
       sottotitolo="ore e assenze insieme"
-      azioni={
-        inAttesa > 0 ? (
-          <Pillola tinta="attesa">
-            {inAttesa === 1 ? '1 in attesa' : `${inAttesa} in attesa`}
-          </Pillola>
-        ) : undefined
-      }
       carico={righe === null && errore === null}
       errore={errore}
       vuoto={
@@ -153,6 +178,24 @@ export default function PannelloMieRichieste({
       }
       classe="pannello-richieste"
     >
+      {ferieApprovate !== null && (
+        <div className="tessere-richieste">
+          {/* La prima piena di verde profondo, la seconda chiara: è il
+              contrasto con cui il design system dice «questo è il numero, e
+              quest'altro è il suo contorno». */}
+          <div className="tessera tessera-piena">
+            <span className="tessera-etichetta">Ferie approvate</span>
+            <strong className="tessera-valore">{ferieApprovate}</strong>
+            <span className="tessera-unita">quest’anno</span>
+          </div>
+          <div className="tessera">
+            <span className="tessera-etichetta">In attesa</span>
+            <strong className="tessera-valore">{inAttesa}</strong>
+            <span className="tessera-unita">richieste</span>
+          </div>
+        </div>
+      )}
+
       <Elenco righe={righe ?? []} conRichiedente={false} />
     </Pannello>
   )
@@ -210,11 +253,11 @@ export function PannelloDaApprovare({
 
   return (
     <Pannello
-      titolo="Richieste da approvare"
+      titolo="Da approvare"
       sottotitolo="di chi aspetta una risposta"
       azioni={
         righe !== null && righe.length > 0 ? (
-          <Pillola tinta="attesa">{String(righe.length)}</Pillola>
+          <span className="contatore-corallo">{righe.length}</span>
         ) : undefined
       }
       carico={righe === null && errore === null}
@@ -222,9 +265,68 @@ export function PannelloDaApprovare({
       vuoto={righe !== null && righe.length === 0 ? 'Nessuna richiesta in attesa.' : null}
       classe="pannello-richieste"
     >
-      <Elenco righe={righe ?? []} conRichiedente />
+      <Schede righe={righe ?? []} />
     </Pannello>
   )
+}
+
+/**
+ * La coda di chi approva, a schede: una per richiesta, come nel design
+ * system — iniziali in un tondo, chi ha chiesto, che cosa, e in fondo il
+ * gesto.
+ *
+ * ⚠️ **Un gesto solo, e non due.** Il mock mette «Rifiuta» e «Approva» qui
+ * dentro, ma da questa scheda non si vede quante ore restano nel monte né chi
+ * altro è in ferie quel giorno: approvare con un clic vorrebbe dire decidere
+ * senza guardare, e rifiutare richiede comunque una nota che qui non si può
+ * scrivere. Il pulsante porta alla pagina che decide, dove quelle cose ci
+ * sono. È la stessa scelta che questo pannello aveva già prima di Fluida, e
+ * non è il design a doverla cambiare.
+ */
+function Schede({ righe }: { righe: Richiesta[] }) {
+  return (
+    <ul className="schede-richiesta">
+      {righe.map((una) => (
+        <li key={una.chiave} className="scheda-richiesta">
+          <div className="scheda-richiesta-capo">
+            <span className="avatar" aria-hidden="true">
+              {iniziali(una.richiedente)}
+            </span>
+            <span className="scheda-richiesta-chi">
+              <strong>{una.richiedente ?? 'Senza nome'}</strong>
+              <span className="nota">{una.titolo}</span>
+            </span>
+          </div>
+
+          <p className="scheda-richiesta-quando">
+            <Icona nome={una.icona} />
+            {una.dettaglio}
+          </p>
+
+          <Link to={una.percorso} className="azione-piena scheda-richiesta-azione">
+            Vedi e decidi
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * Le iniziali per il tondo dell'avatar: «Laura Bianchi» diventa «LB».
+ *
+ * Due lettere e non una: con un reparto di dieci persone le sole iniziali del
+ * nome si ripetono, e due tondi identici su due richieste diverse sono
+ * peggio di nessun tondo.
+ */
+function iniziali(nome: string | null): string {
+  if (nome === null || nome.trim() === '') {
+    return '—'
+  }
+  const pezzi = nome.trim().split(/\s+/)
+  const prima = pezzi[0]?.[0] ?? ''
+  const seconda = pezzi.length > 1 ? (pezzi.at(-1)?.[0] ?? '') : ''
+  return (prima + seconda).toUpperCase()
 }
 
 /** Le righe, uguali nei due pannelli: cambia solo se si nomina chi ha chiesto. */

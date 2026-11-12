@@ -7,25 +7,59 @@ import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
 import { Pillola } from '../componenti/Stato'
 import { chiusoLavoro, ETICHETTA_LAVORO, tinta } from '../stato/stati'
-import type { StatoLavoro } from '../stato/stati'
 
 type Azione = {
   id: number
   tipo: 'annulla' | 'elimina'
 }
 
-/** Il filtro per stato: gli stati, più «tutti». */
-type Filtro = StatoLavoro | 'TUTTI'
+/**
+ * Il filtro dell'elenco: non è uno stato, è un **gruppo** di stati.
+ *
+ * Prima qui c'era una tendina con i cinque stati dell'enum, uno per uno. Le
+ * schede del design system mostrano invece tre scelte sole, e non è una
+ * semplificazione: chi apre l'elenco sta decidendo dove entrare, e la
+ * differenza fra «attivo» e «in corso» non cambia quella decisione — mentre la
+ * differenza fra «c'è ancora da fare» e «è chiuso» sì.
+ */
+type Filtro = 'TUTTI' | 'APERTI' | 'CHIUSI' | 'ANNULLATI'
+
+/** Da «2027-01-15» a «15 gen»: la scadenza su una scheda non ha bisogno dell'anno. */
+function scadenza(iso: string): string {
+  return new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+}
+
+/** Le ore senza decimali inutili: «12 h», «116 h», «7,5 h». */
+function ore(valore: number): string {
+  return `${valore.toLocaleString('it-IT', { maximumFractionDigits: 1 })} h`
+}
 
 /**
- * L'ordine della tendina, che non è quello dell'enum: prima quello che si
- * guarda di più.
+ * A che punto è un lavoro, in percentuale di task chiuse.
+ *
+ * **Null quando non ci sono task**, e non zero: un lavoro appena creato non è
+ * «allo 0%», è un lavoro su cui non c'è ancora niente da misurare. È la stessa
+ * regola dei KPI del server, dove un denominatore a zero risponde «n/d».
  */
-const FILTRI: Filtro[] = ['TUTTI', 'ATTIVO', 'IN_CORSO', 'BOZZA', 'COMPLETATO', 'ANNULLATO']
+function avanzamento(riga: RigaLavoro): number | null {
+  if (riga.taskTotali === 0) {
+    return null
+  }
+  return Math.round((riga.taskCompletate / riga.taskTotali) * 100)
+}
 
-/** Da «2027-01-01» a «01/01/2027». */
-function data(iso: string): string {
-  return new Date(iso).toLocaleDateString('it-IT')
+/**
+ * Le ore che restano da consumare: monte ore meno quelle registrate.
+ *
+ * Non è `oreLibere`, che è un'altra domanda — quelle sono le ore non ancora
+ * distribuite alle task. Qui serve quanto resta del budget vero, perché è il
+ * numero che dice se un lavoro arriverà in fondo.
+ */
+function oreRimaste(riga: RigaLavoro): number | null {
+  if (riga.monteOre === null) {
+    return null
+  }
+  return riga.monteOre - riga.oreConsumate
 }
 
 export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
@@ -33,20 +67,6 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
   const [errore, setErrore] = useState<string | null>(null)
   const [azione, setAzione] = useState<Azione | null>(null)
   const [inCorso, setInCorso] = useState(false)
-  /**
-   * I lavori annullati non si vedono, finché non li si chiede. Il filtro lo
-   * applica il server, non un `filter` qui: così la risposta non porta righe
-   * che poi si buttano, e l'ordinamento — annullati in fondo — resta uno solo.
-   */
-  const [mostraAnnullati, setMostraAnnullati] = useState(false)
-  /**
-   * Ricerca e stato filtrano **in locale**, al contrario dell'interruttore
-   * degli annullati: quelli cambiano quali righe il server manda, questi solo
-   * quali di quelle già in mano si mostrano. Un giro di rete per nascondere
-   * delle righe che si hanno già è un giro di rete sprecato, e la ricerca
-   * reagirebbe a ogni lettera battuta.
-   */
-  const [cerca, setCerca] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('TUTTI')
 
   // Due permessi, due portate. `LAVORI_MODIFICA_TUTTI` annulla e cancella
@@ -65,10 +85,19 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
   const puoAnnullare = (riga: RigaLavoro) =>
     puoModificareTutti || (puoModificarePropri && riga.responsabileId === utente.id)
 
+  /**
+   * Si chiedono **sempre** anche gli annullati, e poi si filtra qui.
+   *
+   * Prima era un interruttore che rifaceva la richiesta: i chip devono poter
+   * scrivere accanto al proprio nome quanti lavori contengono, e un contatore
+   * non si può scrivere su righe che non si hanno. Gli annullati restano
+   * comunque fuori dalla vista di partenza — il loro chip compare solo se ce
+   * ne sono, e non è mai quello selezionato all'apertura.
+   */
   useEffect(() => {
     let annullato = false
 
-    elencoLavori(mostraAnnullati)
+    elencoLavori(true)
       .then((elenco) => {
         if (!annullato) {
           setRighe(elenco)
@@ -83,7 +112,7 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
     return () => {
       annullato = true
     }
-  }, [mostraAnnullati])
+  }, [])
 
   async function esegui(scelta: Azione) {
     setInCorso(true)
@@ -95,9 +124,7 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
         await eliminaLavoro(scelta.id)
       }
       // Ricarica dopo l'azione: lo stato è cambiato, o la riga non c'è più.
-      // Un lavoro appena annullato sparisce dall'elenco, a meno che
-      // l'interruttore non sia acceso: è esattamente l'effetto voluto.
-      setRighe(await elencoLavori(mostraAnnullati))
+      setRighe(await elencoLavori(true))
     } catch (motivo) {
       // Il caso tipico è il 409 su una bozza che ha delle task: il messaggio
       // arriva dal server e spiega di annullare invece di cancellare.
@@ -108,32 +135,40 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
     }
   }
 
-  const cercato = cerca.trim().toLowerCase()
-  const visibili = (righe ?? []).filter((riga) => {
-    if (filtro !== 'TUTTI' && riga.stato !== filtro) {
-      return false
-    }
-    if (cercato === '') {
-      return true
-    }
-    // Si cerca anche nella descrizione: il nome di un lavoro è spesso un
-    // codice interno, e la parola che si ricorda sta nel testo.
-    return (
-      riga.nome.toLowerCase().includes(cercato)
-      || riga.codice.toLowerCase().includes(cercato)
-      || (riga.descrizione ?? '').toLowerCase().includes(cercato)
-    )
-  })
+  const tutte = righe ?? []
+  const aperti = tutte.filter((riga) => !chiusoLavoro(riga.stato))
+  const chiusi = tutte.filter((riga) => riga.stato === 'COMPLETATO')
+  const annullati = tutte.filter((riga) => riga.stato === 'ANNULLATO')
 
-  function azzera() {
-    setCerca('')
-    setFiltro('TUTTI')
+  // «Tutti» non comprende gli annullati, ed è voluto: un lavoro che non si farà
+  // non è uno dei lavori. Si guarda dal suo chip, che compare solo se ce n'è
+  // almeno uno.
+  const vivi = tutte.filter((riga) => riga.stato !== 'ANNULLATO')
+  const gruppi: Record<Filtro, RigaLavoro[]> = {
+    TUTTI: vivi,
+    APERTI: aperti,
+    CHIUSI: chiusi,
+    ANNULLATI: annullati,
   }
+  const visibili = gruppi[filtro]
+
+  const chip: { valore: Filtro; nome: string }[] = [
+    { valore: 'TUTTI', nome: 'Tutti' },
+    { valore: 'APERTI', nome: 'In corso' },
+    { valore: 'CHIUSI', nome: 'Completati' },
+    ...(annullati.length > 0
+      ? [{ valore: 'ANNULLATI' as Filtro, nome: 'Annullati' }]
+      : []),
+  ]
 
   return (
     <main className="pagina-larga">
-      <div className="testata">
-        <h1>Lavori</h1>
+      {/* L'occhiello sopra il titolo: il design system intesta così ogni
+          schermata, e qui dice in che sezione si è entrati mentre il titolo
+          dice che cosa ci si trova. */}
+      <p className="occhiello">Lavori</p>
+      <div className="testata testata-lavori">
+        <h1>Lavori attivi</h1>
         {ha(utente, 'LAVORI_CREA') && (
           <Link to="/lavori/nuovo" className="azione">
             Nuovo lavoro
@@ -147,50 +182,24 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
         </p>
       )}
 
-      <div className="barra-lavori">
-        <div className="campo campo-cerca">
-          <label htmlFor="cerca-lavoro">Cerca</label>
-          <input
-            id="cerca-lavoro"
-            type="search"
-            placeholder="Nome, codice o descrizione"
-            value={cerca}
-            onChange={(evento) => setCerca(evento.target.value)}
-          />
+      {/* I chip con il loro contatore. Il numero accanto al nome non è
+          decorazione: dice quanto c'è dietro un filtro **prima** di premerlo,
+          e evita il giro «premo, è vuoto, torno indietro». */}
+      {righe !== null && righe.length > 0 && (
+        <div className="chip-filtri" role="group" aria-label="Filtra i lavori">
+          {chip.map((uno) => (
+            <button
+              key={uno.valore}
+              type="button"
+              className={filtro === uno.valore ? 'chip chip-scelto' : 'chip'}
+              aria-pressed={filtro === uno.valore}
+              onClick={() => setFiltro(uno.valore)}
+            >
+              {uno.nome} · {gruppi[uno.valore].length}
+            </button>
+          ))}
         </div>
-
-        <div className="campo">
-          <label htmlFor="stato-lavoro">Stato</label>
-          <select
-            id="stato-lavoro"
-            value={filtro}
-            onChange={(evento) => setFiltro(evento.target.value as Filtro)}
-          >
-            {FILTRI.map((uno) => (
-              <option key={uno} value={uno}>
-                {uno === 'TUTTI' ? 'Tutti' : ETICHETTA_LAVORO[uno]}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <label className="interruttore-annullati">
-          <input
-            type="checkbox"
-            checked={mostraAnnullati}
-            onChange={(evento) => {
-              // L'elenco si svuota qui e non dentro l'effetto: senza, si
-              // vedrebbe per un istante la lista vecchia come se fosse già
-              // filtrata. Azzerarlo nell'evento che lo causa evita il doppio
-              // render che un setState dentro l'effetto provocherebbe.
-              setRighe(null)
-              setErrore(null)
-              setMostraAnnullati(evento.target.checked)
-            }}
-          />
-          Mostra annullati
-        </label>
-      </div>
+      )}
 
       {errore === null && righe === null && (
         <p className="sommario" role="status">
@@ -203,12 +212,12 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
       )}
 
       {/* Nessun risultato è una cosa diversa da nessun lavoro: qui c'è un
-          rimedio da offrire, perché è un filtro acceso a nascondere tutto. */}
+          rimedio da offrire, perché è un chip a nascondere tutto. */}
       {righe !== null && righe.length > 0 && visibili.length === 0 && (
         <p className="sommario">
-          Nessun lavoro con questi filtri.{' '}
-          <button type="button" className="minuscolo" onClick={azzera}>
-            Azzera filtri
+          Nessun lavoro in questo gruppo.{' '}
+          <button type="button" className="minuscolo" onClick={() => setFiltro('TUTTI')}>
+            Mostra tutti
           </button>
         </p>
       )}
@@ -235,8 +244,14 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
 }
 
 /**
- * Un lavoro come scheda: nome, descrizione e stato, che è quello che serve a
- * scegliere dove entrare.
+ * Un lavoro come scheda, nella forma del design system: in alto codice e
+ * stato, poi il nome, poi **i tre numeri che fanno decidere dove entrare** —
+ * a che punto sono le task, quante ore restano, quando scade.
+ *
+ * Prima al loro posto c'era la descrizione del lavoro. Una descrizione su una
+ * scheda si legge una volta sola, la prima: dalla seconda in poi chi guarda
+ * l'elenco sta cercando un lavoro che ha bisogno di lui, e per quello servono
+ * dei numeri.
  *
  * **L'intera scheda è un collegamento vero**, non un `onClick` su un `div`: il
  * nome è dentro un `<a>` che si allarga a coprire la scheda con un `::after`,
@@ -273,6 +288,21 @@ function CardLavoro({
   // messaggio spiega di annullarla.
   const annullabile = !chiusoLavoro(riga.stato) && puoAnnullare
   const eliminabile = riga.stato === 'BOZZA' && puoEliminare
+  const chiuso = chiusoLavoro(riga.stato)
+
+  const quota = avanzamento(riga)
+  const rimaste = oreRimaste(riga)
+
+  // Le ore rimaste diventano corallo quando sono poche: sotto un decimo del
+  // monte ore. È l'unico colore acceso della scheda, e sta sul solo numero
+  // che chiede di fare qualcosa — su un lavoro chiuso non chiede niente, e
+  // resta inchiostro.
+  const poche =
+    !chiuso
+    && rimaste !== null
+    && riga.monteOre !== null
+    && riga.monteOre > 0
+    && rimaste <= riga.monteOre / 10
 
   return (
     <article
@@ -281,7 +311,10 @@ function CardLavoro({
       }
     >
       <div className="card-lavoro-capo">
-        <span className="card-lavoro-codice">{riga.codice}</span>
+        <span className="card-lavoro-codice">
+          {riga.codice}
+          {riga.responsabile !== null && ` · ${riga.responsabile}`}
+        </span>
         <Pillola tinta={tinta(riga.stato)}>{ETICHETTA_LAVORO[riga.stato]}</Pillola>
       </div>
 
@@ -289,21 +322,44 @@ function CardLavoro({
         <Link to={`/lavori/${riga.id}`}>{riga.nome}</Link>
       </h2>
 
-      {/* Una descrizione che manca si dice: uno spazio vuoto farebbe pensare
-          che la scheda non si sia caricata del tutto. */}
-      <p
-        className={
-          riga.descrizione === null
-            ? 'card-lavoro-descrizione card-lavoro-senza'
-            : 'card-lavoro-descrizione'
-        }
-      >
-        {riga.descrizione ?? 'Nessuna descrizione.'}
-      </p>
+      {/* L'avanzamento: la frase a sinistra, la percentuale a destra, la barra
+          sotto. La frase e la barra dicono la stessa cosa in due modi, e non è
+          una ripetizione: la barra si legge a colpo d'occhio su quattro schede
+          in fila, la frase dice su quante task è calcolata. */}
+      <div className="card-lavoro-avanzamento">
+        <div className="card-lavoro-riga">
+          <span className="nota nota-piena">
+            {riga.taskTotali === 0
+              ? 'Nessuna task'
+              : `${riga.taskCompletate} di ${riga.taskTotali} task completate`}
+          </span>
+          <span className="card-lavoro-quota">{quota === null ? '—' : `${quota}%`}</span>
+        </div>
+        <Barra quota={quota ?? 0} completo={quota === 100} />
+      </div>
 
       <div className="card-lavoro-piede">
-        <span className="nota">{riga.responsabile ?? 'Da assegnare'}</span>
-        <span className="nota">entro {data(riga.dataFinePrevista)}</span>
+        <div className="card-lavoro-colonna">
+          <span className="card-lavoro-etichetta">Ore rimaste</span>
+          <span className={poche ? 'card-lavoro-ore card-lavoro-poche' : 'card-lavoro-ore'}>
+            {rimaste === null ? '—' : ore(rimaste)}
+          </span>
+        </div>
+
+        <div className="card-lavoro-colonna card-lavoro-colonna-destra">
+          <span className="nota">
+            {chiuso ? 'Chiuso' : `Scade ${scadenza(riga.dataFinePrevista)}`}
+          </span>
+          {/* Le priorità alte si scrivono solo dove ce ne sono: uno «0» su
+              ogni scheda sarebbe rumore, e la sua assenza dice già la stessa
+              cosa. Su un lavoro chiuso non si scrivono affatto — le sue task
+              aperte, se ce ne fossero, non sono più un problema di oggi. */}
+          {!chiuso && riga.taskUrgenti > 0 && (
+            <span className="segnale-urgenza">
+              {riga.taskUrgenti === 1 ? '1 priorità alta' : `${riga.taskUrgenti} priorità alte`}
+            </span>
+          )}
+        </div>
       </div>
 
       {(annullabile || eliminabile || azione !== null) && (
@@ -353,5 +409,29 @@ function CardLavoro({
         </div>
       )}
     </article>
+  )
+}
+
+/**
+ * La barra di avanzamento di una scheda.
+ *
+ * `role="progressbar"` con i suoi valori, non un `div` colorato: la
+ * percentuale accanto si legge, la barra no, e senza i ruoli chi usa un
+ * lettore di schermo sentirebbe soltanto che lì c'è qualcosa.
+ */
+function Barra({ quota, completo }: { quota: number; completo: boolean }) {
+  return (
+    <div
+      className="barra-avanzamento"
+      role="progressbar"
+      aria-valuenow={quota}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <span
+        className={completo ? 'barra-piena barra-completa' : 'barra-piena'}
+        style={{ width: `${quota}%` }}
+      />
+    </div>
   )
 }

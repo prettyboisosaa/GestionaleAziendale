@@ -10,6 +10,7 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractAuthenticationFilterConfigurer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -43,6 +44,30 @@ import org.springframework.security.web.context.SecurityContextRepository;
 @EnableMethodSecurity
 public class ConfigurazioneSicurezza {
 
+    /**
+     * Le rotte di Swagger, aperte a chi non ha fatto l'accesso.
+     *
+     * <p>Sono tre e servono tutte e tre: {@code /v3/api-docs/**} e' il
+     * documento OpenAPI (il pattern copre anche {@code /v3/api-docs} nudo e
+     * {@code /v3/api-docs/swagger-config}, che la pagina chiede per prima),
+     * {@code /swagger-ui/**} sono i file della pagina che lo sfoglia, e
+     * {@code /swagger-ui.html} e' l'indirizzo che si digita, che reindirizza
+     * dentro la cartella. Lasciarne fuori una qualunque si vede allo stesso
+     * modo: la pagina si apre bianca o resta a «caricamento».
+     *
+     * <p>⚠️ Aperte **senza autenticazione**, ed e' una scelta da rivedere
+     * prima di esporre il gestionale fuori dalla rete aziendale: l'elenco
+     * completo delle rotte, dei corpi accettati e dei codici d'errore e' la
+     * mappa di come attaccarlo. In produzione conviene o spegnere springdoc
+     * con {@code springdoc.api-docs.enabled=false}, o chiedere qui un
+     * permesso invece di {@code permitAll()}.
+     */
+    private static final String[] SWAGGER = {
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+    };
+
     @Bean
     SecurityFilterChain catenaFiltri(HttpSecurity http,
                                      SecurityContextRepository contestoSicurezza,
@@ -65,6 +90,13 @@ public class ConfigurazioneSicurezza {
                 .authorizeHttpRequests(richieste -> richieste
                         .requestMatchers(HttpMethod.POST, "/api/autenticazione/login").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // La documentazione dell'API e la pagina che la
+                        // sfoglia. Le tre rotte stanno **prima** di
+                        // anyRequest() e non dopo: le regole si valutano
+                        // nell'ordine in cui sono scritte, e anyRequest()
+                        // prende tutto quello che arriva fin li' — una
+                        // permitAll() scritta sotto non verrebbe mai letta.
+                        .requestMatchers(SWAGGER).permitAll()
                         .anyRequest().authenticated())
                 // Rilegge utente e permessi dal database. Va dopo il filtro
                 // che carica il contesto dalla sessione e prima di quello che

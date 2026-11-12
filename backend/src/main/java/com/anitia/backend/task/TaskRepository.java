@@ -326,6 +326,136 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
             nativeQuery = true)
     List<OrePerTask> sommaMieOrePerTask(@Param("utenteId") Long utenteId);
 
+    /**
+     * I conteggi di task che l'elenco dei lavori mostra su ogni scheda, per
+     * tutti i lavori in una volta.
+     *
+     * <p>Una query per l'intero elenco e non una per scheda: è la stessa
+     * ragione per cui esistono le varianti «PerLavoro» delle somme di ore, e
+     * con {@code open-in-view} disattivato una scheda che se li calcolasse da
+     * sé costerebbe un'interrogazione a testa.
+     *
+     * <p><strong>Non sono i conti di {@link #contiAvanzamento}.</strong> Là si
+     * misura come procede un lavoro aperto davanti a chi lo dirige; qui
+     * servono i quattro numeri che si leggono su una scheda in mezzo ad altre:
+     * quante task ci sono, quante sono chiuse, quante urgenti e quante in
+     * ritardo restano da fare. Le annullate non contano da nessuna parte: una
+     * task che non si farà non è né fatta né da fare.
+     *
+     * <p>Il ritardo si misura sulla data di oggi, con {@code CURRENT_DATE} e
+     * non con un parametro: è una fotografia del momento in cui si guarda
+     * l'elenco, non di un istante che il chiamante sceglie.
+     *
+     * <p>⚠️ {@code IN} con una collezione vuota non è SQL valido: chi chiama
+     * si ferma prima, come fa {@code ServizioLavori.conOre}.
+     */
+    @Query(value = "SELECT t.lavoro_id AS lavoroId, "
+                 + "  SUM(t.stato <> 'ANNULLATO') AS totali, "
+                 + "  SUM(t.stato = 'COMPLETATO') AS completate, "
+                 + "  SUM(t.stato IN ('ATTIVO', 'IN_CORSO') "
+                 + "      AND t.urgenza_task IN ('HIGH', 'CRITICAL')) AS urgenti, "
+                 + "  SUM(t.stato IN ('ATTIVO', 'IN_CORSO') "
+                 + "      AND t.scadenza < CURRENT_DATE) AS inRitardo "
+                 + "FROM task t WHERE t.lavoro_id IN (:lavoroId) GROUP BY t.lavoro_id",
+            nativeQuery = true)
+    List<ContiTask> contiTaskPerLavoro(@Param("lavoroId") Collection<Long> lavoroId);
+
+    /**
+     * Le ore registrate su un lavoro, <strong>settimana per settimana</strong>.
+     *
+     * <p>È la serie da cui nasce il grafico dell'andamento: il totale da solo
+     * dice quanto si è speso, non quando — e il «quando» è l'unica cosa che
+     * permette di accorgersi in anticipo che il lavoro sta consumando più in
+     * fretta di quanto il piano preveda.
+     *
+     * <p>La settimana comincia di lunedì: {@code WEEKDAY} vale 0 il lunedì
+     * indipendentemente dalle impostazioni locali del server, al contrario di
+     * {@code DAYOFWEEK} — che parte dalla domenica — e di {@code YEARWEEK},
+     * che risponde con un numero da cui non si ricava una data da scrivere su
+     * un asse.
+     *
+     * <p>Si raggruppa sulla data di <em>avvio</em> della sessione: una
+     * sessione sta dentro un giorno solo (lo garantisce chi la chiude), quindi
+     * non c'è niente da spalmare su due settimane.
+     *
+     * <p>Stessi filtri delle altre somme — chiuse e non annullate — e stessa
+     * divisione per 60 fatta sulla somma dei minuti e non riga per riga.
+     */
+    @Query(value = "SELECT DATE_FORMAT(DATE_SUB(DATE(s.avviata_il), "
+                 + "         INTERVAL WEEKDAY(s.avviata_il) DAY), '%Y-%m-%d') AS inizio, "
+                 + "       ROUND(COALESCE(SUM(s.minuti), 0) / 60, 2) AS ore "
+                 + "FROM sessione_task s JOIN task t ON t.id = s.task_id "
+                 + "WHERE t.lavoro_id = :lavoroId "
+                 + "AND s.chiusa_il IS NOT NULL AND s.annullata_il IS NULL "
+                 + "GROUP BY inizio ORDER BY inizio",
+            nativeQuery = true)
+    List<OrePerSettimana> oreDelLavoroPerSettimana(@Param("lavoroId") Long lavoroId);
+
+    /**
+     * Quante task si sono chiuse in ciascuna settimana: il ritmo di chiusura.
+     *
+     * <p>Le task completate prima della {@code V21} non hanno una data di
+     * completamento e restano fuori, come in {@code consegneInTempo}: senza
+     * quella data non si sa in quale settimana collocarle, e metterle tutte
+     * nella prima inventerebbe un picco che non c'è stato.
+     */
+    @Query(value = "SELECT DATE_FORMAT(DATE_SUB(DATE(t.completato_il), "
+                 + "         INTERVAL WEEKDAY(t.completato_il) DAY), '%Y-%m-%d') AS inizio, "
+                 + "       COUNT(*) AS quante "
+                 + "FROM task t "
+                 + "WHERE t.lavoro_id = :lavoroId AND t.completato_il IS NOT NULL "
+                 + "GROUP BY inizio ORDER BY inizio",
+            nativeQuery = true)
+    List<TaskPerSettimana> taskChiusePerSettimana(@Param("lavoroId") Long lavoroId);
+
+    /**
+     * Una riga di {@link #contiTaskPerLavoro(Collection)}.
+     *
+     * <p>Tutti {@code Long} e non {@code long} per la stessa ragione di
+     * {@link ContiAvanzamento}: una {@code SUM} senza righe risponde
+     * {@code NULL}.
+     */
+    interface ContiTask {
+        Long getLavoroId();
+
+        /** Le task non annullate. */
+        Long getTotali();
+
+        Long getCompletate();
+
+        /** Le task ancora aperte di urgenza alta o critica. */
+        Long getUrgenti();
+
+        /** Le task ancora aperte la cui scadenza è passata. */
+        Long getInRitardo();
+    }
+
+    /**
+     * Una riga di {@link #oreDelLavoroPerSettimana(Long)}.
+     *
+     * <p>Il lunedì arriva come <strong>stringa</strong> ISO e non come
+     * {@code LocalDate}, ed è il motivo del {@code DATE_FORMAT} nella query.
+     * In una proiezione su query nativa il valore passa per il
+     * {@code ConversionService}, e la conversione da {@code java.sql.Date} a
+     * {@code LocalDate} dipende da quale tipo restituisce il driver: una
+     * stringa ISO non dipende da niente, e chi la riceve la trasforma in una
+     * data con {@code LocalDate.parse}.
+     */
+    interface OrePerSettimana {
+        /** Il lunedì della settimana, in ISO: «2026-11-09». */
+        String getInizio();
+
+        BigDecimal getOre();
+    }
+
+    /** Una riga di {@link #taskChiusePerSettimana(Long)}. */
+    interface TaskPerSettimana {
+        /** Il lunedì della settimana, in ISO. */
+        String getInizio();
+
+        Long getQuante();
+    }
+
     /** Una riga delle somme raggruppate per lavoro. */
     interface OrePerLavoro {
         Long getLavoroId();

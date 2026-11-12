@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { miaDashboard } from './api'
 import type { MiaTask, RiepilogoDashboard } from './api'
 import { ETICHETTA_ATTIVITA, avvia, completa, conferma, durata, pausa } from '../tempo/api'
@@ -10,10 +10,47 @@ import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
 import { apertaTask } from '../stato/stati'
 import { breve, dataDiOggi, saluto } from './orario'
+import { MINUTI_PREVISTI, ORE_PREVISTE } from '../tempo/orario'
+import type { ManicoSettimana } from '../tempo/CalendarioSettimanale'
 import PannelloFatto from './PannelloFatto'
 import PannelloMieTask from './PannelloMieTask'
 import type { Filtro } from './PannelloMieTask'
 import PannelloMieRichieste, { PannelloDaApprovare } from './PannelloRichieste'
+
+/**
+ * «Registrate 5h 30m», la pillola bianca in testata.
+ *
+ * È il contatore che stava nelle azioni del pannello del calendario. Il design
+ * system lo mette accanto al saluto, e ha ragione: dice se c'è ancora
+ * qualcosa da scrivere prima di andare a casa, ed è la prima cosa che si
+ * guarda entrando — non una proprietà di un riquadro fra i quattro.
+ *
+ * Conta i minuti **chiusi** di oggi, che sono quelli che il server dichiara
+ * registrati. La sessione che sta scorrendo adesso non entra nel numero —
+ * crescerebbe mentre si guarda, e il contatore direbbe una cosa diversa a
+ * ogni ridisegno — ma la sua presenza si dice accanto: senza, a chi ha il
+ * timer avviato il totale sembrerebbe fermo per sbaglio.
+ *
+ * Verde solo da giornata piena: un contatore che si colora a metà strada
+ * smette di dire «fatto» e comincia a dire «stai andando», che è una cosa che
+ * il numero già dice da sé.
+ */
+function OreDiOggi({ tempo }: { tempo: SituazioneTempo }) {
+  const completa = tempo.minutiOggi >= MINUTI_PREVISTI
+
+  return (
+    <span className={completa ? 'ore-di-oggi completa' : 'ore-di-oggi'}>
+      <span className="nota">Registrate</span>
+      <strong>{durata(tempo.minutiOggi)}</strong>
+      <span className="nota">/ {ORE_PREVISTE}h</span>
+      {tempo.inCorso !== null && (
+        <span className="nota" title="Più la sessione che sta scorrendo adesso">
+          +
+        </span>
+      )}
+    </span>
+  )
+}
 
 /**
  * La giornata, su una schermata sola.
@@ -44,6 +81,15 @@ export default function PaginaDashboard({
   tempo: SituazioneTempo | null
   onTempo: (situazione: SituazioneTempo) => void
 }) {
+  /**
+   * Il manico della griglia settimanale, per il pulsante «Registra ore».
+   *
+   * Il design system mette quel pulsante **in testata alla pagina**, lontano
+   * dal calendario che apre. Un ref invece di sollevare qui lo stato del
+   * pannello: aprire una registrazione è un fatto della griglia, e questa
+   * pagina non deve sapere com'è fatto.
+   */
+  const settimana = useRef<ManicoSettimana>(null)
   const [riepilogo, setRiepilogo] = useState<RiepilogoDashboard | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [erroreTask, setErroreTask] = useState<string | null>(null)
@@ -183,9 +229,26 @@ export default function PaginaDashboard({
 
   return (
     <main className="pagina-dashboard">
-      <div className="testata">
-        <h1>{saluto(utente.nome)}</h1>
-        <span className="nota">{dataDiOggi()}</span>
+      {/* La data **sopra** il saluto, non accanto: è il modo in cui il design
+          system apre ogni schermata, e mette il nome dove l'occhio cade. A
+          destra le due cose che riguardano adesso — quante ore si sono
+          registrate oggi, e il gesto per registrarne altre. */}
+      <div className="testata testata-dashboard">
+        <div>
+          <span className="nota testata-data">{dataDiOggi()}</span>
+          <h1>{saluto(utente.nome)}</h1>
+        </div>
+
+        <div className="testata-azioni">
+          {tempo !== null && <OreDiOggi tempo={tempo} />}
+          <button
+            type="button"
+            className="azione-piena"
+            onClick={() => settimana.current?.nuovaRegistrazione()}
+          >
+            + Registra ore
+          </button>
+        </div>
       </div>
 
       {errore !== null && (
@@ -249,6 +312,7 @@ export default function PaginaDashboard({
       <div className="griglia-dashboard">
         <div className="colonna-calendari">
           <PannelloFatto
+            manico={settimana}
             tempo={tempo}
             // Le task su cui si può scrivere sono quelle a cui si è assegnati
             // e ancora aperte: il riepilogo le ha già, e non serve una rotta

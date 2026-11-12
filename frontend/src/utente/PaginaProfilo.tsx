@@ -11,26 +11,91 @@ import { codice, senzaCodice } from '../api/http'
  * Non è `/utenti/:id`, che è l'amministrazione delle persone e chiede
  * `UTENTI_VISUALIZZA`: qui non serve nessun permesso, perché cambiarsi la
  * password è parte dell'avere un accesso e non una cosa che si concede.
+ *
+ * **Due schede affiancate**: a sinistra quello che si è, a destra l'unica cosa
+ * che si può cambiare. È la divisione che il design system fa di questa
+ * pagina, e dice da sé una cosa che altrimenti andrebbe scritta: i dati del
+ * profilo non si toccano da qui.
  */
 export default function PaginaProfilo({ utente }: { utente: UtenteCorrente }) {
   return (
-    <main className="pagina-larga pagina-modulo">
-      <div className="testata">
-        <h1>Il mio profilo</h1>
+    <main className="pagina-larga">
+      <p className="occhiello">Account</p>
+      <div className="testata testata-profilo">
+        <h1>Impostazioni utente</h1>
       </div>
 
-      <section className="scheda-profilo">
-        <div className="testata">
-          <h2>
-            {utente.nome} {utente.cognome}
-          </h2>
-          <span className="nota">{utente.email}</span>
-        </div>
-      </section>
-
-      <CambioPassword />
+      <div className="griglia-profilo">
+        <SchedaIdentita utente={utente} />
+        <CambioPassword />
+      </div>
     </main>
   )
+}
+
+/** Chi si è: la scheda di sola lettura, a sinistra. */
+function SchedaIdentita({ utente }: { utente: UtenteCorrente }) {
+  return (
+    <section className="scheda-profilo">
+      <div className="profilo-capo">
+        <span className="profilo-gettone" aria-hidden="true">
+          {utente.nome.charAt(0)}
+          {utente.cognome.charAt(0)}
+        </span>
+        <span className="profilo-capo-testo">
+          <span className="profilo-nome">
+            {utente.nome} {utente.cognome}
+          </span>
+          <span className="nota">{ruolo(utente)}</span>
+        </span>
+      </div>
+
+      <dl className="elenco-dati">
+        <Dato nome="Nome" valore={utente.nome} />
+        <Dato nome="Cognome" valore={utente.cognome} />
+        <Dato nome="Email" valore={utente.email} />
+        {/* Reparto e ultimo accesso non esistono sul server: la riga c'è
+            perché il disegno la prevede, e il trattino dice che il dato manca
+            invece di inventarlo. */}
+        <Dato nome="Reparto" valore="—" />
+        <Dato nome="Ultimo accesso" valore="—" />
+      </dl>
+
+      {/* La frase che spiega perché nessuno di quei campi è un campo: i dati
+          anagrafici li tiene l'amministratore, e cercare un pulsante «modifica»
+          che non c'è è peggio che leggerlo scritto. */}
+      <p className="nota">I dati del profilo sono gestiti dall'amministratore.</p>
+    </section>
+  )
+}
+
+/** Una riga dell'anagrafica: nome a sinistra, valore a destra. */
+function Dato({ nome, valore }: { nome: string; valore: string }) {
+  return (
+    <div className="riga-dato">
+      <dt>{nome}</dt>
+      <dd>{valore}</dd>
+    </div>
+  )
+}
+
+/**
+ * Come si chiama il livello di chi guarda.
+ *
+ * **Si ricava dai permessi**, perché il server non manda un nome di ruolo
+ * insieme all'utente collegato: manda l'elenco di quello che quella persona
+ * può fare. Sono le due caselle che distinguono davvero i tre livelli — chi
+ * crea utenze amministra, chi crea lavori li dirige — e il ripiego è il
+ * livello più basso, che è anche quello giusto quando non si sa.
+ */
+function ruolo(utente: UtenteCorrente): string {
+  if (utente.permessi.includes('UTENTI_CREA') || utente.permessi.includes('RUOLI_ASSEGNA')) {
+    return 'Amministratore'
+  }
+  if (utente.permessi.includes('LAVORI_CREA')) {
+    return 'Responsabile'
+  }
+  return 'Dipendente'
 }
 
 /**
@@ -64,11 +129,42 @@ function CambioPassword() {
 
   const coincidono = nuova !== '' && nuova === conferma
   /**
+   * Il quarto requisito non sta in `regolePassword`, e non è una
+   * dimenticanza: quello è l'elenco di che cos'è una password valida, e una
+   * password uguale alla precedente è valida — semplicemente non è un
+   * cambio. Il server la rifiuta con `SAME_PASSWORD`, e qui lo si dice prima.
+   */
+  const diversa = nuova !== '' && nuova !== attuale
+  const requisiti = [
+    ...REQUISITI.map((requisito) => ({
+      id: requisito.id,
+      etichetta: requisito.etichetta,
+      soddisfatto: requisito.soddisfatto(nuova),
+    })),
+    {
+      id: 'diversa',
+      etichetta: 'Diversa dalla password attuale',
+      soddisfatto: diversa,
+    },
+  ]
+
+  const forza = requisiti.filter((requisito) => requisito.soddisfatto).length
+
+  /**
    * Il pulsante resta spento finché il modulo non sta in piedi: chiedere al
    * server di rifiutare una password di quattro lettere è un giro di rete per
    * sapere una cosa che si vede guardando il campo.
    */
-  const puoInviare = attuale !== '' && passwordValida(nuova) && coincidono
+  const puoInviare = attuale !== '' && passwordValida(nuova) && diversa && coincidono
+
+  function svuota() {
+    setAttuale('')
+    setNuova('')
+    setConferma('')
+    setErroreAttuale(null)
+    setErroreNuova(null)
+    setErrore(null)
+  }
 
   async function invia(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
@@ -116,11 +212,10 @@ function CambioPassword() {
 
   return (
     <section className="scheda-profilo">
-      <div className="testata">
-        <h2>Cambia password</h2>
-      </div>
+      <h2 className="profilo-titolo">Cambia password</h2>
+      <p className="nota">Usa una password che non usi altrove.</p>
 
-      <form className="modulo" onSubmit={invia}>
+      <form className="modulo modulo-password" onSubmit={invia}>
         <CampoPassword
           id="password-attuale"
           etichetta="Password attuale"
@@ -139,26 +234,22 @@ function CambioPassword() {
           autoComplete="new-password"
         />
 
-        {/* La spunta si aggiorna mentre si scrive, e c'e' sempre: comparire
-            solo quando qualcosa manca direbbe le regole dopo che si e' gia'
-            sbagliato. */}
-        <ul className="requisiti">
-          {REQUISITI.map((requisito) => {
-            const soddisfatto = requisito.soddisfatto(nuova)
-            return (
-              <li
-                key={requisito.id}
-                className={soddisfatto ? 'requisito-ok' : undefined}
-              >
-                {/* Il segno e' decorativo: quello che conta lo dice il testo,
-                    e un lettore di schermo che legge «spunta» a ogni riga
-                    aggiunge rumore, non informazione. */}
-                <span aria-hidden="true">{soddisfatto ? '✓' : '○'}</span>
-                {requisito.etichetta}
-              </li>
-            )
-          })}
-        </ul>
+        {/* La misura della forza: quattro tacche, una per requisito
+            soddisfatto. Non è un punteggio inventato da un algoritmo — è il
+            conto delle stesse regole scritte qui sotto, e per questo la
+            tacca che si accende corrisponde sempre a una riga che diventa
+            verde. */}
+        <div className="forza-password">
+          <div className="tacche" role="presentation">
+            {[1, 2, 3, 4].map((tacca) => (
+              <span
+                key={tacca}
+                className={tacca <= forza ? `tacca tacca-${forza}` : 'tacca'}
+              />
+            ))}
+          </div>
+          <p className="nota">{descrizioneForza(nuova, forza)}</p>
+        </div>
 
         <CampoPassword
           id="password-conferma"
@@ -174,6 +265,26 @@ function CambioPassword() {
           autoComplete="new-password"
         />
 
+        {/* La spunta si aggiorna mentre si scrive, e c'e' sempre: comparire
+            solo quando qualcosa manca direbbe le regole dopo che si e' gia'
+            sbagliato. */}
+        <ul className="requisiti">
+          {requisiti.map((requisito) => (
+            <li
+              key={requisito.id}
+              className={requisito.soddisfatto ? 'requisito-ok' : undefined}
+            >
+              {/* Il segno e' decorativo: quello che conta lo dice il testo,
+                  e un lettore di schermo che legge «spunta» a ogni riga
+                  aggiunge rumore, non informazione. */}
+              <span className="requisito-segno" aria-hidden="true">
+                {requisito.soddisfatto ? '✓' : '·'}
+              </span>
+              {requisito.etichetta}
+            </li>
+          ))}
+        </ul>
+
         {errore !== null && (
           <p className="errore" role="alert">
             {errore}
@@ -187,9 +298,15 @@ function CambioPassword() {
           </p>
         )}
 
-        <div className="azioni">
+        <div className="azioni azioni-password">
+          {/* «Annulla» non naviga da nessuna parte: svuota i tre campi. In una
+              pagina che non ha altro da fare, uscire dal modulo vuol dire
+              lasciarlo come lo si è trovato. */}
+          <button type="button" className="secondario" onClick={svuota} disabled={inCorso}>
+            Annulla
+          </button>
           <button type="submit" disabled={!puoInviare || inCorso}>
-            {inCorso ? 'Salvo…' : 'Cambia password'}
+            {inCorso ? 'Salvo…' : 'Aggiorna password'}
           </button>
         </div>
       </form>
@@ -197,16 +314,29 @@ function CambioPassword() {
   )
 }
 
+/** Che cosa dice la riga sotto le tacche, a seconda di quanto manca. */
+function descrizioneForza(nuova: string, forza: number): string {
+  if (nuova === '') {
+    return 'Inserisci una nuova password'
+  }
+  if (forza <= 1) {
+    return 'Troppo debole'
+  }
+  if (forza === 2) {
+    return 'Ancora debole'
+  }
+  if (forza === 3) {
+    return 'Quasi: manca un requisito'
+  }
+  return 'Va bene'
+}
+
 /**
- * Un campo password con il suo interruttore mostra/nascondi e il suo errore.
+ * Un campo password con il suo errore sotto.
  *
  * Un componente e non tre blocchi copiati: sono tre campi identici in tutto
- * tranne l'etichetta, e tre copie dello stesso `useState` per il mostra sono
- * tre occasioni di dimenticarne una.
- *
- * L'interruttore serve perché una password che non si vede si sbaglia, e qui
- * si sbaglia tre volte: chi la batte male in «nuova» e bene in «conferma»
- * cambia la password in una cosa che non sa di aver scritto.
+ * tranne l'etichetta, e tre copie dello stesso markup sono tre occasioni di
+ * cambiarne due su tre.
  */
 function CampoPassword({
   id,
@@ -223,31 +353,18 @@ function CampoPassword({
   errore: string | null
   autoComplete: string
 }) {
-  const [visibile, setVisibile] = useState(false)
-
   return (
     <div className="campo">
       <label htmlFor={id}>{etichetta}</label>
-      <div className="campo-con-azione">
-        <input
-          id={id}
-          type={visibile ? 'text' : 'password'}
-          value={valore}
-          onChange={(evento) => onCambia(evento.target.value)}
-          autoComplete={autoComplete}
-          required
-        />
-        <button
-          type="button"
-          className="minuscolo"
-          // Il nome del pulsante dice che cosa fara', non lo stato in cui si
-          // trova: e' quello che serve a chi lo preme.
-          aria-label={visibile ? `Nascondi ${etichetta}` : `Mostra ${etichetta}`}
-          onClick={() => setVisibile((prima) => !prima)}
-        >
-          {visibile ? 'Nascondi' : 'Mostra'}
-        </button>
-      </div>
+      <input
+        id={id}
+        type="password"
+        className="campo-password"
+        value={valore}
+        onChange={(evento) => onCambia(evento.target.value)}
+        autoComplete={autoComplete}
+        required
+      />
       {errore !== null && (
         <p className="errore" role="alert">
           {errore}

@@ -119,7 +119,10 @@ export default function CalendarioAssenze() {
         // nell'elenco qui sopra, dove ci sono la nota e il motivo — approvare
         // da un rettangolo che non li mostra vorrebbe dire decidere senza
         // leggere.
-        height="100%"
+        // Come la settimana: niente altezza imposta, niente scorrimento
+        // interno. Un mese ha cinque o sei righe di celle, e quante siano lo
+        // sa il calendario — non una misura scritta qui.
+        height="auto"
         events={eventi}
         datesSet={periodoCambiato}
         // Un giorno con mezza azienda in ferie non deve diventare una colonna

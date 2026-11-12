@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import type { MiaTask, ContatoriDashboard } from './api'
 import { scadenzaBreve } from './orario'
 import Pannello from '../componenti/Pannello'
-import { Punto } from '../componenti/Stato'
+import { Pillola } from '../componenti/Stato'
 import { TINTA_URGENZA, ETICHETTA_URGENZA } from '../task/api'
 import type { UrgenzaTask } from '../task/api'
 import { apertaTask } from '../stato/stati'
@@ -88,11 +88,35 @@ export default function PannelloMieTask({
   const visibili = ordinate.slice(0, RIGHE)
   const nascoste = ordinate.length - visibili.length
 
+  /**
+   * «4 di 5 fatte», con la barra sotto il titolo.
+   *
+   * Si conta su `task`, cioè su quello che il pannello ha davvero in mano
+   * dopo il filtro, e non su tutte le task dell'utente: un avanzamento che
+   * parlasse di righe non mostrate sarebbe un numero che non torna con
+   * l'elenco sotto, e chi legge crederebbe all'elenco.
+   *
+   * ⚠️ Con il filtro «completate» spento le chiuse non arrivano fin qui, e la
+   * frazione resta 0 di N. È giusto così: dice «di quelle che vedi, nessuna è
+   * fatta», che è quello che si vede.
+   */
+  const fatte = ordinate.filter((una) => !apertaTask(una.stato)).length
+  const quota = ordinate.length === 0 ? 0 : fatte / ordinate.length
+
   return (
     <Pannello
       titolo="Le mie task"
       sottotitolo="per priorità e scadenza"
-      azioni={<Link to="/lavori">Vedi tutte</Link>}
+      azioni={
+        <>
+          {ordinate.length > 0 && (
+            <span className="nota">
+              {fatte} di {ordinate.length} fatte
+            </span>
+          )}
+          <Link to="/lavori">Vedi tutte</Link>
+        </>
+      }
       carico={carico}
       errore={errore}
       vuoto={
@@ -104,27 +128,52 @@ export default function PannelloMieTask({
       }
       classe="pannello-task"
     >
+      {/* La barra di avanzamento sotto il titolo, in acqua: è il primo
+          elemento del pannello nel design system, e dice in un colpo d'occhio
+          quello che la frazione dice in cifre. Larghezza dal rapporto grezzo,
+          non dalla percentuale arrotondata. */}
+      {ordinate.length > 0 && (
+        <div
+          className="avanzamento-task"
+          role="img"
+          aria-label={`${fatte} task fatte su ${ordinate.length}`}
+        >
+          <span style={{ width: `${quota * 100}%` }} />
+        </div>
+      )}
+
       {contatori !== null && (
         <Contatori filtro={filtro} contatori={contatori} onFiltro={onFiltro} />
       )}
 
       <ul className="righe-task">
         {visibili.map((una) => (
-          <li key={una.taskId} className="riga-task">
+          <li
+            key={una.taskId}
+            className={
+              apertaTask(una.stato) ? 'riga-task' : 'riga-task riga-task-fatta'
+            }
+          >
             <div className="riga-task-capo">
-              {/* Il punto dice l'urgenza, e l'etichetta che porta dentro la
-                  rende leggibile a chi non distingue i colori. Dove l'urgenza
-                  manca non si disegna niente: un punto grigio direbbe «bassa»,
-                  che è una cosa che nessuno ha deciso. */}
-              {una.urgenzaTask !== null && (
-                <Punto
-                  tinta={TINTA_URGENZA[una.urgenzaTask]}
-                  titolo={`Urgenza ${ETICHETTA_URGENZA[una.urgenzaTask].toLowerCase()}`}
-                />
-              )}
               <Link to={`/lavori/${una.lavoroId}`} className="riga-task-titolo">
                 {una.titolo}
               </Link>
+
+              {/* La pillola dell'urgenza a destra, come nel design system: al
+                  posto del punto colorato, che diceva la stessa cosa senza
+                  scriverla. Dove l'urgenza manca non si disegna niente — una
+                  pillola grigia direbbe «bassa», che nessuno ha deciso. */}
+              {una.urgenzaTask !== null && (
+                <Pillola tinta={TINTA_URGENZA[una.urgenzaTask]}>
+                  {ETICHETTA_URGENZA[una.urgenzaTask]}
+                </Pillola>
+              )}
+            </div>
+
+            {/* Scadenza e lavoro su una riga sola, tenue: nel mock sotto il
+                titolo c'è **una** riga di contesto, non due informazioni che
+                si contendono l'attenzione con il titolo stesso. */}
+            <div className="riga-task-sotto">
               <span
                 className={
                   una.giorniAllaScadenza < 0
@@ -134,12 +183,12 @@ export default function PannelloMieTask({
               >
                 {scadenzaBreve(una.scadenza, una.giorniAllaScadenza)}
               </span>
-            </div>
-
-            <div className="riga-task-coda">
               <span className="nota">
                 {una.codiceLavoro} · {una.nomeLavoro}
               </span>
+            </div>
+
+            <div className="riga-task-coda">
 
               {puoAggiornare && apertaTask(una.stato) && (
                 <span className="riga-task-azioni">

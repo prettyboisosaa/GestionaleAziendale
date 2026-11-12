@@ -2,6 +2,7 @@ package com.anitia.backend.task;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /** Una task come la vede il frontend, con chi ci lavora e la sua situazione di ore. */
@@ -34,6 +35,16 @@ public record RigaTask(Long id,
                         * prima non hanno un'urgenza e non se ne può inventare una.
                         */
                        TaskImportanza urgenzaTask,
+                       /**
+                        * Quando la task e' stata completata, oppure null se non lo e'.
+                        *
+                        * <p>Puo' essere null <strong>anche su una task completata</strong>:
+                        * la colonna e' arrivata con la {@code V21}, e le task chiuse
+                        * prima non hanno una data. Chi disegna non deve dedurre la
+                        * chiusura da questo campo — lo stato la dice — ma usarlo solo
+                        * per scrivere <em>quando</em>, se c'e'.
+                        */
+                       LocalDateTime completatoIl,
                        List<Assegnatario> assegnatari) {
 
     /**
@@ -47,6 +58,7 @@ public record RigaTask(Long id,
                 oreAllocate, oreConsumate,
                 oreConsumate.compareTo(oreAllocate) > 0,
                 task.getStato(), TaskImportanza.daStringa(task.getUrgenzaTask()),
+                task.getCompletatoIl(),
                 assegnatari);
     }
 }

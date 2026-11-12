@@ -1,10 +1,10 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { cambiaMonteOre, dettaglioLavoro, kpiLavoro } from './api'
-import type { KpiLavoro, RigaLavoro } from './api'
-import BarraTemporale from './BarraTemporale'
-import PannelloKpi from './PannelloKpi'
+import { andamentoLavoro, cambiaMonteOre, dettaglioLavoro, kpiLavoro } from './api'
+import type { AndamentoLavoro, KpiLavoro, RigaLavoro } from './api'
+import { GraficoOre, GraficoTask } from './GraficiLavoro'
+import PannelloKpi, { AvvisoLavoro } from './PannelloKpi'
 import {
   assegna,
   assegnabili as caricaAssegnabili,
@@ -57,6 +57,23 @@ const URGENZE: UrgenzaTask[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 /** Il livello di partenza del form: ogni task ne ha uno, anche senza pensarci. */
 const URGENZA_INIZIALE: UrgenzaTask = 'MEDIUM'
 
+/**
+ * Come si restringe l'elenco delle task: aperte, chiuse, tutte.
+ *
+ * Non sono i quattro stati dell'enum uno per uno. Chi guarda le task di un
+ * lavoro ha due domande sole — «che cosa resta da fare» e «che cosa è stato
+ * fatto» — e la differenza fra una task attiva e una in corso non ne cambia
+ * nessuna delle due. Le annullate stanno fra le chiuse: non c'è più niente da
+ * farci, ed è l'unica cosa che il filtro deve sapere.
+ */
+type FiltroTask = 'TUTTE' | 'APERTE' | 'COMPLETATE'
+
+const FILTRI_TASK: { valore: FiltroTask; nome: string }[] = [
+  { valore: 'TUTTE', nome: 'Tutte' },
+  { valore: 'APERTE', nome: 'Aperte' },
+  { valore: 'COMPLETATE', nome: 'Completate' },
+]
+
 const TIPI_MOVIMENTO: Record<RigaMovimento['tipo'], string> = {
   MONTE_INIZIALE: 'Monte ore iniziale',
   MODIFICA_MONTE: 'Monte ore modificato',
@@ -73,6 +90,64 @@ const PASSAGGI = PASSAGGI_TASK
 
 function data(iso: string): string {
   return new Date(iso).toLocaleDateString('it-IT')
+}
+
+/** «13 nov»: la data dentro una riga, dove l'anno è quasi sempre quello. */
+function giorno(iso: string): string {
+  return new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+}
+
+/**
+ * Vero se la scadenza è passata.
+ *
+ * Si confrontano **date e non istanti**: una task che scade oggi non è in
+ * ritardo fino a mezzanotte, e un confronto fra `Date.now()` e la mezzanotte
+ * di oggi la direbbe scaduta dalle 00:01.
+ */
+function inRitardo(scadenzaIso: string): boolean {
+  const oggi = new Date()
+  const zero = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate())
+  return new Date(`${scadenzaIso}T00:00:00`) < zero
+}
+
+/**
+ * La riga sotto il titolo di una task: una frase sola, quella che conta.
+ *
+ * L'ordine non è casuale — il ritardo viene prima di tutto, perché è l'unica
+ * cosa che chiede di fare qualcosa oggi; poi la chiusura, che spiega perché
+ * la riga è barrata; poi la scadenza con chi ci lavora, che è il caso
+ * normale. Mettere tutto insieme su ogni riga darebbe venti righe lunghe
+ * uguali, in cui le due che contano non si distinguono.
+ */
+function meta(singola: RigaTask, ritardo: boolean): string {
+  const persone = singola.assegnatari
+    .map((persona) => `${persona.nome} ${persona.cognome}`)
+    .join(', ')
+
+  if (ritardo) {
+    return `In ritardo · scadeva il ${giorno(singola.scadenza)}`
+  }
+  if (singola.stato === 'ANNULLATO') {
+    return 'Annullata'
+  }
+  if (singola.stato === 'COMPLETATO') {
+    // La data di completamento manca sulle task chiuse prima della V21: lì si
+    // dice solo che è completata, invece di inventare un giorno.
+    return singola.completatoIl === null
+      ? 'Completata'
+      : `Completata il ${giorno(singola.completatoIl)}`
+  }
+  return persone === ''
+    ? `Scadenza ${giorno(singola.scadenza)}`
+    : `Scadenza ${giorno(singola.scadenza)} · ${persone}`
+}
+
+/** Le classi della riga: barrata se chiusa, velata di corallo se in ritardo. */
+function classeRiga(stato: StatoTask, ritardo: boolean): string {
+  if (stato === 'COMPLETATO' || stato === 'ANNULLATO') {
+    return 'riga-task-chiusa'
+  }
+  return ritardo ? 'riga-task-ritardo' : ''
 }
 
 /**
@@ -132,12 +207,21 @@ export default function PaginaLavoro({
    */
   const [kpi, setKpi] = useState<KpiLavoro | null>(null)
   const [erroreKpi, setErroreKpi] = useState<string | null>(null)
+  /**
+   * L'andamento settimanale dei due grafici, con il suo errore a parte e per
+   * la stessa ragione dei KPI: è una serie che può essere lunga decine di
+   * righe, ed è la cosa meno importante della pagina. Se non arriva, restano
+   * i numeri in cima e le task.
+   */
+  const [andamento, setAndamento] = useState<AndamentoLavoro | null>(null)
+  const [erroreAndamento, setErroreAndamento] = useState<string | null>(null)
   const [storico, setStorico] = useState<RigaMovimento[] | null>(null)
   const [candidati, setCandidati] = useState<Assegnatario[]>([])
   const [errore, setErrore] = useState<string | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [mostraForm, setMostraForm] = useState(false)
+  const [filtroTask, setFiltroTask] = useState<FiltroTask>('TUTTE')
 
   // Gestire le task e distribuirne il budget sono due cose diverse, con due
   // permessi diversi, e ciascuno esiste in due versioni: su tutti i lavori o
@@ -213,6 +297,16 @@ export default function PaginaLavoro({
         setErroreKpi(null)
       })
       .catch((motivo: unknown) => setErroreKpi(testo(motivo)))
+
+    // Anche l'andamento: chiudere una task sposta una barra, e registrare ore
+    // alza la curva. Lasciare i grafici di prima accanto a una tabella nuova
+    // sarebbe peggio di non mostrarli.
+    andamentoLavoro(id)
+      .then((serie) => {
+        setAndamento(serie)
+        setErroreAndamento(null)
+      })
+      .catch((motivo: unknown) => setErroreAndamento(testo(motivo)))
   }, [id])
 
   // Il primo caricamento chiama le API direttamente invece di passare da
@@ -256,6 +350,29 @@ export default function PaginaLavoro({
       .catch((motivo: unknown) => {
         if (!annullato) {
           setErroreKpi(testo(motivo))
+        }
+      })
+
+    return () => {
+      annullato = true
+    }
+  }, [id])
+
+  // L'andamento: stesso schema, effetto suo. Due rotte separate e non una
+  // sola che mandi tutto, perché sono due query aggregate diverse e chi
+  // guarda i riquadri non deve aspettare la serie delle settimane.
+  useEffect(() => {
+    let annullato = false
+
+    andamentoLavoro(id)
+      .then((serie) => {
+        if (!annullato) {
+          setAndamento(serie)
+        }
+      })
+      .catch((motivo: unknown) => {
+        if (!annullato) {
+          setErroreAndamento(testo(motivo))
         }
       })
 
@@ -435,12 +552,48 @@ export default function PaginaLavoro({
 
   const inAttesa = richieste.filter((richiesta) => richiesta.stato === 'IN_ATTESA')
 
+  // I tre gruppi dei chip, calcolati una volta: servono sia a filtrare sia a
+  // scrivere il contatore accanto al nome di ciascuno. Il contatore non è
+  // decorazione — dice quanto c'è dietro un filtro prima di premerlo.
+  const ordinate = ordinaTask(task ?? [])
+  const gruppiTask: Record<FiltroTask, RigaTask[]> = {
+    TUTTE: ordinate,
+    APERTE: ordinate.filter((singola) => apertaTask(singola.stato)),
+    COMPLETATE: ordinate.filter((singola) => singola.stato === 'COMPLETATO'),
+  }
+  const taskVisibili = gruppiTask[filtroTask]
+
   return (
     <main className="pagina-larga">
-      <div className="testata">
-        <h1>{lavoro === null ? 'Lavoro' : `${lavoro.codice} · ${lavoro.nome}`}</h1>
-        <Link to="/lavori">Torna all'elenco</Link>
+      {/* Il ritorno all'elenco sta **sopra** il titolo e non accanto: è la
+          prima cosa che si incontra scendendo dalla barra, e in una pagina
+          lunga come questa un collegamento in alto a destra si perde fra le
+          azioni. */}
+      <Link to="/lavori" className="ritorno">
+        <span aria-hidden="true">‹</span> Tutti i lavori
+      </Link>
+
+      {lavoro !== null && (
+        <p className="occhiello">
+          {lavoro.codice}
+          {lavoro.responsabile !== null && ` · ${lavoro.responsabile}`}
+        </p>
+      )}
+
+      <div className="testata testata-lavoro">
+        <h1>{lavoro === null ? 'Lavoro' : lavoro.nome}</h1>
+        {lavoro !== null && (
+          <div className="testata-segni">
+            <Pillola tinta={tinta(lavoro.stato)}>{STATI_LAVORO[lavoro.stato]}</Pillola>
+            {/* Le facce di chi ci lavora, prese dalle assegnazioni delle task:
+                il lavoro non ha una squadra sua, ce l'hanno le sue task, ed è
+                la somma di quelle assegnazioni a dire chi c'è dentro. */}
+            <Squadra task={task ?? []} />
+          </div>
+        )}
       </div>
+
+      {lavoro?.descrizione != null && <p className="sommario">{lavoro.descrizione}</p>}
 
       {errore !== null && (
         <p className="errore" role="alert">
@@ -454,49 +607,44 @@ export default function PaginaLavoro({
         </p>
       )}
 
-      {lavoro !== null && (
-        <div className="scheda-lavoro">
-          <p>
-            <Pillola tinta={tinta(lavoro.stato)}>{STATI_LAVORO[lavoro.stato]}</Pillola> ·
-            responsabile{' '}
-            {lavoro.responsabile ?? 'da assegnare'} · {data(lavoro.dataInizio)} –{' '}
-            {data(lavoro.dataFinePrevista)}
+      {lavoro !== null && <AvvisoLavoro lavoro={lavoro} />}
+
+      {/* I cinque numeri di oggi. Non aspettano i KPI del server:
+          l'avanzamento sulle task e le ore arrivano già con il lavoro, e i
+          due indicatori di qualità sono una riga in fondo al pannello — se la
+          loro rotta fallisce, i riquadri restano. */}
+      {lavoro !== null && <PannelloKpi lavoro={lavoro} kpi={kpi} />}
+      {erroreKpi !== null && (
+        <p className="nota" role="alert">
+          Gli indicatori di qualità non si sono caricati: {erroreKpi}
+        </p>
+      )}
+
+      {/* I due grafici, affiancati: a sinistra le ore nel tempo, a destra il
+          ritmo di chiusura. Caricano per conto loro come i KPI — una serie di
+          cinquanta righe che non arriva non deve portare via la pagina. */}
+      <div className="griglia-grafici">
+        {andamento === null && erroreAndamento === null && (
+          <p className="sommario" role="status">
+            Carico l'andamento…
           </p>
-          {lavoro.descrizione !== null && <p className="nota">{lavoro.descrizione}</p>}
-        </div>
-      )}
-
-      {/* Due colonne: a sinistra come va il lavoro — nel tempo e sulle ore —
-          a destra che cosa c'è dentro. Prima era una pila, e per arrivare
-          allo storico delle ore si scorreva oltre tutte le task. Sotto i
-          1200px la destra scende, con la stessa soglia della dashboard. */}
-      <div className="griglia-lavoro">
-        <div className="colonna-avanzamento">
-
-      {/* L'avanzamento: le task collocate nel tempo e i quattro indicatori.
-          Carica per conto suo, così un errore sui KPI non porta via il resto
-          della pagina. */}
-      {lavoro !== null && (
-        <section className="scheda-ore">
-          <div className="testata">
-            <h2>Avanzamento</h2>
-          </div>
-
-          {kpi === null && erroreKpi === null && (
-            <p className="sommario" role="status">
-              Calcolo gli indicatori…
-            </p>
-          )}
-          {erroreKpi !== null && (
-            <p className="errore" role="alert">
-              {erroreKpi}
-            </p>
-          )}
-          {kpi !== null && <PannelloKpi kpi={kpi} />}
-
-          {task !== null && <BarraTemporale lavoro={lavoro} task={ordinaTask(task)} />}
-        </section>
-      )}
+        )}
+        {erroreAndamento !== null && (
+          <p className="nota" role="alert">
+            L'andamento non si è caricato: {erroreAndamento}
+          </p>
+        )}
+        {andamento !== null && (
+          <>
+            <section className="scheda-grafico">
+              <GraficoOre andamento={andamento} />
+            </section>
+            <section className="scheda-grafico">
+              <GraficoTask andamento={andamento} />
+            </section>
+          </>
+        )}
+      </div>
 
       {/* Il monte ore. Le ore libere sono in evidenza perché sono il numero su
           cui si decide: tutto il resto è contesto. */}
@@ -596,10 +744,6 @@ export default function PaginaLavoro({
         </section>
       )}
 
-        </div>
-
-        <div className="colonna-dettagli">
-
       {/* Le richieste in attesa in evidenza: il gestionale non ha notifiche,
           quindi è qui che una richiesta aperta si fa notare. */}
       {inAttesa.length > 0 && (
@@ -610,102 +754,156 @@ export default function PaginaLavoro({
         </p>
       )}
 
-      <section className="gruppo-permessi">
-        <div className="testata">
-          <h2>Task</h2>
-          {puoGestire && !mostraForm && (
-            <button type="button" className="secondario" onClick={() => setMostraForm(true)}>
-              Nuova task
-            </button>
-          )}
+      {/* Le task: l'elenco è il cuore della pagina, e dal design system
+          arriva come una lista e non come una tabella. Una tabella chiede di
+          leggere per colonne — periodo, ore, stato, assegnatari, urgenza —
+          mentre qui si scorre cercando *una* task: il titolo in grande, sotto
+          la riga che dice quando scade e di chi è, e a destra i pochi numeri
+          che la riguardano. */}
+      <section className="scheda-task">
+        <div className="testata testata-task">
+          <h2>Task del lavoro</h2>
+          <div className="chip-filtri" role="group" aria-label="Filtra le task">
+            {FILTRI_TASK.map((uno) => (
+              <button
+                key={uno.valore}
+                type="button"
+                className={filtroTask === uno.valore ? 'chip chip-scelto' : 'chip'}
+                aria-pressed={filtroTask === uno.valore}
+                onClick={() => setFiltroTask(uno.valore)}
+              >
+                {uno.nome} · {gruppiTask[uno.valore].length}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {puoGestire && mostraForm && (
-          <form className="modulo" onSubmit={inviaNuovaTask}>
-            <div className="campo">
-              <label htmlFor="titolo">Titolo</label>
-              <input
-                id="titolo"
-                required
-                maxLength={200}
-                value={titolo}
-                onChange={(evento) => setTitolo(evento.target.value)}
-                disabled={inCorso}
-              />
+        {/* Il budget in una riga sola, sopra le task: è il contesto di ogni
+            allocazione che si farà qui sotto, e andarlo a cercare nella
+            sezione «Monte ore» a fondo pagina vorrebbe dire decidere a
+            memoria. La sezione resta, perché è lì che il monte ore si
+            cambia. */}
+        {lavoro !== null && lavoro.monteOre !== null && (
+          <p className="nota riga-budget">
+            Monte ore {ore(lavoro.monteOre)} h · allocate alle task{' '}
+            {ore(lavoro.oreAllocate)} h · riserva {ore(lavoro.oreLibere)} h
+          </p>
+        )}
+
+        {puoGestire && (
+          <div className="nuova-task">
+            <div className="testata-nuova-task">
+              <span className="riquadro-etichetta">Nuova task</span>
+              {!mostraForm && (
+                <button
+                  type="button"
+                  className="secondario"
+                  onClick={() => setMostraForm(true)}
+                >
+                  Aggiungi una task
+                </button>
+              )}
             </div>
-            <div className="campo">
-              <label htmlFor="descrizione">Descrizione</label>
-              <textarea
-                id="descrizione"
-                rows={2}
-                value={descrizione}
-                onChange={(evento) => setDescrizione(evento.target.value)}
-                disabled={inCorso}
-              />
-            </div>
-            <div className="campo">
-              <label htmlFor="inizio">Inizio</label>
-              <input
-                id="inizio"
-                type="date"
-                required
-                value={dataInizio}
-                onChange={(evento) => setDataInizio(evento.target.value)}
-                disabled={inCorso}
-              />
-            </div>
-            <div className="campo">
-              <label htmlFor="scadenza">Scadenza</label>
-              <input
-                id="scadenza"
-                type="date"
-                required
-                min={dataInizio === '' ? undefined : dataInizio}
-                value={scadenza}
-                onChange={(evento) => setScadenza(evento.target.value)}
-                disabled={inCorso}
-              />
-            </div>
-            {/* Fra la scadenza e la stima, così il form si legge come una
-                domanda sola: che cosa, entro quando, quanto viene prima,
-                quanto è lunga. Niente opzione vuota — il campo parte
-                compilato, e un valore vuoto sarebbe un quinto livello che
-                l'enum non ha. */}
-            <div className="campo">
-              <label htmlFor="urgenza">Urgenza</label>
-              <select
-                id="urgenza"
-                value={urgenza}
-                onChange={(evento) => setUrgenza(evento.target.value as UrgenzaTask)}
-                disabled={inCorso}
-              >
-                {URGENZE.map((una) => (
-                  <option key={una} value={una}>
-                    {ETICHETTA_URGENZA[una]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="campo">
-              <label htmlFor="stima">Stima in ore</label>
-              <input
-                id="stima"
-                type="number"
-                min="0.25"
-                step="0.25"
-                value={stimaOre}
-                onChange={(evento) => setStimaOre(evento.target.value)}
-                disabled={inCorso}
-              />
-              <p className="nota">
-                Facoltativa. Non alloca niente: le ore si prendono dal monte ore dopo,
-                task per task.
-              </p>
-            </div>
-            <button type="submit" disabled={inCorso}>
-              {inCorso ? 'Creo…' : 'Crea task'}
-            </button>
-          </form>
+
+            {mostraForm && (
+              <form className="modulo modulo-riga" onSubmit={inviaNuovaTask}>
+                <div className="campo">
+                  <label htmlFor="titolo">Titolo</label>
+                  <input
+                    id="titolo"
+                    required
+                    maxLength={200}
+                    placeholder="Nome della task"
+                    value={titolo}
+                    onChange={(evento) => setTitolo(evento.target.value)}
+                    disabled={inCorso}
+                  />
+                </div>
+                <div className="campo">
+                  <label htmlFor="descrizione">Descrizione</label>
+                  <input
+                    id="descrizione"
+                    value={descrizione}
+                    onChange={(evento) => setDescrizione(evento.target.value)}
+                    disabled={inCorso}
+                  />
+                </div>
+                <div className="campo">
+                  <label htmlFor="inizio">Inizio</label>
+                  <input
+                    id="inizio"
+                    type="date"
+                    required
+                    value={dataInizio}
+                    onChange={(evento) => setDataInizio(evento.target.value)}
+                    disabled={inCorso}
+                  />
+                </div>
+                <div className="campo">
+                  <label htmlFor="scadenza">Scadenza</label>
+                  <input
+                    id="scadenza"
+                    type="date"
+                    required
+                    min={dataInizio === '' ? undefined : dataInizio}
+                    value={scadenza}
+                    onChange={(evento) => setScadenza(evento.target.value)}
+                    disabled={inCorso}
+                  />
+                </div>
+                {/* Fra la scadenza e la stima, così il form si legge come una
+                    domanda sola: che cosa, entro quando, quanto viene prima,
+                    quanto è lunga. Niente opzione vuota — il campo parte
+                    compilato, e un valore vuoto sarebbe un quinto livello che
+                    l'enum non ha. */}
+                <div className="campo">
+                  <label htmlFor="urgenza">Urgenza</label>
+                  <select
+                    id="urgenza"
+                    value={urgenza}
+                    onChange={(evento) => setUrgenza(evento.target.value as UrgenzaTask)}
+                    disabled={inCorso}
+                  >
+                    {URGENZE.map((una) => (
+                      <option key={una} value={una}>
+                        {ETICHETTA_URGENZA[una]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="campo">
+                  <label htmlFor="stima">Stima in ore</label>
+                  <input
+                    id="stima"
+                    type="number"
+                    min="0.25"
+                    step="0.25"
+                    placeholder="Ore"
+                    value={stimaOre}
+                    onChange={(evento) => setStimaOre(evento.target.value)}
+                    disabled={inCorso}
+                  />
+                </div>
+                <div className="azioni">
+                  <button type="submit" disabled={inCorso}>
+                    {inCorso ? 'Creo…' : 'Aggiungi'}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondario"
+                    disabled={inCorso}
+                    onClick={() => setMostraForm(false)}
+                  >
+                    Annulla
+                  </button>
+                </div>
+                <p className="nota">
+                  La stima è facoltativa e non alloca niente: le ore si prendono dal
+                  monte ore dopo, task per task.
+                </p>
+              </form>
+            )}
+          </div>
         )}
 
         {errore === null && task === null && (
@@ -718,263 +916,277 @@ export default function PaginaLavoro({
           <p className="sommario">Nessuna task da mostrare.</p>
         )}
 
-        {task !== null && task.length > 0 && (
-          <div className="scheda-tabella">
-            <table className="tabella">
-              <thead>
-                <tr>
-                  <th>Titolo</th>
-                  <th>Periodo</th>
-                  <th>Ore</th>
-                  <th>Stato</th>
-                  <th>Assegnata a</th>
-                  <th>Urgenza</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordinaTask(task).map((singola) => {
-                  const aperta = apertaTask(singola.stato)
-                  return (
-                    <Fragment key={singola.id}>
-                      <tr
-                        className={
-                          singola.stato === 'ANNULLATO' ? 'riga-annullata' : undefined
-                        }
-                      >
-                        <td>
-                          <span className="codice-permesso">{singola.titolo}</span>
-                          {singola.descrizione !== null && (
-                            <span className="nota">{singola.descrizione}</span>
-                          )}
-                        </td>
-                        <td>
-                          {data(singola.dataInizio)} – {data(singola.scadenza)}
-                        </td>
-                        <td>
-                          <span className="ore-riga">
-                            {ore(singola.oreConsumate)} / {ore(singola.oreAllocate)}
+        {task !== null && task.length > 0 && taskVisibili.length === 0 && (
+          <p className="sommario">
+            Nessuna task in questo gruppo.{' '}
+            <button
+              type="button"
+              className="minuscolo"
+              onClick={() => setFiltroTask('TUTTE')}
+            >
+              Mostra tutte
+            </button>
+          </p>
+        )}
+
+        {taskVisibili.length > 0 && (
+          <ul className="elenco-task">
+            {taskVisibili.map((singola) => {
+              const aperta = apertaTask(singola.stato)
+              const ritardo = aperta && inRitardo(singola.scadenza)
+              const mia = miaTask(singola)
+              // Chi può chiudere la task può anche spuntarla: è lo stesso
+              // permesso che il server verifica sul cambio di stato, quindi
+              // la casella compare dove non prenderà 403.
+              const spuntabile = (puoGestire || mia) && aperta
+
+              return (
+                <li
+                  key={singola.id}
+                  className={classeRiga(singola.stato, ritardo)}
+                >
+                  <div className="riga-task">
+                    {/* La casella completa la task, e non è una scorciatoia
+                        per la tendina accanto: chiudere è il gesto che si fa
+                        cento volte, e farlo costare l'apertura di un menu è
+                        il motivo per cui le task restano aperte quando non lo
+                        sono più. Gli altri passaggi — in corso, annullata —
+                        restano nella tendina. */}
+                    <input
+                      type="checkbox"
+                      className="spunta-task"
+                      checked={singola.stato === 'COMPLETATO'}
+                      disabled={!spuntabile || inCorso}
+                      aria-label={`Completa ${singola.titolo}`}
+                      onChange={() =>
+                        void agisci(() => cambiaStatoTask(id, singola.id, 'COMPLETATO'))
+                      }
+                    />
+
+                    <div className="riga-task-corpo">
+                      <span className="riga-task-titolo">{singola.titolo}</span>
+                      <span className="riga-task-meta">{meta(singola, ritardo)}</span>
+                      {singola.descrizione !== null && (
+                        <span className="nota">{singola.descrizione}</span>
+                      )}
+                    </div>
+
+                    {/* Le ore della task: consumate su allocate. Lo sforamento
+                        non ha bisogno di una parola in più — il primo numero
+                        più grande del secondo lo dice, e il colore lo fa
+                        notare. */}
+                    <span
+                      className={
+                        singola.sforamento ? 'riga-task-ore riga-task-sfora' : 'riga-task-ore'
+                      }
+                      title={`${ore(singola.oreConsumate)} ore registrate su ${ore(
+                        singola.oreAllocate,
+                      )} allocate${
+                        singola.stimaOre === null
+                          ? ''
+                          : `, ${ore(singola.stimaOre)} stimate`
+                      }`}
+                    >
+                      {ore(singola.oreConsumate)} / {ore(singola.oreAllocate)} h
+                    </span>
+
+                    {/* Niente pillola se l'urgenza non c'è: le task create
+                        prima della V19 non ne hanno una, e scrivere «media»
+                        al posto del vuoto sarebbe attribuire al PM una
+                        decisione che non ha preso. */}
+                    {singola.urgenzaTask !== null && (
+                      <Pillola tinta={TINTA_URGENZA[singola.urgenzaTask]}>
+                        {ETICHETTA_URGENZA[singola.urgenzaTask]}
+                      </Pillola>
+                    )}
+
+                    <div className="riga-task-persone">
+                      {singola.assegnatari.map((persona) => (
+                        <span
+                          key={persona.utenteId}
+                          className={`gettone gettone-${persona.utenteId % 8}`}
+                          title={`${persona.nome} ${persona.cognome}`}
+                        >
+                          <span aria-hidden="true">
+                            {persona.nome.charAt(0)}
+                            {persona.cognome.charAt(0)}
                           </span>
-                          <span className="nota">
-                            stimate {ore(singola.stimaOre)}
+                          <span className="solo-lettori">
+                            {persona.nome} {persona.cognome}
                           </span>
-                          {singola.sforamento && (
-                            <span className="origine origine-sforamento">
-                              sfora di{' '}
-                              {ore(singola.oreConsumate - singola.oreAllocate)}
-                            </span>
+                          {puoGestire && (
+                            <button
+                              type="button"
+                              className="togli"
+                              aria-label={`Rimuovi ${persona.cognome}`}
+                              disabled={inCorso}
+                              onClick={() =>
+                                void agisci(() =>
+                                  rimuoviAssegnazione(id, singola.id, persona.utenteId),
+                                )
+                              }
+                            >
+                              ×
+                            </button>
                           )}
-                          {puoAllocare && aperta && allocaPer !== singola.id && (
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* I comandi stanno su una riga loro, sotto la task e non
+                      dentro di essa: sono cinque controlli che riguardano
+                      pochi — chi dirige il lavoro e chi ci sta lavorando — e
+                      in mezzo al titolo renderebbero illeggibili le altre
+                      venti righe. */}
+                  {(puoGestire || mia) && aperta && (
+                    <div className="riga-task-comandi">
+                      {(puoGestire || mia) && (
+                        <select
+                          aria-label={`Stato di ${singola.titolo}`}
+                          value={singola.stato}
+                          disabled={inCorso}
+                          onChange={(evento) =>
+                            void agisci(() =>
+                              cambiaStatoTask(id, singola.id, evento.target.value as StatoTask),
+                            )
+                          }
+                        >
+                          {PASSAGGI.map((stato) => (
+                            <option key={stato} value={stato}>
+                              {STATI_TASK[stato]}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      {puoGestire && candidati.length > 0 && (
+                        <select
+                          aria-label={`Assegna una persona a ${singola.titolo}`}
+                          value=""
+                          disabled={inCorso}
+                          onChange={(evento) => {
+                            const scelto = Number(evento.target.value)
+                            if (scelto > 0) {
+                              void agisci(() => assegna(id, singola.id, scelto))
+                            }
+                          }}
+                        >
+                          <option value="">Assegna…</option>
+                          {candidati.map((persona) => (
+                            <option key={persona.utenteId} value={persona.utenteId}>
+                              {persona.cognome} {persona.nome}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      {puoAllocare && allocaPer !== singola.id && (
+                        <button
+                          type="button"
+                          className="minuscolo"
+                          disabled={inCorso}
+                          onClick={() => {
+                            setAllocaPer(singola.id)
+                            setOreDaAllocare('')
+                            setMotivoAllocazione('')
+                          }}
+                        >
+                          Alloca ore
+                        </button>
+                      )}
+
+                      {/* Il timer, per chi ci lavora: la tendina dice a che
+                          punto è la task, questi pulsanti se ci sto lavorando
+                          adesso. */}
+                      {mia && (
+                        <>
+                          {tempo?.inCorso?.taskId === singola.id ? (
                             <button
                               type="button"
                               className="minuscolo"
                               disabled={inCorso}
-                              onClick={() => {
-                                setAllocaPer(singola.id)
-                                setOreDaAllocare('')
-                                setMotivoAllocazione('')
-                              }}
+                              onClick={() => void agisciTempo(pausaTempo)}
                             >
-                              Alloca ore
+                              Pausa
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="minuscolo"
+                              disabled={inCorso}
+                              onClick={() => void agisciTempo(() => avviaTempo(id, singola.id))}
+                            >
+                              Avvia
                             </button>
                           )}
-                        </td>
-                        <td>
-                          {(puoGestire || miaTask(singola)) && aperta ? (
-                            <select
-                              aria-label={`Stato di ${singola.titolo}`}
-                              value={singola.stato}
-                              disabled={inCorso}
-                              onChange={(evento) =>
-                                void agisci(() =>
-                                  cambiaStatoTask(
-                                    id,
-                                    singola.id,
-                                    evento.target.value as StatoTask,
-                                  ),
-                                )
-                              }
-                            >
-                              {PASSAGGI.map((stato) => (
-                                <option key={stato} value={stato}>
-                                  {STATI_TASK[stato]}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <Pillola tinta={tinta(singola.stato)}>
-                              {STATI_TASK[singola.stato]}
-                            </Pillola>
-                          )}
-
-                          {/* Il timer, per chi ci lavora. Sta sotto la tendina
-                              dello stato perche' e' la stessa domanda vista da
-                              due lati: la tendina dice a che punto e' la task,
-                              i pulsanti se ci sto lavorando adesso. */}
-                          {miaTask(singola) && aperta && (
-                            <div className="azioni-timer">
-                              {tempo?.inCorso?.taskId === singola.id ? (
-                                <button
-                                  type="button"
-                                  className="minuscolo"
-                                  disabled={inCorso}
-                                  onClick={() => void agisciTempo(pausaTempo)}
-                                >
-                                  Pausa
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="minuscolo"
-                                  disabled={inCorso}
-                                  onClick={() =>
-                                    void agisciTempo(() => avviaTempo(id, singola.id))
-                                  }
-                                >
-                                  Avvia
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                className="minuscolo"
-                                disabled={inCorso}
-                                onClick={() =>
-                                  void agisciTempo(() => completaTempo(id, singola.id))
-                                }
-                              >
-                                Completa
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td className="assegnatari">
-                          {singola.assegnatari.map((persona) => (
-                            <span
-                              key={persona.utenteId}
-                              className="origine origine-aggiunto"
-                            >
-                              {persona.cognome} {persona.nome}
-                              {puoGestire && (
-                                <button
-                                  type="button"
-                                  className="togli"
-                                  aria-label={`Rimuovi ${persona.cognome}`}
-                                  disabled={inCorso}
-                                  onClick={() =>
-                                    void agisci(() =>
-                                      rimuoviAssegnazione(id, singola.id, persona.utenteId),
-                                    )
-                                  }
-                                >
-                                  ×
-                                </button>
-                              )}
-                            </span>
-                          ))}
-
-                          {puoGestire && candidati.length > 0 && (
-                            <select
-                              aria-label="Assegna una persona"
-                              value=""
-                              disabled={inCorso}
-                              onChange={(evento) => {
-                                const scelto = Number(evento.target.value)
-                                if (scelto > 0) {
-                                  void agisci(() => assegna(id, singola.id, scelto))
-                                }
-                              }}
-                            >
-                              <option value="">Assegna…</option>
-                              {candidati.map((persona) => (
-                                <option key={persona.utenteId} value={persona.utenteId}>
-                                  {persona.cognome} {persona.nome}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </td>
-                        <td>
-                          {/* Niente pillola se l'urgenza non c'è: le task
-                              create prima della V19 non ne hanno una, e
-                              scrivere «media» al posto del vuoto sarebbe
-                              attribuire al PM una decisione che non ha
-                              preso. Il trattino dice che il dato manca. */}
-                          {singola.urgenzaTask === null ? (
-                            <span className="nota">—</span>
-                          ) : (
-                            <Pillola tinta={TINTA_URGENZA[singola.urgenzaTask]}>
-                              {ETICHETTA_URGENZA[singola.urgenzaTask]}
-                            </Pillola>
-                          )}
-                        </td>
-                      </tr>
-
-                      {/* Il modulo dell'allocazione sta in una riga sotto la
-                          task, non in un riquadro staccato: così resta chiaro
-                          a quale task si stanno dando le ore. */}
-                      {allocaPer === singola.id && (
-                        <tr>
-                          {/* Sei colonne da quando c'è l'urgenza: il modulo deve
-                              coprire la riga intera, altrimenti la tabella si
-                              apre una cella vuota a destra. */}
-                          <td colSpan={6}>
-                            <form
-                              className="modulo modulo-riga"
-                              onSubmit={(evento) => void inviaAllocazione(evento, singola.id)}
-                            >
-                              <div className="campo">
-                                <label htmlFor={`ore-${singola.id}`}>Ore da allocare</label>
-                                <input
-                                  id={`ore-${singola.id}`}
-                                  type="number"
-                                  min="0.25"
-                                  step="0.25"
-                                  required
-                                  value={oreDaAllocare}
-                                  onChange={(evento) =>
-                                    setOreDaAllocare(evento.target.value)
-                                  }
-                                  disabled={inCorso}
-                                />
-                                <p className="nota">
-                                  Libere sul lavoro: {ore(lavoro?.oreLibere ?? null)}.
-                                </p>
-                              </div>
-                              <div className="campo">
-                                <label htmlFor={`motivo-${singola.id}`}>Motivo</label>
-                                <input
-                                  id={`motivo-${singola.id}`}
-                                  required
-                                  maxLength={500}
-                                  value={motivoAllocazione}
-                                  onChange={(evento) =>
-                                    setMotivoAllocazione(evento.target.value)
-                                  }
-                                  disabled={inCorso}
-                                />
-                              </div>
-                              <div className="azioni">
-                                <button type="submit" disabled={inCorso}>
-                                  {inCorso ? 'Alloco…' : 'Alloca'}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="secondario"
-                                  disabled={inCorso}
-                                  onClick={() => setAllocaPer(null)}
-                                >
-                                  Annulla
-                                </button>
-                              </div>
-                            </form>
-                          </td>
-                        </tr>
+                          <button
+                            type="button"
+                            className="minuscolo"
+                            disabled={inCorso}
+                            onClick={() => void agisciTempo(() => completaTempo(id, singola.id))}
+                          >
+                            Completa
+                          </button>
+                        </>
                       )}
-                    </Fragment>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  )}
+
+                  {/* Il modulo dell'allocazione sta dentro la riga della task,
+                      non in un riquadro staccato: così resta chiaro a quale
+                      task si stanno dando le ore. */}
+                  {allocaPer === singola.id && (
+                    <form
+                      className="modulo modulo-riga"
+                      onSubmit={(evento) => void inviaAllocazione(evento, singola.id)}
+                    >
+                      <div className="campo">
+                        <label htmlFor={`ore-${singola.id}`}>Ore da allocare</label>
+                        <input
+                          id={`ore-${singola.id}`}
+                          type="number"
+                          min="0.25"
+                          step="0.25"
+                          required
+                          value={oreDaAllocare}
+                          onChange={(evento) => setOreDaAllocare(evento.target.value)}
+                          disabled={inCorso}
+                        />
+                        <p className="nota">
+                          Libere sul lavoro: {ore(lavoro?.oreLibere ?? null)}.
+                        </p>
+                      </div>
+                      <div className="campo">
+                        <label htmlFor={`motivo-${singola.id}`}>Motivo</label>
+                        <input
+                          id={`motivo-${singola.id}`}
+                          required
+                          maxLength={500}
+                          value={motivoAllocazione}
+                          onChange={(evento) => setMotivoAllocazione(evento.target.value)}
+                          disabled={inCorso}
+                        />
+                      </div>
+                      <div className="azioni">
+                        <button type="submit" disabled={inCorso}>
+                          {inCorso ? 'Alloco…' : 'Alloca'}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondario"
+                          disabled={inCorso}
+                          onClick={() => setAllocaPer(null)}
+                        >
+                          Annulla
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
         )}
       </section>
 
@@ -1165,9 +1377,54 @@ export default function PaginaLavoro({
           </div>
         )}
       </section>
-
-        </div>
-      </div>
     </main>
+  )
+}
+
+/**
+ * Le facce di chi lavora a questo lavoro: le iniziali delle persone assegnate
+ * alle sue task, senza ripetizioni.
+ *
+ * Le iniziali e non il nome intero: in testata c'è spazio per un simbolo, e
+ * il nome per esteso sta accanto a ciascuna task, dove serve a sapere di chi
+ * è quella riga. Qui la domanda è un'altra — «chi c'è dentro» — e si risponde
+ * a colpo d'occhio. Il nome completo resta leggibile al passaggio del mouse e
+ * per i lettori di schermo, che è ciò che impedisce alle iniziali di essere un
+ * indovinello.
+ *
+ * Il colore di ogni pastiglia viene dall'id della persona, quindi la stessa
+ * persona ha lo stesso colore in ogni lavoro: è la regola con cui il
+ * calendario tinge i blocchi dei lavori, applicata alle persone.
+ */
+function Squadra({ task }: { task: RigaTask[] }) {
+  const persone = new Map<number, Assegnatario>()
+  for (const singola of task) {
+    for (const persona of singola.assegnatari) {
+      persone.set(persona.utenteId, persona)
+    }
+  }
+
+  if (persone.size === 0) {
+    return null
+  }
+
+  return (
+    <div className="squadra">
+      {[...persone.values()].map((persona) => (
+        <span
+          key={persona.utenteId}
+          className={`gettone gettone-${persona.utenteId % 8}`}
+          title={`${persona.nome} ${persona.cognome}`}
+        >
+          <span aria-hidden="true">
+            {persona.nome.charAt(0)}
+            {persona.cognome.charAt(0)}
+          </span>
+          <span className="solo-lettori">
+            {persona.nome} {persona.cognome}
+          </span>
+        </span>
+      ))}
+    </div>
   )
 }

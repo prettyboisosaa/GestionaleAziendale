@@ -35,6 +35,22 @@ export type RigaLavoro = {
   oreConsumate: number
   /** `monteOre - oreAllocate`, oppure null se il monte ore non è fissato. */
   oreLibere: number | null
+  /**
+   * Quante task ha il lavoro, **annullate escluse**: il denominatore
+   * dell'avanzamento scritto sulla scheda dell'elenco. Mai null — un lavoro
+   * senza task ne ha zero.
+   */
+  taskTotali: number
+  /** Quante di quelle task sono completate. */
+  taskCompletate: number
+  /**
+   * Quante task ancora aperte sono di urgenza alta o critica: è il «2 priorità
+   * alte» della scheda. Dice se dentro un lavoro tranquillo c'è qualcosa che
+   * viene prima di tutto il resto.
+   */
+  taskUrgenti: number
+  /** Quante task ancora aperte hanno la scadenza passata. */
+  taskInRitardo: number
 }
 
 export type CandidatoResponsabile = {
@@ -115,6 +131,44 @@ export type KpiLavoro = {
  */
 export function kpiLavoro(id: number): Promise<KpiLavoro> {
   return chiedi<KpiLavoro>(`/api/lavori/${id}/kpi`)
+}
+
+/**
+ * Come è andato un lavoro **nel tempo**: una riga per settimana, dall'inizio
+ * del lavoro a oggi.
+ *
+ * I KPI dicono a che punto è il lavoro; questa serie dice con che ritmo ci è
+ * arrivato — ed è la differenza fra un lavoro quasi finito e uno che ha
+ * bruciato il budget nelle ultime due settimane.
+ *
+ * **Le ore sono quelle di ciascuna settimana, non il totale progressivo**: il
+ * cumulato lo costruisce il grafico, che deve comunque sommare per collocare
+ * i punti.
+ */
+export type AndamentoLavoro = {
+  /** Il soffitto del grafico, e da cui nasce la linea del piano. Null se non fissato. */
+  monteOre: number | null
+  dataInizio: string
+  dataFinePrevista: string
+  settimane: SettimanaLavoro[]
+}
+
+export type SettimanaLavoro = {
+  /** Il lunedì della settimana, in ISO. */
+  inizio: string
+  /** Le ore registrate in quella settimana. Zero se nessuna. */
+  ore: number
+  /** Quante task si sono chiuse in quella settimana. */
+  taskCompletate: number
+}
+
+/**
+ * L'andamento settimanale. Rotta a sé come i KPI, e per la stessa ragione:
+ * un errore su una serie di cinquanta righe non deve portare via i numeri in
+ * cima alla pagina.
+ */
+export function andamentoLavoro(id: number): Promise<AndamentoLavoro> {
+  return chiedi<AndamentoLavoro>(`/api/lavori/${id}/andamento`)
 }
 
 export function responsabiliPossibili(): Promise<CandidatoResponsabile[]> {

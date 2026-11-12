@@ -1,9 +1,9 @@
 import Pannello from '../componenti/Pannello'
 import CalendarioSettimanale from '../tempo/CalendarioSettimanale'
+import type { ManicoSettimana } from '../tempo/CalendarioSettimanale'
+import { Punto } from '../componenti/Stato'
 import type { LavoroScrivibile, TaskScrivibile } from '../tempo/PannelloSessione'
-import { durata } from '../tempo/api'
 import type { SituazioneTempo } from '../tempo/api'
-import { MINUTI_PREVISTI, ORE_PREVISTE } from '../tempo/orario'
 
 /**
  * Le ore registrate, sulla stessa scala del pannello sopra.
@@ -12,10 +12,11 @@ import { MINUTI_PREVISTI, ORE_PREVISTE } from '../tempo/orario'
  * avanti, e la scala oraria è la stessa — arriva da `tempo/orario.ts` — così
  * il pianificato e il registrato si leggono uno sull'altro.
  *
- * L'intestazione porta il contatore della giornata: quanto si è registrato su
- * quanto se ne aspetta. È la cosa che dice se c'è ancora qualcosa da scrivere
- * prima di andare a casa, e prima stava in una riga di prosa in mezzo alla
- * pagina, dove per leggerla bisognava cercarla.
+ * **Il contatore della giornata non è più qui.** Stava in queste azioni e
+ * adesso sta in testata alla pagina, accanto al saluto, dove il design system
+ * lo mette: è il numero che si guarda per primo entrando, non una proprietà di
+ * questo riquadro. Al suo posto c'è la legenda delle tinte, che invece spiega
+ * proprio la griglia qui sotto.
  */
 export default function PannelloFatto({
   tempo,
@@ -23,12 +24,15 @@ export default function PannelloFatto({
   lavori,
   onErrore,
   onScritto,
+  manico,
 }: {
   tempo: SituazioneTempo | null
   task: TaskScrivibile[]
   lavori: LavoroScrivibile[]
   onErrore: (messaggio: string) => void
   onScritto: (situazione: SituazioneTempo) => void
+  /** Per il pulsante «Registra ore» che sta in testata alla pagina. */
+  manico?: React.Ref<ManicoSettimana>
 }) {
   return (
     <Pannello
@@ -41,10 +45,11 @@ export default function PannelloFatto({
       // toglierebbe il modo di rimediare al giovedì dimenticato. Il contatore
       // accanto dice la giornata, che è il numero che interessa adesso.
       sottotitolo="la settimana · trascina sulla griglia per registrare le ore"
-      azioni={tempo === null ? undefined : <Contatore tempo={tempo} />}
+      azioni={<Legenda />}
       classe="pannello-calendario"
     >
       <CalendarioSettimanale
+        ref={manico}
         tempo={tempo}
         task={task}
         lavori={lavori}
@@ -56,29 +61,25 @@ export default function PannelloFatto({
 }
 
 /**
- * «5h / 8h», verde a giornata completa.
+ * I tre colori della griglia, spiegati in tre parole.
  *
- * Conta i minuti **chiusi** di oggi, che sono quelli che il server dichiara
- * registrati. La sessione che sta scorrendo adesso non entra nel numero —
- * crescerebbe mentre si guarda, e il contatore direbbe una cosa diversa a
- * ogni ridisegno — ma la sua presenza si dice accanto: senza, a chi ha il
- * timer avviato il totale sembrerebbe fermo per sbaglio.
- *
- * Verde solo da giornata piena: un contatore che si colora a metà strada
- * smette di dire «fatto» e comincia a dire «stai andando», che è una cosa che
- * il numero già dice da sé.
+ * Nel design system la legenda sta nella testata della scheda del calendario,
+ * ed è lì che serve: i blocchi sono tinti per lavoro e per tipo di attività, e
+ * senza una chiave quelle tinte sono decorazione. Riusa `Punto`, che è già la
+ * grammatica con cui questo gestionale dice «questo colore vale questa cosa».
  */
-function Contatore({ tempo }: { tempo: SituazioneTempo }) {
-  const completa = tempo.minutiOggi >= MINUTI_PREVISTI
-
+function Legenda() {
   return (
-    <span className={completa ? 'contatore-ore completa' : 'contatore-ore'}>
-      <span className="nota">oggi </span>
-      <strong>{durata(tempo.minutiOggi)}</strong>
-      <span className="nota"> / {ORE_PREVISTE}h</span>
-      {tempo.inCorso !== null && (
-        <span className="nota"> · più quella in corso</span>
-      )}
+    <span className="legenda-calendario">
+      <span className="legenda-voce">
+        <Punto tinta="in-corso" titolo="Tinta delle task" /> Task
+      </span>
+      <span className="legenda-voce">
+        <Punto tinta="assenza" titolo="Tinta delle attività" /> Attività
+      </span>
+      <span className="legenda-voce">
+        <Punto tinta="attesa" titolo="Tinta delle ore da confermare" /> Da confermare
+      </span>
     </span>
   )
 }

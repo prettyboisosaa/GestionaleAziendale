@@ -439,8 +439,15 @@
 
 /* --- tabella -------------------------------------------------------------- */
 
-/* La scheda che contiene l'elenco. Il ritaglio arrotondato agli angoli e lo
-   scorrimento orizzontale sul telefono vengono dallo stesso overflow. */
+/* La scheda che contiene l'elenco. L'overflow serve ancora al ritaglio degli
+   angoli arrotondati, ma non ha piu' niente da far scorrere: la tabella non
+   impone piu' una larghezza minima, quindi si stringe invece di spingere
+   fuori una barra orizzontale.
+
+   ⚠️ Il prezzo e' dichiarato: su uno schermo molto stretto le colonne si
+   comprimono e il testo va a capo piu' volte. E' comunque meglio di una barra
+   di scorrimento dentro una scheda — quella nasconde intere colonne a chi non
+   si accorge che c'e'. */
 .scheda-tabella {
   margin-top: 1.5rem;
   background-color: var(--superficie);
@@ -451,7 +458,6 @@
 
 .tabella {
   width: 100%;
-  min-width: 38rem;
   border-collapse: collapse;
   font-size: var(--scala-base);
 }
@@ -636,68 +642,12 @@
 
 /* --- dettaglio di un lavoro ----------------------------------------------- */
 
-.scheda-lavoro {
-  margin-top: 1.5rem;
-  padding: 1rem 1.25rem;
-  background-color: var(--superficie);
-  border-radius: var(--raggio-carta);
-  box-shadow: var(--ombra-carta);
-}
-
-.scheda-lavoro .nota {
-  margin-top: 0.5rem;
-}
-
 /* Il titolo di sezione dentro una testata resta piu' piccolo dell'h1 della
    pagina: e' una gerarchia, non due titoli. */
 .testata h2 {
   font-size: var(--scala-sezione);
   font-weight: 600;
   letter-spacing: var(--tracciatura-titolo);
-}
-
-/* Gli assegnatari sono pastiglie, e il menu per aggiungerne uno sta sulla
-   stessa riga: l'azione vive dove vive l'informazione. */
-.assegnatari {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  align-items: center;
-}
-
-.assegnatari .origine {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.assegnatari .togli {
-  padding: 0;
-  width: 1.125rem;
-  height: 1.125rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-  border: none;
-  border-radius: var(--raggio-pillola);
-  color: inherit;
-  font-size: var(--scala-base);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.assegnatari .togli:hover:not(:disabled) {
-  background-color: var(--azione-velo-fermo);
-}
-
-.assegnatari select {
-  height: 1.875rem;
-  padding: 0 0.5rem;
-  background-color: var(--campo-fondo);
-  border: 1px solid var(--riga-tenue);
-  border-radius: var(--raggio-pillola);
-  font-size: var(--scala-piccola);
 }
 
 /* --- schermi stretti ------------------------------------------------------ */
@@ -1492,21 +1442,28 @@ button.minuscolo:disabled {
 
 /* Le attivita' che non appartengono a nessun lavoro tingono la stessa
    variabile dei lavori, invece di averne una loro: tutto quello che disegna un
-   blocco — la superficie diluita, il filetto, il tratteggio, l'ombra di quello
-   in corso — legge `--tinta-lavoro`, e una seconda variabile vorrebbe dire
-   ripetere ciascuna di quelle regole. Qui cambia solo da dove viene il colore.
+   blocco — la superficie diluita, il filetto, l'ombra di quello in corso —
+   legge `--tinta-lavoro`, e una seconda variabile vorrebbe dire ripetere
+   ciascuna di quelle regole. Qui cambia solo da dove viene il colore.
+
+   **Una tinta sola per tutte e nove**, l'argento scuro: le nove tinte spente
+   di prima non stavano nella tavola 01 della palette, ed erano l'unico punto
+   della griglia a uscirne. Che attivita' sia c'e' scritto dentro il blocco;
+   il colore, qui, risponde a un'altra domanda — su quali progetti e' andata
+   la settimana — e per quella un neutro e' la risposta giusta: colorato
+   vuol dire lavoro, grigio vuol dire tutto il resto.
 
    `LAVORO_TASK` non e' in questa lista di proposito: un blocco di lavoro su
    task ha sempre un lavoro, e la sua tinta e' quella. */
-.scheda-settimana .attivita-manutenzione { --tinta-lavoro: var(--attivita-manutenzione); }
-.scheda-settimana .attivita-interna { --tinta-lavoro: var(--attivita-interna); }
-.scheda-settimana .attivita-supporto { --tinta-lavoro: var(--attivita-supporto); }
-.scheda-settimana .attivita-sopralluogo { --tinta-lavoro: var(--attivita-sopralluogo); }
-.scheda-settimana .attivita-riunione { --tinta-lavoro: var(--attivita-riunione); }
-.scheda-settimana .attivita-formazione { --tinta-lavoro: var(--attivita-formazione); }
-.scheda-settimana .attivita-amministrazione { --tinta-lavoro: var(--attivita-amministrazione); }
-.scheda-settimana .attivita-trasferta { --tinta-lavoro: var(--attivita-trasferta); }
-.scheda-settimana .attivita-altro { --tinta-lavoro: var(--attivita-altro); }
+.scheda-settimana .attivita-manutenzione,
+.scheda-settimana .attivita-interna,
+.scheda-settimana .attivita-supporto,
+.scheda-settimana .attivita-sopralluogo,
+.scheda-settimana .attivita-riunione,
+.scheda-settimana .attivita-formazione,
+.scheda-settimana .attivita-amministrazione,
+.scheda-settimana .attivita-trasferta,
+.scheda-settimana .attivita-altro { --tinta-lavoro: var(--attivita); }
 
 /* Il blocco la cui ora del giorno non l'ha misurata nessuno si vede che non
    e' stata misurata, e su una griglia che colloca per ora del giorno e' la
@@ -1516,16 +1473,13 @@ button.minuscolo:disabled {
    sparire lavoro vero — ma un blocco pieno rivendicherebbe una precisione
    che quel dato non ha. Il tratteggio lo dice senza una parola.
 
-   ⚠️ Le righe non si disegnano piu' con la tinta del lavoro ma col **bianco
-   velato**: sopra un fondo pieno una riga della stessa tinta e' invisibile.
-   Ed e' sparito il filetto tratteggiato di sinistra, perche' il filetto non
-   c'e' piu'. */
+   ⚠️ **Il tratteggio obliquo non c'e' piu'.** Le righe diagonali sopra il
+   fondo pieno sbarravano il blocco invece di annotarlo: su una griglia fitta
+   sembravano un evento cancellato, che e' l'esatto contrario di quello che
+   un'ora vera e non misurata e'. Resta il filetto chiaro in cima, che dice la
+   stessa cosa senza attraversare niente. */
 .scheda-settimana .sessione-dedotta {
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 6px,
-    rgb(255 255 255 / 16%) 6px 12px
-  );
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 45%);
 }
 
 /* La sessione che sta scorrendo adesso: un anello nel rosa di Toggl, che e' il
@@ -1628,15 +1582,12 @@ button.minuscolo:disabled {
   gap: 0.75rem;
 }
 
-/* Un'ora dichiarata a mano non e' un'ora misurata: il tratteggio e' lo stesso
+/* Un'ora dichiarata a mano non e' un'ora misurata: il segno e' lo stesso
    della chiusura d'ufficio, perche' la cosa che dicono e' la stessa — l'ora
-   del giorno, qui, l'ha scelta una persona a memoria. */
+   del giorno, qui, l'ha scelta una persona a memoria. Un filetto in cima e
+   non piu' delle righe oblique: quelle sbarravano il blocco. */
 .scheda-settimana .sessione-manuale {
-  background-image: repeating-linear-gradient(
-    135deg,
-    transparent 0 6px,
-    rgb(255 255 255 / 16%) 6px 12px
-  );
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 45%);
 }
 
 /* L'ombra di quello che si sta trascinando sulla griglia. */
@@ -1688,96 +1639,281 @@ button.minuscolo:disabled {
 
 /* --- il proprio profilo --------------------------------------------------- */
 
-/* La stessa carta di `.scheda-ore`: due sezioni impilate, ciascuna con il suo
-   titolo. Non si riusa quella classe perche' il nome direbbe «ore» su una
-   scheda che parla di password. */
+.testata-profilo {
+  margin-top: 0.125rem;
+  margin-bottom: 1.25rem;
+}
+
+.testata-profilo h1 {
+  font-size: var(--scala-titolo);
+  line-height: 1.1;
+}
+
+/* Due schede affiancate: a sinistra quello che si e', a destra l'unica cosa
+   che si puo' cambiare. La divisione dice da se' una cosa che altrimenti
+   andrebbe scritta — i dati del profilo non si toccano da qui. La colonna
+   sinistra non cresce: e' un'anagrafica di cinque righe, e allargarla a meta'
+   schermo vorrebbe dire cinque etichette con mezzo metro di bianco in mezzo. */
+.griglia-profilo {
+  display: grid;
+  grid-template-columns: minmax(20rem, 34rem) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 62rem) {
+  .griglia-profilo {
+    grid-template-columns: 1fr;
+  }
+}
+
 .scheda-profilo {
-  margin-top: 1.5rem;
-  padding: 1rem 1.25rem 1.25rem;
+  padding: 1.5rem 1.75rem 1.75rem;
   background-color: var(--superficie);
-  border-radius: var(--raggio-carta);
+  border-radius: var(--raggio-foglio);
   box-shadow: var(--ombra-carta);
 }
 
-.scheda-profilo .testata {
-  margin-bottom: 0.75rem;
-}
-
-.scheda-profilo .testata h2 {
-  font-size: var(--scala-media);
-  font-weight: 600;
-  letter-spacing: var(--tracciatura-base);
-}
-
-.scheda-profilo .modulo {
-  margin-top: 1rem;
-  /* Il modulo non si allarga per tutta la carta: tre campi password su
-     cinquanta caratteri di larghezza sono piu' difficili da leggere, non piu'
-     comodi da compilare. */
-  max-width: 24rem;
-}
-
-/* Il campo e il suo interruttore mostra/nascondi stanno in riga: l'interruttore
-   appartiene al campo, e sotto sembrerebbe un'azione del modulo. */
-.campo-con-azione {
+.profilo-capo {
   display: flex;
-  align-items: stretch;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
 }
 
-.campo-con-azione input {
-  flex: 1;
+/* La pastiglia e' la stessa che si vede in fondo alla barra laterale, in
+   grande: chi arriva qui dal proprio nome deve ritrovare la stessa faccia. */
+.profilo-gettone {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--accento);
+  color: var(--inchiostro);
+  font-size: var(--scala-media);
+  font-weight: 800;
+}
+
+.profilo-capo-testo {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
-/* Il margine che `button.minuscolo` si da' per stare in una cella di tabella
-   qui lo disallineerebbe dal campo. */
-.campo-con-azione button.minuscolo {
+.profilo-capo-testo .nota {
   margin-top: 0;
-  flex: 0 0 auto;
+}
+
+.profilo-nome {
+  font-size: var(--scala-media);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-base);
+  line-height: 1.3;
+}
+
+.profilo-titolo {
+  font-size: var(--scala-media);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-base);
+}
+
+/* L'anagrafica: etichetta a sinistra, valore a destra, un filetto fra una
+   riga e l'altra. Non e' una tabella perche' non e' un elenco di cose dello
+   stesso tipo: sono cinque fatti su una persona sola, ed e' esattamente
+   quello che una lista di definizioni e'. */
+.elenco-dati {
+  margin: 0;
+}
+
+.riga-dato {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--riga-tenue);
+}
+
+.riga-dato dt {
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  color: var(--inchiostro-tenue);
+}
+
+.riga-dato dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.elenco-dati + .nota {
+  margin-top: 1.25rem;
+}
+
+.modulo-password {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* I campi password prendono tutta la larghezza della scheda: qui non ci sono
+   due campi da affiancare, e una riga corta in mezzo al bianco sembrerebbe
+   un campo disabilitato. */
+.campo-password {
+  width: 100%;
+  height: 3rem;
+  padding: 0 1rem;
+  border: 1px solid var(--argento-200);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--campo-fondo);
+}
+
+.campo-password:focus {
+  border-color: var(--acqua-700);
+  outline: none;
+}
+
+/* La misura della forza: quattro tacche, una per requisito soddisfatto. Non
+   e' un punteggio inventato da un algoritmo — e' il conto delle stesse regole
+   scritte sotto, e per questo la tacca che si accende corrisponde sempre a
+   una riga che diventa verde. */
+.forza-password {
+  margin-top: -0.5rem;
+}
+
+.tacche {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.tacca {
+  flex: 1;
+  height: 0.25rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--argento-200);
+  transition: background-color var(--transizione);
+}
+
+/* Il colore sale con il conto: corallo finche' la password non reggerebbe,
+   ambra a meta' strada, verde quando e' a posto. Tre colori e non quattro
+   perche' «una regola soddisfatta su quattro» e «due» sono la stessa
+   risposta: non ancora. */
+.tacca-1,
+.tacca-2 {
+  background-color: var(--corallo-500);
+}
+
+.tacca-3 {
+  background-color: var(--attenzione);
+}
+
+.tacca-4 {
+  background-color: var(--stato-completato);
+}
+
+.forza-password .nota {
+  margin-top: 0.5rem;
 }
 
 /* La spunta dei requisiti: non e' un elenco da leggere ma uno stato da
-   guardare mentre si scrive, quindi sta stretta sotto il campo e non ha i
-   pallini di una lista. */
+   guardare mentre si scrive, quindi sta stretta e non ha i pallini di una
+   lista. */
 .requisiti {
   list-style: none;
   margin: -0.25rem 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: 0.375rem;
   font-size: var(--scala-piccola);
   color: var(--inchiostro-tenue);
 }
 
 .requisiti li {
   display: flex;
-  align-items: baseline;
-  gap: 0.375rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Il segno dentro una pastiglia tonda: da spento e' un punto nell'argento, da
+   acceso una spunta nel verde. E' la stessa casella che cambia stato, non due
+   simboli diversi che si sostituiscono. */
+.requisito-segno {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--argento-200);
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  line-height: 1;
 }
 
 /* Il requisito soddisfatto si spegne invece di accendersi, ed e' voluto: a
-   modulo finito tutte e tre le righe devono smettere di chiedere attenzione.
-   Il verde e' quello di `--stato-completato`, che in questa interfaccia dice
+   modulo finito le quattro righe devono smettere di chiedere attenzione. Il
+   verde e' quello di `--stato-completato`, che in questa interfaccia dice
    gia' «fatto». */
 .requisito-ok {
   color: var(--stato-completato);
 }
 
+.requisito-ok .requisito-segno {
+  background-color: var(--successo-velo);
+  color: var(--stato-completato);
+}
+
+/* I due pulsanti a meta' ciascuno: non c'e' un'azione secondaria piccola e
+   una grande, c'e' una scelta fra lasciare le cose come stanno e cambiarle. */
+.azioni-password {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.azioni-password button {
+  width: 100%;
+  justify-content: center;
+}
+
 /* --- impalcatura: la barra laterale e il corpo ---------------------------- */
 
-/* La barra copre il contenuto quando si allarga, invece di spingerlo: il
-   corpo tiene sempre il margine della barra **chiusa**, e l'espansione
-   avviene sopra. Spingere vorrebbe dire ridisegnare i calendari a ogni
-   passaggio del mouse, con le colonne che si stringono e i blocchi che
-   saltano. */
+/* La barra **spinge** il contenuto quando si allarga, invece di coprirlo: il
+   corpo segue la larghezza della barra, e le sezioni si stringono per farle
+   posto.
+
+   Era il contrario, e la ragione era buona — spingere ridisegna i calendari a
+   ogni passaggio del mouse. Ma coprire ha un difetto peggiore: la barra
+   aperta nasconde la prima colonna di quello che si stava leggendo, e in una
+   dashboard quella colonna e' il lunedi' della settimana. Un ridisegno si
+   guarda; un dato nascosto no.
+
+   Chi segue chi lo decide il **selettore di fratellanza**: `.sidebar-larga` e
+   `.corpo-app` sono due figli dello stesso genitore, nell'ordine, quindi il
+   corpo sa dello stato della barra senza che nessuno glielo passi. Niente
+   stato sollevato fino a `App.tsx` per una cosa che e' solo un margine. */
 .corpo-app {
   margin-left: var(--sidebar-chiusa);
   min-height: 100vh;
   /* Senza questo, una tabella larga dentro una pagina figlia allargherebbe
      tutto il corpo. */
   min-width: 0;
+  /* La stessa durata e la stessa curva della barra, altrimenti i due bordi
+     si rincorrono invece di muoversi insieme. */
+  transition: margin-left var(--transizione);
+}
+
+.sidebar-larga ~ .corpo-app {
+  margin-left: var(--sidebar-aperta);
 }
 
 /* La barra **galleggia**: non tocca i bordi della finestra e ha i suoi
@@ -1953,8 +2089,14 @@ button.minuscolo:disabled {
   cursor: pointer;
 }
 
+/* Da schermo stretto la barra torna a essere un menu' sovrapposto, e il
+   corpo non le lascia nessun margine: li' non c'e' spazio da spartire — una
+   colonna di contenuto larga trecento pixel meno la barra non sarebbe piu'
+   una colonna. La seconda regola ripete il selettore di fratellanza perche'
+   altrimenti vincerebbe lui, che e' piu' specifico. */
 @media (max-width: 700px) {
-  .corpo-app {
+  .corpo-app,
+  .sidebar-larga ~ .corpo-app {
     margin-left: 0;
   }
 }
@@ -2035,16 +2177,14 @@ button.minuscolo:disabled {
 
    Da quando «Da fare oggi» non c'e' piu', questa colonna ha un pannello solo e
    il calendario del registrato si prende lo spazio libero: `clamp` lo fa
-   crescere con la finestra senza lasciarlo andare all'infinito. Il minimo
-   tiene la griglia leggibile su un portatile; la sottrazione lascia fuori
-   testata, saluto e margini; il massimo evita che su un monitor in verticale
-   una settimana diventi un muro da scorrere.
-
-   `.pannello-assenze` la sovrascrive piu' in basso: un mese ha cinque righe di
-   celle e vuole la sua misura. */
+   **Nessuna altezza imposta.** Prima era un `clamp` legato alla finestra, e
+   il prezzo era una barra di scorrimento dentro il pannello: per vedere le
+   otto del mattino si scorreva dentro un riquadro che sta dentro una pagina
+   che gia' scorre, e due scorrimenti annidati sono il modo piu' sicuro di
+   perdere il segno. Adesso il riquadro prende l'altezza di quello che mostra,
+   e a scorrere e' solo la pagina. */
 .pannello-calendario .pannello-corpo {
   padding: 0;
-  height: clamp(26rem, calc(100vh - 15rem), 46rem);
 
   --fc-border-color: var(--riga-tenue);
   --fc-page-bg-color: var(--superficie);
@@ -2057,7 +2197,6 @@ button.minuscolo:disabled {
 /* Dentro un pannello la scheda del calendario non porta piu' il suo bordo:
    sarebbero due cornici a un pixel di distanza. */
 .pannello-calendario .scheda-calendario {
-  height: 100%;
   margin: 0;
   padding: 0;
   border: 0;
@@ -2088,8 +2227,15 @@ button.minuscolo:disabled {
 
 /* --- la dashboard a due colonne ------------------------------------------- */
 
+/* **A piena pagina**, senza il tetto di `--pagina-massima`.
+
+   Quel tetto esiste per le pagine di testo e di tabelle, dove una riga larga
+   due monitor costringe l'occhio ad attraversare mezzo metro per leggere una
+   scadenza. Qui vale il contrario: la dashboard e' una griglia di riquadri
+   affiancati, e ogni centimetro che le si toglie e' un'ora in meno visibile
+   nella settimana e una riga in meno nelle task. Lo spazio che prende non
+   allunga una riga di testo, allarga delle colonne. */
 .pagina-dashboard {
-  max-width: var(--pagina-massima);
   margin: 0 auto;
   padding: 1.5rem 1.5rem 3rem;
 }
@@ -2362,52 +2508,117 @@ button.minuscolo:disabled {
   border: 0;
 }
 
-/* --- l'elenco dei lavori a schede ---------------------------------------- */
+/* --- la sezione dei lavori ------------------------------------------------ */
 
-/* La barra sopra la griglia: ricerca, stato, annullati. I campi non prendono
-   l'altezza piena di un modulo, perche' qui non si compila niente: si
-   restringe un elenco. */
-.barra-lavori {
-  display: flex;
-  align-items: flex-end;
+/* L'occhiello sopra il titolo: maiuscoletto spaziato, nel verde della
+   struttura. E' il modo in cui Fluida intesta una schermata — dice in che
+   sezione si e', mentre il titolo dice che cosa ci si trova — e vale sia per
+   l'elenco («LAVORI») sia per il dettaglio, dove porta il codice del lavoro e
+   il suo responsabile. */
+.occhiello {
+  margin-top: 0.25rem;
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+  color: var(--teal-500);
+}
+
+.testata-lavori,
+.testata-lavoro {
   flex-wrap: wrap;
-  gap: 0.75rem 1rem;
+  margin-top: 0.125rem;
   margin-bottom: 1.25rem;
 }
 
-.barra-lavori .campo {
-  gap: 0.25rem;
+/* Il titolo di queste due schermate prende la scala piena degli H1 e non
+   quella di sezione: sotto c'e' l'occhiello che dice dove si e', e il nome
+   del lavoro e' la cosa da leggere per prima. */
+.testata-lavori h1,
+.testata-lavoro h1 {
+  font-size: var(--scala-titolo);
+  line-height: 1.1;
 }
 
-.barra-lavori .campo-cerca {
-  flex: 1;
-  min-width: 14rem;
-  max-width: 24rem;
-}
-
-.barra-lavori .campo input,
-.barra-lavori .campo select {
-  height: 2.375rem;
-}
-
-.interruttore-annullati {
+/* Lo stato e le facce della squadra, in fondo alla riga del titolo. */
+.testata-segni {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  /* Allineato alla base dei campi accanto, non al loro centro: con
-     `align-items: flex-end` sul contenitore, un'etichetta senza campo sopra
-     resterebbe appesa in alto. */
-  padding-bottom: 0.5rem;
-  font-size: var(--scala-piccola);
-  color: var(--inchiostro-tenue);
+  gap: 0.75rem;
 }
+
+/* Il ritorno all'elenco: sopra il titolo, non accanto. In una pagina lunga
+   come il dettaglio di un lavoro, un collegamento in alto a destra si perde
+   fra le azioni; qui e' la prima cosa che si incontra scendendo dalla barra. */
+.ritorno {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: var(--altezza-controllo-piccolo);
+  padding: 0 0.875rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--transizione);
+}
+
+.ritorno:hover {
+  background-color: var(--argento-100);
+}
+
+/* --- i chip di filtro ----------------------------------------------------- */
+
+/* Pillole al posto di una tendina. Una tendina nasconde le sue voci finche'
+   non la si apre, quindi nasconde anche quante righe ci sono dietro ciascuna:
+   i chip le scrivono accanto al nome, e si vede che cosa si trovera' prima di
+   premere. Tre scelte sono poche abbastanza perche' stiano su una riga. */
+.chip-filtri {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.chip {
+  height: var(--altezza-controllo-piccolo);
+  padding: 0 0.9375rem;
+  border: none;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    color var(--transizione);
+}
+
+.chip:hover:not(.chip-scelto) {
+  color: var(--inchiostro);
+}
+
+/* Il chip scelto e' pieno del verde della struttura: e' l'unico modo di
+   distinguerlo che non dipenda dal colore del testo, e si vede anche in
+   bianco e nero. */
+.chip-scelto {
+  background-color: var(--azione);
+  color: var(--superficie);
+}
+
+/* --- l'elenco dei lavori a schede ---------------------------------------- */
 
 /* `auto-fill` e non `auto-fit`: con poche schede `auto-fit` le allargherebbe
    fino a riempire la riga, e due lavori darebbero due schede enormi. Cosi'
    tengono la loro misura e la riga resta aperta. */
 .griglia-lavori {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
   gap: 1rem;
 }
 
@@ -2417,19 +2628,15 @@ button.minuscolo:disabled {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  min-height: 13rem;
+  gap: 0.75rem;
   padding: 1rem 1.125rem 1.125rem;
   border-radius: var(--raggio-carta);
   background-color: var(--superficie);
   box-shadow: var(--ombra-carta);
-  transition:
-    border-color var(--transizione),
-    box-shadow var(--transizione);
+  transition: box-shadow var(--transizione);
 }
 
 .card-lavoro:hover {
-  border-color: var(--riga);
   box-shadow: var(--ombra-foglio);
 }
 
@@ -2440,8 +2647,7 @@ button.minuscolo:disabled {
   background-color: var(--carta);
 }
 
-.card-lavoro-spenta .card-lavoro-nome a,
-.card-lavoro-spenta .card-lavoro-descrizione {
+.card-lavoro-spenta .card-lavoro-nome a {
   color: var(--inchiostro-tenue);
 }
 
@@ -2453,24 +2659,27 @@ button.minuscolo:disabled {
 }
 
 .card-lavoro-codice {
+  overflow: hidden;
   font-size: var(--scala-piccola);
-  font-weight: 500;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--inchiostro-tenue);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-lavoro-nome {
   font-size: var(--scala-media);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: var(--tracciatura-base);
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .card-lavoro-nome a {
   color: var(--inchiostro);
   text-decoration: none;
-  /* Due righe al massimo: un nome lungo non deve spingere la descrizione
-     fuori dalla scheda. */
+  /* Due righe al massimo: un nome lungo non deve spingere i numeri fuori
+     dalla scheda. */
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -2495,40 +2704,119 @@ button.minuscolo:disabled {
 }
 
 .card-lavoro:hover .card-lavoro-nome a {
-  color: var(--azione);
+  color: var(--teal-500);
 }
 
-.card-lavoro-descrizione {
-  flex: 1;
-  margin: 0;
-  font-size: var(--scala-piccola);
-  line-height: 1.5;
-  color: var(--inchiostro-tenue);
-  /* Tre righe: oltre, la scheda diventa un documento da leggere invece di una
-     cosa da scegliere. Il testo intero sta nel dettaglio. */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
+.card-lavoro-avanzamento {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
 }
 
-.card-lavoro-senza {
-  font-style: italic;
-  opacity: 0.7;
-}
-
-.card-lavoro-piede {
+.card-lavoro-riga {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem;
-  padding-top: 0.5rem;
+}
+
+/* La frase dell'avanzamento e' una nota, ma non la piu' tenue della pagina:
+   dice su quante task e' calcolata la percentuale accanto, e quel
+   denominatore e' meta' dell'informazione. */
+.nota-piena {
+  margin-top: 0;
+  font-weight: 600;
+  color: var(--inchiostro);
+}
+
+.card-lavoro-quota {
+  font-size: var(--scala-piccola);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La barra: alta sei pixel e tutta arrotondata, come le vasche del design
+   system. Il fondo e' argento e non un velo del verde, perche' la parte piena
+   e' gia' verde e due verdi vicini non si distinguerebbero. */
+.barra-avanzamento {
+  height: 0.375rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--argento-200);
+  overflow: hidden;
+}
+
+.barra-piena {
+  display: block;
+  height: 100%;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--teal-500);
+  transition: width var(--transizione);
+}
+
+/* Al 100% la barra passa all'acqua: e' il colore con cui Fluida dice «fatto»,
+   e la differenza fra «quasi» e «finito» va vista senza leggere il numero. */
+.barra-completa {
+  background-color: var(--acqua-700);
+}
+
+.card-lavoro-piede {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--riga-tenue);
 }
 
-.card-lavoro-piede .nota {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.card-lavoro-colonna {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.card-lavoro-colonna-destra {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.card-lavoro-etichetta,
+.riquadro-etichetta {
+  font-size: var(--scala-etichetta);
+  font-weight: 700;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+  color: var(--inchiostro-tenue);
+}
+
+/* Le ore rimaste sono il numero grande della scheda: e' quello su cui si
+   decide se un lavoro ha ancora margine. */
+.card-lavoro-ore {
+  font-size: var(--scala-sezione);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: var(--tracciatura-titolo);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Poche ore: corallo. E' l'unico accento della scheda, e sta sul solo numero
+   che chiede di fare qualcosa — in una griglia di dieci schede se ne
+   accendono una o due, che e' il punto. */
+.card-lavoro-poche {
+  color: var(--corallo-700);
+}
+
+/* Le priorita' alte: una pillola corallo piena, piccola. Compare solo dove
+   ce n'e' almeno una, quindi non e' mai decorazione. */
+.segnale-urgenza {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--corallo-500);
+  color: var(--superficie);
+  font-size: var(--scala-etichetta);
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -2555,177 +2843,473 @@ button.minuscolo:disabled {
   color: var(--inchiostro-tenue);
 }
 
-/* --- il dettaglio di un lavoro, a due colonne ---------------------------- */
+/* --- il dettaglio di un lavoro: i cinque riquadri ------------------------- */
 
-/* A sinistra come va il lavoro, a destra cosa c'e' dentro. Prima era una pila,
-   e per arrivare allo storico delle ore si scorreva oltre tutte le task. */
-/* Colonne pari, e `minmax(0, …)` non e' pignoleria: un `1fr` nudo ha minimo
-   `auto`, quindi una tabella larga dentro una colonna la spinge oltre la sua
-   meta' e schiaccia quella accanto. Con il minimo a zero la colonna resta
-   della sua misura e la tabella scorre dentro la propria scheda. */
-.griglia-lavoro {
+/* Cinque in riga su uno schermo largo, e si avvolgono prima di stringersi
+   sotto la misura in cui un numero grande smette di starci. */
+.riquadri-kpi {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
 }
 
-.colonna-avanzamento,
-.colonna-dettagli {
-  min-width: 0;
+.riquadro-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.9375rem 1.125rem 1.125rem;
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
 }
 
-/* Le sezioni dentro le colonne portano gia' il loro margine superiore: la
-   prima di ogni colonna no, altrimenti le due colonne partirebbero a altezze
-   diverse. */
-.colonna-avanzamento > section:first-child,
-.colonna-dettagli > section:first-child {
+.riquadro-valore {
+  font-size: var(--scala-titolo);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: var(--tracciatura-titolo);
+  font-variant-numeric: tabular-nums;
+}
+
+.riquadro-base {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* Il riquadro principale e' pieno del verde della struttura: e' la risposta
+   alla domanda che si fa aprendo la pagina, e un riquadro bianco in mezzo ad
+   altri quattro bianchi non la distinguerebbe. */
+.riquadro-pieno {
+  background-color: var(--azione);
+  color: var(--superficie);
+}
+
+.riquadro-pieno .riquadro-etichetta,
+.riquadro-pieno .riquadro-base {
+  color: rgb(255 255 255 / 70%);
+}
+
+/* Il corallo pieno e' riservato al caso che chiede di agire: le ore sono
+   quasi finite. Se ci fosse sempre non direbbe piu' niente. */
+.riquadro-allarme {
+  background-color: var(--corallo-500);
+  color: var(--superficie);
+}
+
+.riquadro-allarme .riquadro-etichetta,
+.riquadro-allarme .riquadro-base {
+  color: rgb(255 255 255 / 80%);
+}
+
+/* Il numero acceso senza riempire il riquadro: per il ritardo e la scadenza
+   passata, che sono notizie e non allarmi da fondo pieno. */
+.riquadro-acceso {
+  color: var(--corallo-700);
+}
+
+/* I due indicatori di qualita', in coda ai riquadri: una riga sola, larga
+   tutta la griglia, sotto i numeri di oggi. */
+.nota-kpi {
+  grid-column: 1 / -1;
   margin-top: 0;
 }
 
-/* Stessa soglia della dashboard: sotto, due colonne da mezza larghezza non
-   reggono ne' una tabella di task ne' una barra temporale. */
-@media (max-width: 1200px) {
-  .griglia-lavoro {
-    grid-template-columns: 1fr;
-  }
+/* L'avviso del lavoro in difficolta': il velo di corallo, non il rosso
+   dell'errore — non e' andato storto niente, c'e' da rivedere un piano. */
+.avviso-lavoro {
+  margin-bottom: 1.25rem;
 }
 
-/* I quattro KPI stanno in griglia e non in fila come le cifre del monte ore:
-   ciascuno porta sotto la propria base, e in fila le didascalie si
-   accavallerebbero. */
-.cifre-kpi {
+/* --- le facce della squadra ----------------------------------------------- */
+
+.squadra,
+.riga-task-persone {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+/* Le pastiglie si sovrappongono di un terzo, come in una fila di facce: con
+   sei persone una fila spaziata sarebbe larga quanto il titolo. */
+.squadra .gettone + .gettone {
+  margin-left: -0.5rem;
+}
+
+.gettone {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--raggio-pillola);
+  /* L'anello bianco e' quello che stacca una pastiglia dalla vicina quando si
+     sovrappongono: senza, due tinte simili diventerebbero una macchia. */
+  box-shadow: 0 0 0 2px var(--superficie);
+  background-color: var(--teal-500);
+  color: var(--superficie);
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+/* Le otto tinte sono quelle dei lavori nel calendario: sono state scelte per
+   reggere del testo bianco piccolo, ed e' esattamente l'uso che se ne fa
+   qui. Una persona prende la sua dal proprio id, quindi ha lo stesso colore
+   in ogni lavoro. */
+.gettone-0 { background-color: var(--lavoro-0); }
+.gettone-1 { background-color: var(--lavoro-1); }
+.gettone-2 { background-color: var(--lavoro-2); }
+.gettone-3 { background-color: var(--lavoro-3); }
+.gettone-4 { background-color: var(--lavoro-4); }
+.gettone-5 { background-color: var(--lavoro-5); }
+.gettone-6 { background-color: var(--lavoro-6); }
+.gettone-7 { background-color: var(--lavoro-7); }
+
+/* La crocetta per togliere un'assegnazione: compare dentro la pastiglia e
+   solo a chi gestisce il lavoro. */
+.gettone .togli {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  width: 1rem;
+  height: 1rem;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--inchiostro);
+  color: var(--superficie);
+  font-size: var(--scala-etichetta);
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Si mostra al passaggio del mouse o quando ha il fuoco da tastiera: una
+   crocetta sempre visibile su ogni faccia renderebbe la fila un campo
+   minato. `:focus-within` e' quello che la rende raggiungibile senza
+   mouse. */
+.gettone:hover .togli,
+.gettone:focus-within .togli {
+  display: inline-flex;
+}
+
+/* --- i grafici dell'andamento --------------------------------------------- */
+
+/* Due grafici affiancati, e sotto i 1000px uno sotto l'altro: a meta' di uno
+   schermo stretto una serie di settimane diventa illeggibile. */
+.griglia-grafici {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
 
-/* Lo scostamento e' il solo numero di segnale della fila: sopra budget rosso,
-   sotto verde. Gli altri tre sono misure e restano inchiostro. */
-.kpi-sopra {
-  color: var(--stato-annullato);
+.scheda-grafico {
+  min-width: 0;
+  padding: 1.125rem 1.25rem 0.75rem;
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
 }
 
-.kpi-sotto {
-  color: var(--stato-completato);
-}
-
-/* --- la barra temporale delle task --------------------------------------- */
-
-.barra-temporale {
-  position: relative;
-}
-
-.barra-temporale-asse {
-  display: flex;
-  justify-content: space-between;
-  padding-left: 11rem;
-  margin-bottom: 0.25rem;
-}
-
-.barra-temporale-righe {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.grafico {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
-.barra-temporale-riga {
-  display: grid;
-  grid-template-columns: 11rem 1fr;
-  align-items: center;
-  gap: 0.5rem;
+.grafico-testa {
+  display: flex;
+  flex-direction: column;
 }
 
-.barra-temporale-nome {
+.grafico-titolo {
+  font-size: var(--scala-media);
+  font-weight: 700;
+  letter-spacing: var(--tracciatura-base);
+}
+
+.grafico-testa .nota {
+  margin-top: 0.125rem;
+}
+
+/* La legenda c'e' sempre, con due serie: l'identita' non deve mai dipendere
+   dal solo colore. Sta in alto a destra, fuori dalla tela, cosi' non copre
+   nessun punto della curva. */
+.grafico-legenda {
   display: flex;
+  justify-content: flex-end;
+  gap: 0.875rem;
+  margin-top: -1.25rem;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.voce-legenda {
+  display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  min-width: 0;
-  font-size: var(--scala-piccola);
 }
 
-.barra-temporale-titolo {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* La tela si ridimensiona con il suo contenitore: le coordinate sono in
+   unita' del `viewBox`, quindi le etichette restano proporzionate a
+   qualunque larghezza senza misurare il DOM. */
+.grafico-tela {
+  width: 100%;
+  height: auto;
+  margin-top: 0.25rem;
 }
 
-/* La pista su cui la barra si colloca: il riferimento delle percentuali. */
-.barra-temporale-pista {
-  position: relative;
-  display: block;
-  height: 1.125rem;
-  border-radius: var(--raggio-pillola);
+/* La griglia e' recessiva: si vede quanto basta a misurare l'altezza di un
+   punto, mai quanto la linea dei dati. */
+.grafico-griglia {
+  stroke: var(--argento-200);
+  stroke-width: 1;
+}
+
+.grafico-tacca {
+  fill: var(--inchiostro-tenue);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.grafico-tacca-y {
+  text-anchor: end;
+}
+
+/* I numeri sopra le barre: sono conteggi piccoli, e scritti sulla barra
+   valgono piu' di un asse graduato a sinistra. */
+.grafico-valore {
+  fill: var(--inchiostro);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La linea delle ore: due pixel, il verde profondo della struttura. */
+.tratto-usate {
+  stroke: var(--teal-500);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  fill: none;
+}
+
+/* Il piano e' tratteggiato, e il tratteggio e' la seconda codifica: distingue
+   le due serie anche stampate in bianco e nero o lette da chi non separa le
+   due tinte. */
+.tratto-piano {
+  stroke: var(--argento-500);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  fill: none;
+}
+
+/* Il velo sotto la curva da' peso alla linea contro la griglia. Tenue: e' uno
+   sfondo, non una seconda serie da leggere. */
+.velo-usate {
+  fill: var(--acqua-100);
+  opacity: 0.55;
+}
+
+.punto-usate {
+  fill: var(--superficie);
+  stroke: var(--teal-500);
+  stroke-width: 2;
+}
+
+.barra-grafico {
+  fill: var(--teal-900);
+}
+
+/* Una settimana senza chiusure resta un trattino argento: dice «questa
+   settimana e' passata e non e' successo niente», che e' diverso dal nulla. */
+.barra-vuota {
+  fill: var(--argento-300);
+}
+
+/* --- le task di un lavoro ------------------------------------------------- */
+
+.scheda-task {
+  margin-top: 1.25rem;
+  padding: 1.125rem 1.25rem 1.25rem;
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+}
+
+/* I chip stanno sulla stessa riga del titolo, in fondo: sono il controllo di
+   quella sezione, non di tutta la pagina. */
+.testata-task {
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.testata-task .chip-filtri {
+  margin-bottom: 0;
+}
+
+/* Il budget sopra l'elenco: e' il contesto di ogni allocazione che si fa
+   qui sotto. */
+.riga-budget {
+  margin-bottom: 0.75rem;
+}
+
+.nuova-task {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 0.9375rem;
+  border-radius: var(--raggio-controllo);
   background-color: var(--campo-fondo);
 }
 
-.barra-temporale-blocco {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  min-width: 2px;
-  border-radius: var(--raggio-pillola);
-  background-color: var(--tinta-stato, var(--inchiostro-tenue));
+.testata-nuova-task {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-/* Le tinte sono quelle degli stati, le stesse della pillola accanto: una
-   seconda tavolozza per dire le stesse quattro cose direbbe prima o poi
-   un'altra cosa. */
-.tinta-attivo {
-  --tinta-stato: var(--stato-attivo);
+.elenco-task {
+  list-style: none;
+  padding: 0;
 }
 
-.tinta-in-corso {
-  --tinta-stato: var(--stato-in-corso);
+.elenco-task > li {
+  padding: 0.75rem 0.5rem;
+  border-radius: var(--raggio-controllo);
+  border-bottom: 1px solid var(--riga-tenue);
 }
 
-.tinta-completato {
-  --tinta-stato: var(--stato-completato);
+.elenco-task > li:last-child {
+  border-bottom: none;
 }
 
-.tinta-annullato {
-  --tinta-stato: var(--stato-annullato);
+/* Una task in ritardo prende un velo di corallo per tutta la riga: e'
+   l'unica condizione che chiede di fare qualcosa oggi, e deve trovarsi
+   scorrendo senza leggere. */
+.riga-task-ritardo {
+  background-color: var(--corallo-50);
 }
 
-/* La linea di oggi attraversa tutte le righe: dentro una riga sarebbe un
-   trattino, qui dice dove siamo sull'asse. */
-.barra-temporale-oggi {
-  position: absolute;
-  top: 1.25rem;
-  bottom: 0;
-  width: 0;
-  border-left: 1px dashed var(--azione);
-  /* La pista comincia dopo la colonna dei nomi: la percentuale e' calcolata
-     sull'asse, non sulla larghezza totale. */
-  margin-left: 11.5rem;
-  pointer-events: none;
+/* Una task chiusa resta visibile e smette di chiamare: titolo barrato, tutto
+   il resto attenuato. Non si nasconde — una task completata ieri racconta
+   com'e' andata la settimana. */
+.riga-task-chiusa .riga-task-titolo {
+  color: var(--inchiostro-tenue);
+  text-decoration: line-through;
 }
 
-.barra-temporale-oggi .nota {
-  position: absolute;
-  top: -1.25rem;
-  left: 0.25rem;
-  color: var(--azione);
+.riga-task-chiusa .riga-task-meta,
+.riga-task-chiusa .riga-task-ore {
+  color: var(--inchiostro-tenue);
+}
+
+.riga-task {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.spunta-task {
+  flex: none;
+  margin: 0;
+}
+
+/* Il corpo si prende lo spazio che resta, e `min-width: 0` e' quello che
+   permette a un titolo lungo di troncarsi invece di spingere fuori i numeri
+   a destra. */
+.riga-task-corpo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.riga-task-titolo {
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.riga-task-meta {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* Il ritardo e' scritto, non solo colorato: la riga velata lo fa notare, la
+   parola lo dice a chi non distingue il velo. */
+.riga-task-ritardo .riga-task-meta {
+  color: var(--corallo-700);
+  font-weight: 600;
+}
+
+.riga-task-ore {
+  flex: none;
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-@media (max-width: 700px) {
-  /* Su schermo stretto undici rem di nomi non ci stanno: la riga si impila e
-     la barra prende tutta la larghezza. */
-  .barra-temporale-riga,
-  .barra-temporale-asse {
-    grid-template-columns: 1fr;
-    padding-left: 0;
+/* Lo sforamento non ha bisogno di una parola in piu': il primo numero piu'
+   grande del secondo lo dice gia', e il colore lo fa notare. */
+.riga-task-sfora {
+  color: var(--corallo-700);
+}
+
+/* I comandi su una riga loro, rientrati sotto il titolo: sono pochi controlli
+   per chi dirige il lavoro e chi ci lavora, e in mezzo al titolo renderebbero
+   illeggibili le altre venti righe. */
+.riga-task-comandi {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin: 0.375rem 0 0 2rem;
+}
+
+.riga-task-comandi select {
+  height: var(--altezza-controllo-piccolo);
+  padding: 0 0.5rem;
+  background-color: var(--campo-fondo);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-pillola);
+  font-size: var(--scala-piccola);
+}
+
+.riga-task-comandi button.minuscolo {
+  margin-top: 0;
+}
+
+.elenco-task .modulo-riga {
+  margin: 0.5rem 0 0 2rem;
+}
+
+/* Sotto i 40rem i numeri e le pillole scendono sotto il titolo: su un
+   telefono una riga con titolo, ore, urgenza e facce non ci sta, e
+   stringerli li renderebbe tutti illeggibili insieme. */
+@media (max-width: 40rem) {
+  .riga-task {
+    flex-wrap: wrap;
   }
 
-  .barra-temporale-oggi {
-    display: none;
+  .riga-task-corpo {
+    flex-basis: 100%;
+    order: -1;
+    padding-left: 1.75rem;
+  }
+
+  .riga-task-comandi,
+  .elenco-task .modulo-riga {
+    margin-left: 0;
   }
 }
+
 
 /* --- ferie e permessi ----------------------------------------------------- */
 
@@ -2825,10 +3409,12 @@ button.minuscolo:disabled {
 
 /* --- il calendario di chi e' via ------------------------------------------ */
 
-/* Piu' alto degli altri calendari: un mese ha cinque o sei righe di celle, e
-   con l'altezza del calendario settimanale le giornate si schiacciano. */
+/* Niente altezza nemmeno qui: le celle di un mese prendono la loro misura e
+   il pannello cresce con loro. Era 34rem perche' con l'altezza del calendario
+   settimanale le giornate si schiacciavano — un numero scelto per compensare
+   un altro numero, che e' il segno che nessuno dei due doveva esserci. */
 .pannello-assenze .pannello-corpo {
-  height: 34rem;
+  padding: 0;
 }
 
 /* Un colore per persona, non uno per «assenza».
@@ -2923,67 +3509,166 @@ button.minuscolo:disabled {
    di grafici — una barra e' un div con una larghezza in percentuale, ed e' la
    stessa scelta dichiarata da `.barra-temporale-*`. */
 
-.elenco-report {
+.testata-report {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+}
+
+.testata-report h1 {
+  font-size: var(--scala-titolo);
+  line-height: 1.1;
+}
+
+.sottotitolo-report {
+  margin-top: 0.25rem;
+}
+
+/* I tre periodi dentro una vasca sola, come un interruttore a tre posizioni:
+   non sono tre pulsanti indipendenti, sono una scelta fra tre. La vasca lo
+   dice meglio di tre pillole staccate. */
+.gruppo-periodo {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+}
+
+.periodo {
+  height: var(--altezza-controllo-piccolo);
+  padding: 0 1rem;
+  border: none;
+  border-radius: var(--raggio-pillola);
+  background: none;
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    color var(--transizione);
+}
+
+.periodo:hover:not(.periodo-scelto) {
+  color: var(--inchiostro);
+}
+
+.periodo-scelto {
+  background-color: var(--azione);
+  color: var(--superficie);
+}
+
+/* A sinistra le persone, a destra la ripartizione di quella scelta. La
+   colonna sinistra non cresce oltre la sua misura: e' un elenco di nomi, e
+   allargarlo a meta' schermo vorrebbe dire nomi con mezzo metro di bianco
+   accanto. */
+.griglia-report {
+  display: grid;
+  grid-template-columns: minmax(18rem, 26rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 62rem) {
+  .griglia-report {
+    grid-template-columns: 1fr;
+  }
+}
+
+.scheda-report {
+  padding: 1rem;
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+}
+
+.scheda-ripartizione {
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.elenco-persone {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
 }
 
-.riga-report {
-  border-bottom: 1px solid var(--riga-tenue);
-}
-
-.riga-report:last-child {
-  border-bottom: none;
-}
-
-/* La riga chiusa: nome, totale e barra su una griglia a tre colonne. La barra
-   prende lo spazio che resta — e' il colpo d'occhio, e va letta per prima. */
-.riga-report-capo {
-  display: grid;
-  grid-template-columns: minmax(12rem, 18rem) 6rem 1fr;
-  align-items: center;
-  gap: 0.875rem;
+/* Ogni persona e' una tessera, non una riga di tabella: ha il suo contorno e
+   il suo spazio, e sta accanto alle altre invece che dentro una griglia. E'
+   la forma che il design system da' a un elenco di cose scegliibili. */
+.riga-persona {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
   width: 100%;
-  padding: 0.75rem 0.875rem;
-  border: none;
-  background: none;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--argento-200);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--superficie);
   font: inherit;
   color: inherit;
   text-align: left;
   cursor: pointer;
+  transition:
+    border-color var(--transizione),
+    background-color var(--transizione);
 }
 
-.riga-report-capo:hover:not(:disabled) {
-  background-color: var(--azione-velo);
+.riga-persona:hover:not(:disabled) {
+  border-color: var(--argento-300);
 }
 
-/* Una persona a zero ore non si apre: non c'e' niente sotto. Resta leggibile —
-   «chi non ha registrato niente» e' un'informazione, non una riga spenta — ma
-   il cursore dice che non e' un bersaglio. */
-.riga-report-capo:disabled {
+/* La persona scelta: contorno e velo d'acqua. E' l'unica tessera accesa della
+   colonna, e il velo e' quello che lega l'elenco a destra alla riga da cui
+   viene. */
+.riga-persona-scelta {
+  border-color: var(--acqua-500);
+  background-color: var(--accento-velo);
+}
+
+/* Una persona a zero ore non si apre: non c'e' niente da ripartire. Resta
+   leggibile — «chi non ha registrato niente» e' un'informazione, non una riga
+   spenta — ma il cursore dice che non e' un bersaglio. */
+.riga-persona:disabled {
   cursor: default;
   color: var(--inchiostro-tenue);
 }
 
-.riga-report-chi {
-  font-weight: 500;
+.riga-persona-capo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-/* I numeri incolonnati a destra e in cifre tabellari: due totali che si
-   confrontano con l'occhio devono avere le cifre una sopra l'altra. */
-.riga-report-ore {
-  text-align: right;
+.riga-persona-nome {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+/* I numeri a destra e in cifre tabellari: due totali che si confrontano con
+   l'occhio devono avere le cifre una sopra l'altra. */
+.riga-persona-ore,
+.testa-ripartizione-ore,
+.voce-report-ore,
+.voce-figlia-ore,
+.voce-figlia-quota {
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
-.riga-report-avviso {
-  margin: 0;
-  padding: 0 0.875rem 0.625rem;
+.riga-persona-ore {
+  font-size: var(--scala-media);
+  font-weight: 800;
 }
 
-.riga-report-corpo {
-  padding: 0 0.875rem 1rem;
+.riga-persona-avviso {
+  margin-top: 0;
 }
 
 .barra-ripartizione {
@@ -2995,8 +3680,10 @@ button.minuscolo:disabled {
 }
 
 /* Il posto della barra quando la ripartizione non e' ancora arrivata: tiene la
-   riga alta uguale, cosi' aprire una persona non fa sobbalzare l'elenco. */
+   tessera alta uguale, cosi' scegliere una persona non fa sobbalzare
+   l'elenco. */
 .barra-ripartizione-vuota {
+  display: block;
   height: 0.625rem;
   border-radius: var(--raggio-pillola);
   background-color: var(--campo-fondo);
@@ -3018,77 +3705,126 @@ button.minuscolo:disabled {
    colore da progetto lo farebbe sembrare tale. */
 .segmento-neutro {
   background-color: var(--urgenza-bassa);
+  --tinta-lavoro: var(--urgenza-bassa);
 }
 
-.elenco-report .lavoro-0 { --tinta-lavoro: var(--lavoro-0); }
-.elenco-report .lavoro-1 { --tinta-lavoro: var(--lavoro-1); }
-.elenco-report .lavoro-2 { --tinta-lavoro: var(--lavoro-2); }
-.elenco-report .lavoro-3 { --tinta-lavoro: var(--lavoro-3); }
-.elenco-report .lavoro-4 { --tinta-lavoro: var(--lavoro-4); }
-.elenco-report .lavoro-5 { --tinta-lavoro: var(--lavoro-5); }
-.elenco-report .lavoro-6 { --tinta-lavoro: var(--lavoro-6); }
-.elenco-report .lavoro-7 { --tinta-lavoro: var(--lavoro-7); }
+.griglia-report .lavoro-0 { --tinta-lavoro: var(--lavoro-0); }
+.griglia-report .lavoro-1 { --tinta-lavoro: var(--lavoro-1); }
+.griglia-report .lavoro-2 { --tinta-lavoro: var(--lavoro-2); }
+.griglia-report .lavoro-3 { --tinta-lavoro: var(--lavoro-3); }
+.griglia-report .lavoro-4 { --tinta-lavoro: var(--lavoro-4); }
+.griglia-report .lavoro-5 { --tinta-lavoro: var(--lavoro-5); }
+.griglia-report .lavoro-6 { --tinta-lavoro: var(--lavoro-6); }
+.griglia-report .lavoro-7 { --tinta-lavoro: var(--lavoro-7); }
 
-/* Il pallino della tinta accanto al codice del lavoro: lega la riga della
-   tabella al suo segmento nella barra sopra. Il codice resta scritto, quindi
-   due tinte simili non perdono l'informazione. */
+/* Il pallino della tinta accanto al codice del lavoro: lega la riga al suo
+   segmento nella barra della persona. Il codice resta scritto, quindi due
+   tinte simili non perdono l'informazione. */
 .punto-tinta {
   display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin-right: 0.5rem;
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 50%;
   background-color: var(--tinta-lavoro, var(--inchiostro-tenue));
 }
 
-.tabella-report {
+/* La testata della colonna destra: chi si sta guardando e quanto ha fatto in
+   tutto. E' il denominatore di ogni percentuale sotto, quindi sta in cima. */
+.testa-ripartizione {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.875rem;
+}
+
+.testa-ripartizione-nome {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--scala-media);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-base);
+}
+
+.testa-ripartizione-ore {
+  font-size: var(--scala-media);
+  font-weight: 800;
+}
+
+.voce-report {
+  padding: 0.625rem 0;
+}
+
+.voce-report-capo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.voce-report-nome {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+
+.voce-report-nome .nota {
+  margin-top: 0;
+  font-weight: 400;
+}
+
+.voce-report-ore {
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+}
+
+/* La quota in acqua scura: e' il numero che si confronta fra una riga e
+   l'altra, e nella coppia «ore · percentuale» e' il secondo a dire il peso. */
+.voce-report-ore .quota {
+  color: var(--acqua-700);
+}
+
+/* La vasca di un lavoro: quanto pesa sul tempo della persona. Piu' sottile
+   della barra della tessera — li' e' il colpo d'occhio su tutto, qui e' una
+   riga fra molte. */
+.vasca-report {
+  height: 0.5rem;
+  margin-top: 0.4375rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--campo-fondo);
+  overflow: hidden;
+}
+
+.vasca-piena {
+  display: block;
+  height: 100%;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--tinta-lavoro, var(--inchiostro-tenue));
+}
+
+/* Le task dentro un lavoro: rientrate e piu' tenui. Il rientro fa il lavoro
+   che farebbe un albero di controlli, senza i controlli — qui non c'e' niente
+   da aprire, le task sono gia' arrivate col lavoro. E' anche quello che dice
+   che la loro percentuale ha un altro denominatore: il lavoro, non il mese. */
+.voce-figlia {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.3125rem 0 0.3125rem 1.375rem;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.voce-figlia > span:first-child {
+  flex: 1;
   min-width: 0;
 }
 
-.tabella-report td:nth-child(2),
-.tabella-report td:nth-child(3),
-.tabella-report th:nth-child(2),
-.tabella-report th:nth-child(3) {
-  width: 7rem;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.voce-figlia-quota {
+  width: 3rem;
 }
 
-/* Il lavoro e la sua quota: la riga che si legge attraversando la tabella. */
-.tabella-report .riga-gruppo > th,
-.tabella-report .riga-gruppo > td {
-  background-color: transparent;
-  border-bottom: 1px solid var(--riga-tenue);
-  font-weight: 600;
-  white-space: normal;
-}
-
-/* Le task e le attivita' dentro un lavoro: rientrate e piu' tenui. Il rientro
-   fa il lavoro che farebbe un albero di controlli, senza i controlli: qui non
-   c'e' niente da aprire, le task sono gia' arrivate col lavoro. */
-.tabella-report .riga-figlia td:first-child {
-  padding-left: 2.25rem;
-  color: var(--inchiostro-tenue);
-}
-
-.tabella-report .riga-figlia td {
-  border-bottom: none;
-  padding-top: 0.4375rem;
-  padding-bottom: 0.4375rem;
-  color: var(--inchiostro-tenue);
-}
-
-/* Su schermo stretto la barra esce dalla riga e va sotto: tre colonne in
-   300px vorrebbero dire tre colonne illeggibili. */
-@media (max-width: 48rem) {
-  .riga-report-capo {
-    grid-template-columns: 1fr 5.5rem;
-  }
-
-  .riga-report-capo .barra-ripartizione,
-  .riga-report-capo .barra-ripartizione-vuota {
-    grid-column: 1 / -1;
-  }
+.voce-figlia .nota {
+  margin-top: 0;
 }
 
 /* ===== Fluida: il calendario ============================================
@@ -3204,4 +3940,978 @@ button.minuscolo:disabled {
 .pannello-calendario .fc .fc-button-group .fc-button-primary:not(:disabled).fc-button-active {
   background-color: var(--azione);
   color: #fff;
+}
+
+/* ===== Fluida: la dashboard ==============================================
+
+   La tavola 6 del design system e' questa schermata: il calendario della
+   settimana a sinistra, e a destra le mie task, le mie richieste e la coda di
+   chi approva. La griglia 60/40 c'era gia'; quello che cambia e' la forma di
+   ogni blocco dentro di essa. */
+
+/* --- la testata ----------------------------------------------------------- */
+
+/* La data **sopra** il saluto e non accanto: e' l'apertura di ogni schermata
+   del design system, e mette il nome dove l'occhio cade per primo. */
+.testata-dashboard {
+  align-items: flex-end;
+  margin-bottom: 1.5rem;
+}
+
+.testata-data {
+  display: block;
+  margin: 0 0 0.125rem;
+}
+
+.testata-dashboard h1 {
+  font-size: var(--scala-titolo);
+}
+
+.testata-azioni {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* «Registrate 5h 30m / 8h»: la pillola bianca accanto al pulsante. Non un
+   riquadro colorato — e' un dato, e il colore qui lo prende solo quando la
+   giornata e' piena. */
+.ore-di-oggi {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: var(--altezza-controllo);
+  padding: 0 1.125rem;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+  white-space: nowrap;
+}
+
+.ore-di-oggi .nota {
+  margin: 0;
+}
+
+.ore-di-oggi strong {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.ore-di-oggi.completa strong {
+  color: var(--successo);
+}
+
+/* Il pulsante principale come collegamento o come bottone: la stessa forma
+   dell'azione in testata delle altre pagine, perche' e' la stessa cosa. */
+.azione-piena {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: var(--altezza-controllo);
+  padding: 0 1.25rem;
+  border: none;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--azione);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: var(--ombra-premuto);
+  transition:
+    background-color var(--transizione),
+    transform var(--transizione);
+}
+
+.azione-piena:hover {
+  background-color: var(--azione-premuta);
+}
+
+.azione-piena:active {
+  transform: scale(0.985);
+}
+
+/* «+ Nuova»: l'azione secondaria del design system, in velo d'acqua con il
+   testo verde profondo. Si nota meno di un pulsante pieno e piu' di un
+   collegamento, che e' esattamente il suo posto. */
+.azione-tenue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3125rem 0.75rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--acqua-100);
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color var(--transizione);
+}
+
+.azione-tenue:hover {
+  background-color: var(--acqua-200);
+}
+
+/* --- la scheda del calendario --------------------------------------------- */
+
+/* La legenda nella testata del pannello: tre punti con il loro nome. */
+.legenda-calendario {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.875rem;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.legenda-voce {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* L'intestazione di una colonna: nome, numero e le ore di quel giorno. */
+.testa-giorno {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.5rem;
+  border-radius: var(--raggio-controllo);
+}
+
+.testa-giorno-nome {
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+  color: var(--inchiostro-tenue);
+}
+
+.testa-giorno-numero {
+  font-size: var(--scala-base);
+  font-weight: 800;
+  color: var(--inchiostro);
+}
+
+/* Oggi: pillola piena, numero in acqua. E' l'unica colonna che deve trovarsi
+   senza cercarla, e un velo di fondo la distingueva appena dalle vicine. */
+.testa-giorno-oggi {
+  background-color: var(--azione);
+}
+
+.testa-giorno-oggi .testa-giorno-nome {
+  color: rgb(255 255 255 / 70%);
+}
+
+.testa-giorno-oggi .testa-giorno-numero {
+  color: var(--accento);
+}
+
+/* La griglia settimanale non ha piu' il filetto sotto le intestazioni: le
+   pillole si staccano da se'. */
+.pannello-calendario .fc-col-header-cell {
+  border: none;
+}
+
+/* --- «Le mie task» -------------------------------------------------------- */
+
+/* La barra di avanzamento sotto il titolo: acqua su grigio, sottile. */
+.avanzamento-task {
+  height: 0.375rem;
+  margin-bottom: 0.875rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--campo-fondo);
+  overflow: hidden;
+}
+
+.avanzamento-task span {
+  display: block;
+  height: 100%;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--accento);
+  transition: width var(--transizione);
+}
+
+/* Il titolo e la pillola dell'urgenza sui due lati della riga. */
+.riga-task-capo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+}
+
+.riga-task-titolo {
+  font-weight: 600;
+}
+
+/* Scadenza e lavoro su una riga sola di contesto, tenue. */
+.riga-task-sotto {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: 0.1875rem;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.riga-task-sotto .nota {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Le task chiuse si barrano, come nel mock. Non sono un errore: sono fatte, e
+   il tratto lo dice meglio di qualunque colore. */
+.riga-task-fatta .riga-task-titolo {
+  text-decoration: line-through;
+  color: var(--inchiostro-tenue);
+}
+
+.riga-task-fatta .riga-task-sotto {
+  text-decoration: line-through;
+}
+
+/* --- «Le mie richieste» --------------------------------------------------- */
+
+/* Le due tessere in cima: la prima piena, la seconda chiara. */
+.tessere-richieste {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+}
+
+.tessera {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--campo-fondo);
+}
+
+.tessera-piena {
+  background-color: var(--azione);
+  color: #fff;
+}
+
+.tessera-etichetta {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.tessera-piena .tessera-etichetta,
+.tessera-piena .tessera-unita {
+  color: rgb(255 255 255 / 70%);
+}
+
+.tessera-valore {
+  font-size: var(--scala-sezione);
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tessera-unita {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* L'icona di una richiesta diventa una pastiglia tonda velata, come nel
+   design system: era un quadratino, e in mezzo a righe arrotondate stonava. */
+.riga-richiesta-genere {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background-color: var(--acqua-100);
+  color: var(--acqua-900);
+}
+
+/* --- «Da approvare» ------------------------------------------------------- */
+
+/* Il contatore corallo in testata: e' l'unica comparsa del secondo accento
+   nella colonna destra, e dice «ci sono persone che aspettano». */
+.contatore-corallo {
+  display: grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--corallo);
+  color: #fff;
+  font-size: var(--scala-piccola);
+  font-weight: 800;
+}
+
+.schede-richiesta {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Qui il bordo c'e', ed e' l'eccezione che conferma la regola delle schede
+   senza filetto: queste stanno **dentro** un pannello bianco, quindi non
+   possono staccarsi con il bianco contro il grigio. Il filetto e' il solo
+   modo di dire dove finisce una richiesta e dove comincia la prossima. */
+.scheda-richiesta {
+  padding: 0.875rem;
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-controllo);
+}
+
+.scheda-richiesta-capo {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+/* Le iniziali in un tondo: l'avatar del design system. Il gestionale non ha
+   fotografie, e due lettere su un velo d'acqua distinguono le persone meglio
+   di una sagoma grigia uguale per tutti. */
+.avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  background-color: var(--acqua-100);
+  color: var(--acqua-900);
+  font-size: var(--scala-piccola);
+  font-weight: 800;
+}
+
+.scheda-richiesta-chi {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.scheda-richiesta-chi .nota {
+  margin: 0;
+}
+
+.scheda-richiesta-quando {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0.625rem 0 0.75rem;
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+.scheda-richiesta-quando .icona {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+
+.scheda-richiesta-azione {
+  width: 100%;
+  height: var(--altezza-controllo-piccolo);
+  font-size: var(--scala-piccola);
+}
+
+/* --- la scheda del timer, in fondo alla barra laterale -------------------- */
+
+/* `margin-top: auto` la spinge in fondo: la barra e' gia' una colonna flex, e
+   non serve altro. */
+/* Il timer sta sopra il blocco del proprio account, e non e' piu' lui a
+   spingersi in fondo: con due `margin-top: auto` nella stessa colonna lo
+   spazio libero si dividerebbe fra i due, e la scheda resterebbe a mezz'aria.
+   Adesso in fondo ci va il conto, e il timer lo precede. */
+.scheda-timer {
+  margin-bottom: 0.625rem;
+  padding: 0.625rem;
+  border-radius: var(--raggio-controllo);
+  background-color: rgb(255 255 255 / 8%);
+}
+
+/* Da barra chiusa resta solo il pallino che pulsa: sessantasei pixel non
+   bastano a un cronometro, e una scheda tagliata a meta' direbbe meno di
+   niente. Chi lo vede sa che qualcosa sta andando e apre la barra. */
+.scheda-timer-punto {
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0.25rem auto;
+  border-radius: 50%;
+  background-color: var(--accento);
+  animation: timer-pulsa 2s ease-in-out infinite;
+}
+
+.sidebar-larga .scheda-timer-punto {
+  display: none;
+}
+
+@keyframes timer-pulsa {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* Il corpo segue la stessa regola delle etichette: c'e' nel DOM anche da
+   barra chiusa — gli assistenti vocali lo leggono — e li' si dissolve. */
+.scheda-timer-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.scheda-timer-titolo {
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+  color: var(--sidebar-testo);
+}
+
+.scheda-timer-durata {
+  font-size: var(--scala-sezione);
+  font-weight: 800;
+  line-height: 1.1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.scheda-timer-task {
+  overflow: hidden;
+  font-size: var(--scala-piccola);
+  color: var(--sidebar-testo);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheda-timer-task:hover {
+  color: #fff;
+}
+
+/* Il corallo, una volta sola in tutta la barra: e' il solo gesto che
+   interrompe qualcosa, e si deve trovare senza cercarlo. */
+.scheda-timer-ferma {
+  margin-top: 0.5rem;
+  height: var(--altezza-controllo-piccolo);
+  border: none;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--corallo);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--transizione);
+}
+
+.scheda-timer-ferma:hover:not(:disabled) {
+  background-color: var(--corallo-700);
+}
+
+.scheda-timer-ferma:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Su schermo stretto la testata va a capo: tre blocchi su una riga di
+   trecento pixel non ci stanno. */
+@media (max-width: 48rem) {
+  .testata-dashboard {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.875rem;
+  }
+
+  .tessere-richieste {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Il punto dell'urgenza non c'e' piu' — e' diventato la pillola a destra —
+   quindi la coda non ha piu' niente a cui rientrare: torna allineata al
+   titolo. I pulsanti del timer stanno a sinistra, sotto il contesto della
+   riga, invece di essere spinti al bordo opposto da uno `space-between` che
+   ora ha un solo figlio da distanziare. */
+.riga-task-coda {
+  justify-content: flex-start;
+  margin-top: 0.4375rem;
+  padding-left: 0;
+}
+
+/* ===== schermi stretti ===================================================
+
+   Il resto del foglio e' gia' responsive per costruzione — griglie a `fr`,
+   `auto-fit` sulle file di numeri, nessuna larghezza fissa sulle schede — e
+   quello che segue sistema i punti in cui una misura scelta per lo schermo
+   grande diventa scomoda su quello piccolo. */
+
+/* I quattro contatori-filtro delle task: su un pannello largo quanto un
+   telefono, quattro colonne fisse danno settanta pixel a testa e il numero
+   finisce sopra la sua etichetta. Con `auto-fit` si dispongono su due file
+   quando non ci stanno in una. */
+@media (max-width: 30rem) {
+  .contatori {
+    grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+  }
+}
+
+@media (max-width: 40rem) {
+  /* La dashboard aveva il suo padding e non seguiva `.pagina-larga`: su un
+     telefono quei ventiquattro pixel per lato sono il 13% dello schermo. */
+  .pagina-dashboard {
+    padding: 1.25rem 1rem 2.5rem;
+  }
+
+  /* Le celle si stringono. Da quando le tabelle non impongono piu' una
+     larghezza minima — e quindi non scorrono piu' di lato — il modo di far
+     stare sei colonne e' togliere spazio attorno al testo, non attorno allo
+     schermo. */
+  .tabella th,
+  .tabella td {
+    padding: 0.625rem 0.5rem;
+  }
+
+  .tabella th:first-child,
+  .tabella td:first-child {
+    padding-left: 0.875rem;
+  }
+
+  .tabella th:last-child,
+  .tabella td:last-child {
+    padding-right: 0.875rem;
+  }
+
+  /* Il titolo di pagina scende di un passo: 40px su uno schermo da 360
+     occupano una riga e mezza da soli. */
+  .testata-dashboard h1 {
+    font-size: var(--scala-sezione);
+  }
+
+  .pannello-testata {
+    padding: 1rem 1rem 0.75rem;
+  }
+
+  .pannello-corpo {
+    padding: 0.875rem 0.875rem;
+  }
+}
+
+/* --- utenti e permessi ---------------------------------------------------- */
+
+.testata-utenti {
+  flex-wrap: wrap;
+  margin-top: 0.125rem;
+  margin-bottom: 1.25rem;
+}
+
+.testata-utenti h1 {
+  font-size: var(--scala-titolo);
+  line-height: 1.1;
+}
+
+/* I quattro conteggi in cima. Stessa forma dei riquadri di un lavoro — e'
+   la stessa domanda, «quanti», fatta su un'altra cosa — e le stesse due
+   regole: i primi due pieni, gli altri bianchi. */
+.riquadri-utenti {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.riquadri-utenti .riquadro-valore {
+  font-size: 2.75rem;
+}
+
+/* Il secondo riquadro e' acqua piena: gli attivi sono la buona notizia della
+   pagina, e l'acqua e' il colore con cui Fluida la dice. L'inchiostro sopra
+   resta verde profondo — su questa tinta chiara il bianco non si leggerebbe. */
+.riquadro-acqua {
+  background-color: var(--acqua-500);
+  color: var(--inchiostro);
+}
+
+.riquadro-acqua .riquadro-etichetta {
+  color: var(--teal-700);
+}
+
+.scheda-utenti {
+  padding: 1.125rem 1.25rem 1rem;
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+}
+
+/* La barra dei filtri: ricerca a sinistra che si prende lo spazio, chip al
+   centro, ruoli a destra. Tutto su una riga sola finche' ci sta. */
+.barra-utenti {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.barra-utenti .chip-filtri {
+  margin-bottom: 0;
+}
+
+/* La ricerca e' una vasca piena, senza bordo: il campo si distingue dalla
+   scheda per il fondo e non per una linea, come ogni altro campo di Fluida. */
+.campo-ricerca {
+  position: relative;
+  flex: 1;
+  min-width: 14rem;
+}
+
+.campo-ricerca input {
+  width: 100%;
+  height: var(--altezza-controllo);
+  padding: 0 0.9375rem 0 2.375rem;
+  border: none;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--campo-fondo);
+}
+
+.campo-ricerca input::placeholder {
+  color: var(--argento-500);
+}
+
+.lente {
+  position: absolute;
+  top: 50%;
+  left: 0.9375rem;
+  transform: translateY(-50%);
+  font-size: var(--scala-media);
+  line-height: 1;
+  color: var(--inchiostro-tenue);
+  pointer-events: none;
+}
+
+.scelta-ruolo {
+  height: var(--altezza-controllo);
+  padding: 0 0.75rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  font-size: var(--scala-piccola);
+}
+
+/* La tabella degli utenti non ha filetti fra le righe: le separa lo spazio e
+   il velo che si accende al passaggio del mouse. Una griglia di linee su
+   sette colonne sarebbe un reticolo. */
+.tabella-utenti {
+  width: 100%;
+}
+
+.tabella-utenti th {
+  font-size: var(--scala-etichetta);
+  font-weight: 700;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+  color: var(--inchiostro-tenue);
+}
+
+.tabella-utenti tbody tr:hover {
+  background-color: var(--argento-50);
+}
+
+.tabella-utenti td {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  vertical-align: middle;
+}
+
+.colonna-spunta {
+  width: 2.5rem;
+}
+
+.colonna-azioni {
+  text-align: right;
+}
+
+/* Un utente disattivato resta leggibile e smette di chiamare: niente barratura
+   — il suo nome non e' un errore — solo il tono piu' basso. */
+.riga-spenta .cella-utente-nome,
+.riga-spenta .cella-utente-email {
+  color: var(--inchiostro-tenue);
+}
+
+.riga-spenta .gettone {
+  opacity: 0.45;
+}
+
+.cella-utente {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.cella-utente-testo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cella-utente-nome {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.cella-utente-email {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* «Tu»: la propria riga si trova senza leggere otto nomi. */
+.segno-io {
+  padding: 0.0625rem 0.375rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--argento-200);
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-etichetta);
+  font-weight: 700;
+}
+
+/* Il ruolo come pillola. Il piu' potente e' il piu' scuro e gli altri scendono
+   di tono: la gerarchia si legge dal colore prima che dalla parola. */
+.pillola-ruolo {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3125rem 0.75rem;
+  border-radius: var(--raggio-pillola);
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ruolo-admin {
+  background-color: var(--teal-900);
+  color: var(--acqua-500);
+}
+
+.ruolo-responsabile {
+  background-color: var(--acqua-100);
+  color: var(--teal-700);
+}
+
+.ruolo-dipendente {
+  background-color: var(--argento-100);
+  color: var(--argento-900);
+}
+
+.ruolo-ospite {
+  background-color: var(--informazione-velo);
+  color: var(--informazione);
+}
+
+.cella-stato {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.cella-stato-testo {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+}
+
+.cella-stato-testo .nota {
+  margin-top: 0;
+  font-weight: 400;
+}
+
+/* L'interruttore: la casella vera resta sotto — e' lei che prende il fuoco da
+   tastiera e lo stato di spento — mentre la vasca e' solo il suo disegno. */
+.interruttore {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  cursor: pointer;
+}
+
+.interruttore input {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.interruttore-vasca {
+  display: block;
+  width: 2.75rem;
+  height: 1.625rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--argento-300);
+  transition: background-color var(--transizione);
+}
+
+.interruttore-vasca::after {
+  content: '';
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.1875rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-premuto);
+  transition: transform var(--transizione);
+}
+
+.interruttore input:checked + .interruttore-vasca {
+  background-color: var(--teal-500);
+}
+
+.interruttore input:checked + .interruttore-vasca::after {
+  transform: translateX(1.125rem);
+}
+
+/* Spento vuol dire «non si puo' cambiare da qui», non «non conta»: la vasca
+   resta leggibile, solo piu' tenue. */
+.interruttore input:disabled + .interruttore-vasca {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.interruttore input:focus-visible + .interruttore-vasca {
+  outline: 2px solid var(--accento-premuto);
+  outline-offset: 2px;
+}
+
+/* «Permessi»: un pulsante contornato, l'unica azione di riga. */
+.bottone-riga {
+  display: inline-flex;
+  align-items: center;
+  height: var(--altezza-controllo-piccolo);
+  padding: 0 0.875rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--transizione);
+}
+
+.bottone-riga:hover {
+  background-color: var(--argento-100);
+}
+
+.piede-utenti {
+  margin-top: 0.75rem;
+}
+
+/* --- il proprio spazio, in fondo alla barra laterale ---------------------- */
+
+/* Prima era l'email in testata, in alto fra le cose del gestionale. Il
+   proprio account non e' una sezione dell'applicazione: e' chi la sta
+   usando, e il design system lo mette in fondo alla barra, sotto a tutto.
+   `margin-top: auto` lo spinge laggiu' qualunque cosa ci sia sopra — con o
+   senza la scheda del timer. */
+.sidebar-conto {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+.sidebar-io {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: var(--raggio-controllo);
+  color: var(--sidebar-testo);
+  text-decoration: none;
+  transition: background-color var(--transizione);
+}
+
+.sidebar-io:hover,
+.sidebar-io.attivo {
+  background-color: rgb(255 255 255 / 8%);
+  color: var(--superficie);
+}
+
+/* La pastiglia con le iniziali: e' l'unica cosa che resta quando la barra e'
+   chiusa, quindi e' lei a dover dire «questo sei tu». L'acqua la distingue
+   dalle icone della navigazione, che sono tutte dello stesso tono. */
+.sidebar-io-gettone {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--accento);
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  font-weight: 800;
+}
+
+.sidebar-io-testo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.sidebar-io-nome {
+  font-weight: 700;
+  color: var(--superficie);
+}
+
+/* L'email in piccolo sotto il nome: e' la riga che dice con quale utenza si
+   e' collegati, e su un gestionale in cui si entra da piu' postazioni non e'
+   un dettaglio. Si tronca invece di spingere la barra. */
+.sidebar-io-email {
+  overflow: hidden;
+  font-size: var(--scala-etichetta);
+  color: var(--sidebar-testo);
+  text-overflow: ellipsis;
+}
+
+/* «Esci» compare solo da barra aperta: da chiusa non ci sarebbe spazio per
+   una parola, e un'icona di uscita accanto a quella del profilo sarebbe un
+   bersaglio sbagliato a un pixel da quello giusto. `height: 0` e non
+   `display: none` perche' l'etichetta si dissolve con la stessa transizione
+   del resto. */
+.sidebar-esci {
+  width: 100%;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--sidebar-testo);
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    height var(--transizione),
+    opacity var(--transizione);
+}
+
+.sidebar-larga .sidebar-esci {
+  height: var(--altezza-controllo-piccolo);
+  padding: 0 0.5rem;
+}
+
+.sidebar-esci:hover {
+  color: var(--superficie);
 }

@@ -48,6 +48,14 @@ export type RigaTask = {
    * task su cui nessuno ha deciso sarebbe mettergli in bocca una parola.
    */
   urgenzaTask: UrgenzaTask | null
+  /**
+   * Quando la task è stata completata, oppure null se non lo è.
+   *
+   * **Può essere null anche su una task completata**: la colonna è arrivata
+   * con la `V21`, e le task chiuse prima non hanno una data. Lo stato dice
+   * *se* è chiusa; questo campo serve solo a scrivere *quando*, se c'è.
+   */
+  completatoIl: string | null
   assegnatari: Assegnatario[]
 }
 

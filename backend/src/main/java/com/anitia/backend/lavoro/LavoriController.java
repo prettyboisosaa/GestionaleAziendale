@@ -124,6 +124,23 @@ class LavoriController {
     }
 
     /**
+     * L'andamento settimanale: ore registrate e task chiuse, una riga per
+     * settimana.
+     *
+     * <p>Separata dai KPI, con cui condivide il permesso, perché risponde a
+     * un'altra domanda: i KPI dicono a che punto è il lavoro, questa con che
+     * ritmo ci è arrivato. Chi apre la pagina li vuole entrambi, ma un errore
+     * su una serie di cinquanta righe non deve portare via i quattro numeri
+     * che stanno in cima — e viceversa.
+     */
+    @GetMapping("/{id}/andamento")
+    @PreAuthorize("hasAnyAuthority('LAVORI_VISUALIZZA_TUTTI','LAVORI_VISUALIZZA_PROPRI')")
+    public AndamentoLavoro andamento(@PathVariable Long id,
+                                     @AuthenticationPrincipal UserDetails utente) {
+        return kpi.andamento(utente, id);
+    }
+
+    /**
      * Lo storico delle ore del lavoro. Per leggerlo basta poter vedere il
      * lavoro: non esiste un permesso di sola lettura sulle ore, perché
      * andrebbe dato a tutti quelli che vedono i lavori.

@@ -52,19 +52,3 @@ export const MINUTI_PREVISTI = ORE_PREVISTE * 60
 export function fascia(ora: number): string {
   return `${String(ora).padStart(2, '0')}:00:00`
 }
-
-/**
- * Dove parte la griglia all'apertura: un'ora prima di adesso, dentro la fascia
- * di lavoro.
- *
- * Alle cinque del pomeriggio la parte della giornata che interessa è quella
- * che resta, non quella passata: arrivare alle sette del mattino costringe a
- * scorrere ogni volta. Un'ora indietro per vedere da dove si viene. Fuori
- * dall'orario non si inventa niente — prima dell'apertura si parte
- * dall'apertura, dopo la chiusura si resta sulle ultime ore — perché una
- * griglia posizionata oltre la fine si mostrerebbe vuota.
- */
-export function scrollIniziale(): string {
-  const adesso = new Date().getHours()
-  return fascia(Math.min(Math.max(adesso - 1, ORA_LAVORO_INIZIO), ORA_LAVORO_FINE))
-}

@@ -173,24 +173,24 @@ export default function App() {
     <BrowserRouter>
       {/* La navigazione è una barra laterale comune a tutta l'app, non più
           una riga di voci in testata: da chiusa è una colonna di icone, da
-          aperta copre il contenuto invece di spostarlo — così i calendari
-          della dashboard non si ridimensionano al passaggio del mouse. */}
+          aperta **spinge** il contenuto, che si stringe per farle posto. Da
+          schermo stretto non spinge niente e torna a essere un menù
+          sovrapposto, perché lì non c'è spazio da spartire. */}
       <Sidebar
         utente={utente}
+        tempo={tempo}
+        onTempo={setTempo}
+        // «Esci» non esce: chiede. Chi lo preme per sbaglio con una task
+        // avviata perde la pagina su cui stava lavorando, e un clic non è un
+        // motivo sufficiente per chiudere una sessione.
+        onEsci={() => setChiedoSeUscire(true)}
         mobile={stretto}
         aperta={menuAperto}
         onChiudi={() => setMenuAperto(false)}
       />
 
       <div className="corpo-app">
-        {/* «Esci» non esce: chiede. Chi lo preme per sbaglio con una task
-            avviata perde la pagina su cui stava lavorando, e un clic non è un
-            motivo sufficiente per chiudere una sessione. */}
         <Intestazione
-          utente={utente}
-          tempo={tempo}
-          onTempo={setTempo}
-          onEsci={() => setChiedoSeUscire(true)}
           mostraMenu={stretto}
           onMenu={() => setMenuAperto((prima) => !prima)}
         />

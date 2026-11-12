@@ -92,6 +92,22 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+
+        <!-- La documentazione dell'API, sfogliabile su /swagger-ui.html.
+
+             La versione e' della linea 3.x e non 2.x, e non e' un
+             aggiornamento di routine: springdoc 2.x e' costruito su Spring
+             Framework 6, e qui c'e' Spring Boot 4 con Framework 7. Con la
+             2.5.0 l'applicazione partiva e la pagina si apriva, ma
+             /v3/api-docs rispondeva 500 con
+             NoSuchMethodError: ControllerAdviceBean.<init>(Object) — un
+             costruttore che Framework 7 ha tolto. E' un'incompatibilita'
+             binaria: nessuna riga di configurazione la aggira. -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>3.2.0</version>
+        </dependency>
     </dependencies>
 
     <build>

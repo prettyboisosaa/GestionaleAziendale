@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -6,6 +6,7 @@ import itLocale from '@fullcalendar/core/locales/it'
 import type {
   DateSelectArg,
   DatesSetArg,
+  DayHeaderContentArg,
   EventApi,
   EventClickArg,
   EventContentArg,
@@ -30,7 +31,6 @@ import {
   ORA_SCALA_FINE,
   ORA_SCALA_INIZIO,
   fascia,
-  scrollIniziale,
 } from './orario'
 import { testo } from '../api/http'
 import { tintaLavoro } from '../stato/stati'
@@ -53,12 +53,27 @@ import { tintaLavoro } from '../stato/stati'
  * **Il sabato e la domenica ci sono** per la stessa ragione. Non è un invito
  * a lavorarci: è che se è accaduto, il consuntivo lo deve sapere.
  */
+/**
+ * Quello che chi sta sopra può chiedere alla griglia.
+ *
+ * Esiste per una cosa sola: il pulsante «Registra ore» che il design system
+ * mette **in testata alla pagina**, lontano dal calendario. Quel gesto apre lo
+ * stesso pannello che si apre trascinando una zona vuota, e l'alternativa —
+ * sollevare `apertura` fino alla dashboard — porterebbe su quella pagina uno
+ * stato che riguarda solo questa griglia.
+ */
+export type ManicoSettimana = {
+  /** Apre il pannello di scrittura su oggi, vuoto. */
+  nuovaRegistrazione: () => void
+}
+
 export default function CalendarioSettimanale({
   tempo,
   task,
   lavori,
   onErrore,
   onScritto,
+  ref,
 }: {
   /**
    * Serve come *segnale*, non come dato: cambia solo quando una sessione
@@ -87,6 +102,11 @@ export default function CalendarioSettimanale({
    * testata e le ore consumate delle task nella lista.
    */
   onScritto: (situazione: SituazioneTempo) => void
+  /**
+   * Il manico per aprire il pannello da fuori. In React 19 il `ref` è una
+   * prop come le altre, quindi non serve `forwardRef`.
+   */
+  ref?: React.Ref<ManicoSettimana>
 }) {
   const [settimana, setSettimana] = useState<SettimanaDiTempo | null>(null)
   /** Un giorno qualunque della settimana mostrata. Lo decide il calendario. */
@@ -189,6 +209,27 @@ export default function CalendarioSettimanale({
       fine: a.slice(11, 16),
     })
   }
+
+  /**
+   * Aprire il pannello da fuori: su **oggi**, da un'ora tonda a quella dopo.
+   *
+   * L'ora si prende dall'orologio e si arrotonda all'indietro, perché chi
+   * preme quel pulsante sta registrando ciò che ha appena fatto: proporgli le
+   * 9:00 a metà pomeriggio vorrebbe dire fargli riscrivere due campi ogni
+   * volta. Se ha fatto altro, i campi sono lì da cambiare.
+   */
+  useImperativeHandle(ref, () => ({
+    nuovaRegistrazione() {
+      const adesso = new Date()
+      const dalle = Math.min(Math.max(adesso.getHours(), ORA_SCALA_INIZIO), ORA_SCALA_FINE - 1)
+      setApertura({
+        tipo: 'scrivi',
+        giorno: istanteLocale(adesso).slice(0, 10),
+        inizio: `${String(dalle).padStart(2, '0')}:00`,
+        fine: `${String(dalle + 1).padStart(2, '0')}:00`,
+      })
+    },
+  }), [])
 
   /**
    * Un blocco spostato o allungato: si riscrivono i suoi due istanti.
@@ -311,9 +352,13 @@ export default function CalendarioSettimanale({
           slotMinTime={fascia(ORA_SCALA_INIZIO)}
           slotMaxTime={fascia(ORA_SCALA_FINE)}
           slotDuration="00:30:00"
+          // Le righe restano di mezz'ora — una scala più fitta sarebbe
+          // illeggibile — ma chi trascina, ridimensiona o seleziona si muove
+          // a quarti d'ora: senza questo il passo sarebbe quello delle righe,
+          // e una sessione di un'ora e un quarto non si potrebbe disegnare.
+          snapDuration="00:15:00"
           // Si arriva all'ora corrente invece che alle sette del mattino: la
           // parte della giornata su cui si scrive è quella vicina ad adesso.
-          scrollTime={scrollIniziale()}
           // L'orario di lavoro. Non limita niente: dice dov'è.
           businessHours={{
             daysOfWeek: [1, 2, 3, 4, 5],
@@ -330,7 +375,13 @@ export default function CalendarioSettimanale({
           // con `auto` la griglia cresceva fino a quattordici ore di altezza
           // e la pagina scorreva per contenerla, che è esattamente ciò che la
           // dashboard a due colonne vuole evitare.
-          height="100%"
+          // `auto` e non `100%`: con un'altezza data la griglia si
+          // adatta al riquadro e nasconde quello che non ci sta dietro una
+          // barra di scorrimento, e per vedere le otto del mattino bisognava
+          // scorrere dentro un pannello dentro una pagina che gia' scorre.
+          // Cosi' invece e' il riquadro a prendere l'altezza delle quattordici
+          // ore che mostra, e tutta la giornata si vede in una volta.
+          height="auto"
           events={eventi}
           eventContent={contenutoSessione}
           datesSet={periodoCambiato}
@@ -371,6 +422,11 @@ export default function CalendarioSettimanale({
           // selezione che non andava permessa.
           selectable={modificabile}
           select={zonaScelta}
+          // L'intestazione del giorno è la pillola del design system: solo il
+          // nome e il numero. Le ore registrate nella giornata non ci stanno
+          // più accanto alla data: il totale che conta è quello della
+          // settimana, scritto sopra la griglia.
+          dayHeaderContent={intestazioneGiorno}
           selectMirror
           // Due limiti, entrambi presi dalle regole del server, per non far
           // compiere un gesto che finirebbe in un rifiuto.
@@ -518,4 +574,27 @@ function contenutoSessione(arg: EventContentArg) {
 function breve(iso: string): string {
   const [, mese, giorno] = iso.split('-')
   return `${giorno}/${mese}`
+}
+
+/**
+ * «LUN 9»: l'intestazione di una colonna, come la disegna Fluida.
+ *
+ * Il giorno corrente non prende un colore diverso dagli altri — prende una
+ * **pillola piena**, con il numero in acqua. È l'unica colonna che deve
+ * trovarsi senza cercarla, e un velo di fondo come quello di prima la
+ * distingueva appena dalle sue vicine.
+ *
+ * Accanto alla data non si scrivono le ore lavorate nella giornata: quanto
+ * si è fatto lo dicono i blocchi disegnati nella colonna, e il totale che
+ * conta — quello della settimana — sta già sopra la griglia.
+ */
+function intestazioneGiorno(arg: DayHeaderContentArg) {
+  const [nome, numero] = arg.text.split(' ')
+
+  return (
+    <div className={arg.isToday ? 'testa-giorno testa-giorno-oggi' : 'testa-giorno'}>
+      <span className="testa-giorno-nome">{nome}</span>
+      <span className="testa-giorno-numero">{numero}</span>
+    </div>
+  )
 }

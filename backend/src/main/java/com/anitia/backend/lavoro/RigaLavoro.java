@@ -1,5 +1,6 @@
 package com.anitia.backend.lavoro;
 
+import com.anitia.backend.task.TaskRepository;
 import com.anitia.backend.utente.Utente;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,7 +38,24 @@ public record RigaLavoro(Long id,
                           * domanda non ha risposta — e uno zero direbbe la cosa sbagliata,
                           * cioè «non ne restano».
                           */
-                         BigDecimal oreLibere) {
+                         BigDecimal oreLibere,
+                         /**
+                          * Quante task ha il lavoro, annullate escluse: il
+                          * denominatore dell'avanzamento scritto sulla scheda
+                          * dell'elenco. Mai null — un lavoro senza task ne ha zero.
+                          */
+                         long taskTotali,
+                         /** Quante di quelle task sono completate. */
+                         long taskCompletate,
+                         /**
+                          * Quante task ancora aperte sono di urgenza alta o critica.
+                          * È il numero che sulla scheda diventa «2 priorità alte»: dice
+                          * se dentro un lavoro che sembra tranquillo c'è qualcosa che
+                          * viene prima di tutto il resto.
+                          */
+                         long taskUrgenti,
+                         /** Quante task ancora aperte hanno la scadenza passata. */
+                         long taskInRitardo) {
 
     /**
      * I totali si passano da fuori perché nessuno di loro è salvato sul
@@ -47,8 +65,10 @@ public record RigaLavoro(Long id,
      *
      * @param oreAllocate  zero, non null, se il lavoro non ha task
      * @param oreConsumate zero, non null, se nessuno ha ancora registrato ore
+     * @param conti        i conteggi delle task; {@code null} se il lavoro non ne ha
      */
-    static RigaLavoro da(Lavoro lavoro, BigDecimal oreAllocate, BigDecimal oreConsumate) {
+    static RigaLavoro da(Lavoro lavoro, BigDecimal oreAllocate, BigDecimal oreConsumate,
+                         TaskRepository.ContiTask conti) {
         Utente responsabile = lavoro.getResponsabile();
         BigDecimal monteOre = lavoro.getMonteOre();
         return new RigaLavoro(
@@ -67,6 +87,24 @@ public record RigaLavoro(Long id,
                 monteOre,
                 oreAllocate,
                 oreConsumate,
-                monteOre == null ? null : monteOre.subtract(oreAllocate));
+                monteOre == null ? null : monteOre.subtract(oreAllocate),
+                quante(conti == null ? null : conti.getTotali()),
+                quante(conti == null ? null : conti.getCompletate()),
+                quante(conti == null ? null : conti.getUrgenti()),
+                quante(conti == null ? null : conti.getInRitardo()));
+    }
+
+    /**
+     * Un conteggio di MySQL come numero: zero quando non c'è.
+     *
+     * <p>Due nulli diversi finiscono qui, e vogliono dire la stessa cosa. Il
+     * lavoro può non comparire affatto fra le righe raggruppate — il
+     * {@code GROUP BY} omette i lavori senza nessuna task — e la {@code SUM}
+     * può rispondere {@code NULL} quando nessuna riga soddisfa la condizione.
+     * In entrambi i casi la risposta onesta è zero: qui non si divide niente,
+     * si contano cose che ci sono o non ci sono.
+     */
+    private static long quante(Long conteggio) {
+        return conteggio == null ? 0L : conteggio;
     }
 }

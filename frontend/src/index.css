@@ -154,44 +154,44 @@
      ⚠️ Fluida non pubblica otto tinte categoriche — non è quello che fa: ha
      due accenti e dice di usarli con parsimonia. Ma il calendario e il
      report hanno bisogno di distinguere otto cose fra loro, e un grigio al
-     posto di un colore sarebbe un dato perso. Queste otto sono quindi
-     **derivate dalle sue scale** — teal, acqua, corallo, argento, più il blu
-     dell'informazione — prese ai gradi scuri perché sopra ciascuna va del
-     testo bianco piccolo.
+     posto di un colore sarebbe un dato perso.
+
+     **Non c'è un solo valore che non sia nella tavola 01.** Queste otto sono
+     gradi delle tre scale colorate — teal, acqua, corallo — presi fra i più
+     scuri, perché sopra ciascuna va del testo bianco piccolo. Prima qui
+     c'erano un ambra e un blu che non appartenevano a nessuna delle scale, e
+     si vedevano: erano i colori di un'altra interfaccia.
+
+     L'argento non è fra queste. È tenuto da parte per le attività qui sotto,
+     e la regola si legge dal calendario senza bisogno di una legenda: **un
+     blocco colorato è un lavoro, un blocco grigio non lo è.**
 
      Otto tinte distanti; un lavoro prende la sua dal proprio id, quindi è la
      stessa in ogni settimana. Il codice del lavoro resta scritto dentro il
      blocco, così due tinte simili non perdono l'informazione. */
-  --lavoro-0: #0a4543;
+  --lavoro-0: #062e2d;
   --lavoro-1: #16a88e;
   --lavoro-2: #d9472a;
-  --lavoro-3: #b86e00;
-  --lavoro-4: #157a76;
-  --lavoro-5: #2f62d6;
+  --lavoro-3: #157a76;
+  --lavoro-4: #0b6b5a;
+  --lavoro-5: #ff6b4a;
   --lavoro-6: #8f2a15;
-  --lavoro-7: #5e6a75;
+  --lavoro-7: #0a4543;
 
-  /* Le tinte delle attività che non appartengono a nessun lavoro: una
-     riunione, una manutenzione interna, una formazione.
+  /* Le attività che non appartengono a nessun lavoro: una riunione, una
+     manutenzione interna, una formazione.
 
-     Servono perché quei blocchi non hanno un lavoro da cui prendere il
-     colore, e un rettangolo grigio in mezzo agli altri sembrerebbe un errore
-     invece di una categoria.
+     **Una tinta sola per tutte, l'argento scuro.** Prima erano nove colori
+     spenti, inventati per distinguerle fra loro: nessuno dei nove stava
+     nella tavola 01, e per averli si era usciti dalla palette — che è
+     l'unica cosa che questa tavolozza chiede di non fare.
 
-     Piene come quelle dei lavori, ma **meno sature**, e non è una sfumatura:
-     queste ore sono il contorno della settimana e non il suo contenuto. I
-     verdi e i coralli accesi restano ai lavori, che sono quello che si
-     guarda; qui si tengono i toni spenti, che si distinguono fra loro senza
-     chiamare. */
-  --attivita-manutenzione: #6b5f4a;
-  --attivita-interna: #3f6256;
-  --attivita-supporto: #41617a;
-  --attivita-sopralluogo: #6e6245;
-  --attivita-riunione: #4f5a7f;
-  --attivita-formazione: #3a6155;
-  --attivita-amministrazione: #5f5a6b;
-  --attivita-trasferta: #70584f;
-  --attivita-altro: #5e6a75;
+     Non è un'informazione persa. Dentro il blocco c'è scritto di che attività
+     si tratta, e la domanda a cui il colore risponde su questa griglia è
+     un'altra: su quali progetti è andata la settimana. Queste ore sono il
+     contorno della settimana e non il suo contenuto, e un neutro è il modo
+     esatto di dirlo. */
+  --attivita: #5e6a75;
 
   /* L'inchiostro scomposto, per tingere le ombre. */
   --inchiostro-rgb: 6 46 45;
