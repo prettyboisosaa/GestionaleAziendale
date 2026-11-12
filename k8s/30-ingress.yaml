@@ -1,0 +1,58 @@
+# L'ingresso dall'esterno.
+#
+# Una regola sola, verso il frontend: le chiamate a `/api` **non** passano da
+# qui. Le inoltra nginx dentro il pod del frontend (vedi
+# 20-frontend-config.yaml), e la differenza non e' di gusto — cosi'
+# l'applicazione funziona anche con un `kubectl port-forward` sul Service del
+# frontend, senza nessun controller Ingress. Instradando `/api` da qui,
+# port-forward servirebbe le pagine e romperebbe ogni chiamata.
+#
+# ⚠️ Serve un controller Ingress nel cluster (ingress-nginx, Traefik, quello
+# del tuo provider). Senza, questo oggetto si crea e non fa niente: resta
+# senza indirizzo e nessuno risponde.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gestionale
+  namespace: gestionale
+  annotations:
+    # ⚠️ Il certificato. Queste due righe valgono se hai cert-manager con un
+    # ClusterIssuer chiamato `letsencrypt`: cambia il nome o togli la riga e
+    # metti un Secret TLS tuo in `tls.secretName`.
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  # ⚠️ SOSTITUISCI con la classe del tuo controller: `nginx`, `traefik`, o
+  # quella del provider. Sbagliandola, nessun controller prende in carico
+  # questo Ingress e non c'e' nessun errore a dirlo.
+  ingressClassName: nginx
+
+  # ⚠️ IL TLS NON E' FACOLTATIVO, e qui va spiegato perche'.
+  #
+  # Il profilo di produzione imposta
+  # `server.servlet.session.cookie.secure=true`: il cookie di sessione viene
+  # marcato Secure, e un browser **non lo conserva e non lo rimanda** su una
+  # connessione in chiaro. Servendo l'applicazione su HTTP semplice il login
+  # risponde 200 — le credenziali sono giuste — e poi ogni richiesta
+  # successiva e' anonima: sembra che l'accesso «non funzioni» senza nessun
+  # errore che lo spieghi.
+  #
+  # Quindi: o HTTPS, o si toglie quella riga da application-prod.properties
+  # sapendo che il cookie viaggia in chiaro e che a chi sta in mezzo alla rete
+  # basta quello per diventare l'utente.
+  tls:
+    - hosts:
+        - CAMBIAMI.esempio.it
+      secretName: gestionale-tls
+
+  rules:
+    # ⚠️ SOSTITUISCI con il tuo nome di dominio.
+    - host: CAMBIAMI.esempio.it
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  name: http

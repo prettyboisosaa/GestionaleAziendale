@@ -1,144 +1,209 @@
-/* Fondamenta: variabili, azzeramento degli stili del browser, testo. */
+/* Fondamenta: variabili, azzeramento degli stili del browser, testo.
+
+   Questo file è il design system **Fluida** tradotto in token. I nomi delle
+   variabili sono rimasti quelli di prima — `--azione`, `--carta`,
+   `--inchiostro` — e i valori sono cambiati: così tutto `App.css` ha seguito
+   senza essere riscritto riga per riga, ed è il motivo per cui un livello di
+   token esiste.
+
+   Le tre regole di Fluida:
+   - forme morbide: il raggio parte da 14px e arriva a 24px, mai un angolo
+     vivo su una superficie;
+   - tre colori fondanti per la struttura (verde acqua profondo, argento,
+     bianco) e due accenti accesi per guidare l'attenzione;
+   - **gli accenti non coprono mai più del 10% di una schermata.** È la regola
+     che tiene insieme tutto il resto: l'acqua e il corallo si notano perché
+     sono rari. */
 
 :root {
-  /* Inchiostro su carta fredda: il mondo dei registri di lavoro, non quello
-     delle pagine promozionali. Un solo colore di segnale, per le azioni.
-     Questi otto valori non cambiano: cambia come vengono disposti nello
-     spazio e nella profondità. */
-  --inchiostro: #15303d;
-  --inchiostro-tenue: #4a6670;
-  --carta: #eef1f0;
-  --superficie: #fdfdfc;
-  --riga: #c5d1d1;
-  --azione: #0f6e6e;
-  --azione-premuta: #0b5353;
-  --errore: #8c2f26;
+  /* --- 01 · colore ------------------------------------------------------
+
+     Verde acqua profondo: il testo, la barra laterale, i pulsanti
+     principali. È il colore su cui l'interfaccia è costruita, non un
+     accento — per questo è anche l'inchiostro. */
+  --inchiostro: #062e2d;
+  --inchiostro-tenue: #5e6a75;
+  --carta: #f3f5f7;
+  --superficie: #ffffff;
+  --riga: #cdd3d9;
+
+  /* L'azione è il verde profondo, non una tinta accesa: in Fluida il
+     pulsante principale è scuro e pieno, e l'acqua resta all'accento. Chi
+     preme sente la differenza perché il fondo si schiarisce di un passo. */
+  --azione: #062e2d;
+  --azione-premuta: #0a4543;
+  --errore: #c8352b;
+
+  /* L'accento: acqua. Entra sui numeri che contano, sullo stato «adesso» e
+     sul simbolo in cima alla barra. Mai su una superficie grande. */
+  --accento: #34e0c1;
+  --accento-premuto: #16a88e;
+  --accento-velo: #ebfdf9;
+
+  /* Il secondo accento: corallo. Dice «guarda qui» — una scadenza mancata,
+     un timer da fermare. Non è l'errore, che ha il suo rosso. */
+  --corallo: #ff6b4a;
+  --corallo-velo: #ffdcd2;
 
   /* Derivati degli stessi colori, non tinte nuove. Il velo è il modo di
      tingere una superficie senza introdurre un grigio: è il colore di
      segnale diluito, non una tacca di nero. */
-  --azione-velo: rgb(15 110 110 / 9%);
-  --azione-velo-fermo: rgb(15 110 110 / 14%);
-  --errore-velo: rgb(140 47 38 / 8%);
-  --superficie-velata: rgb(253 253 252 / 72%);
-  --campo-fondo: #f6f8f7;
-  --riga-tenue: rgb(197 209 209 / 55%);
+  --azione-velo: rgb(6 46 45 / 6%);
+  --azione-velo-fermo: rgb(6 46 45 / 10%);
+  --errore-velo: #ffe3e0;
+  --superficie-velata: rgb(255 255 255 / 76%);
+  --campo-fondo: #f6f8f9;
+  --riga-tenue: rgb(205 211 217 / 50%);
 
-  /* I colori degli stati di lavori e task, dal documento delle correzioni.
-     Sono gli unici colori fuori dalla tavolozza qui sopra, e c'e' una ragione:
-     lo stato e' l'unica informazione che si deve poter leggere senza leggere,
-     attraversando una tabella con l'occhio. Entrano solo in un badge a
+  /* Le scale complete, per quando serve un passo intermedio. Sono quelle
+     della tavola 01 del design system, senza aggiunte. */
+  --teal-50: #eaf6f5;
+  --teal-100: #c9ebe8;
+  --teal-200: #94d6d0;
+  --teal-300: #4fb3ab;
+  --teal-500: #157a76;
+  --teal-700: #0a4543;
+  --teal-900: #062e2d;
+
+  --argento-50: #fafbfc;
+  --argento-100: #f3f5f7;
+  --argento-200: #e4e8ec;
+  --argento-300: #cdd3d9;
+  --argento-500: #a9b2b8;
+  --argento-700: #5e6a75;
+  --argento-900: #2c343c;
+
+  --acqua-50: #ebfdf9;
+  --acqua-100: #c8f8ee;
+  --acqua-200: #93f0de;
+  --acqua-300: #5fe8cf;
+  --acqua-500: #34e0c1;
+  --acqua-700: #16a88e;
+  --acqua-900: #0b6b5a;
+
+  --corallo-50: #fff2ee;
+  --corallo-100: #ffdcd2;
+  --corallo-200: #ffb8a5;
+  --corallo-300: #ff9278;
+  --corallo-500: #ff6b4a;
+  --corallo-700: #d9472a;
+  --corallo-900: #8f2a15;
+
+  /* I quattro colori semantici, ciascuno con il suo velo: il pieno per
+     l'icona e il testo, il velo per il fondo. */
+  --successo: #128a5c;
+  --successo-velo: #ddf7ec;
+  --attenzione: #b86e00;
+  --attenzione-velo: #fff1d6;
+  --informazione: #2f62d6;
+  --informazione-velo: #e0ecff;
+
+  /* I colori degli stati di lavori e task. Entrano solo in un badge a
      pillola, in un punto accanto al titolo e negli eventi del calendario:
-     nessuna riga e nessuna scheda colorata per intero, come nel resto
-     dell'interfaccia.
+     nessuna riga e nessuna scheda colorata per intero.
 
-     L'etichetta di testo c'e' sempre accanto al colore, cosi' lo stato si
+     L'etichetta di testo c'è sempre accanto al colore, così lo stato si
      capisce anche senza distinguere le tinte.
 
-     Il documento dava anche le varianti per il tema scuro. Non sono qui
-     perche' il gestionale dichiara color-scheme: light e non ha un tema
-     scuro: metterle significherebbe badge in colori notturni su una pagina
-     chiara. Vanno aggiunte quando il tema scuro arrivera', insieme al resto.
-   */
-  --stato-attivo: #6e6e73;
-  --stato-in-corso: #0071e3;
-  --stato-completato: #34c759;
-  --stato-annullato: #ff3b30;
+     Dopo Fluida non sono più i colori di sistema di un'altra interfaccia —
+     il blu e il verde acceso di prima non appartenevano a questa palette e
+     si vedeva: sono i semantici qui sopra, che sono stati disegnati per
+     stare su queste superfici. */
+  --stato-attivo: #5e6a75;
+  --stato-in-corso: #2f62d6;
+  --stato-completato: #128a5c;
+  --stato-annullato: #c8352b;
 
   /* In attesa: lo stato delle richieste di assenza e di ore. */
-  --stato-attesa: #ff9500;
+  --stato-attesa: #b86e00;
 
-  /* Le assenze approvate nel calendario. */
-  --assenza: #af52de;
+  /* Le assenze approvate nel calendario, quando non c'è la tinta della
+     persona: l'acqua scura, che si distingue dal verde della struttura
+     senza uscire dalla famiglia. */
+  --assenza: #16a88e;
 
   /* I livelli di urgenza di una task.
 
-     Non e' una scala di quattro colori accesi, ed e' voluto: la maggior parte
-     delle task e' «media», e una colonna in cui ogni riga accende un colore
+     Non è una scala di quattro colori accesi, ed è voluto: la maggior parte
+     delle task è «media», e una colonna in cui ogni riga accende un colore
      diventa rumore invece di segnale. I primi due livelli restano
-     nell'inchiostro — si leggono, non si notano — e il colore comincia da
-     «alta», che e' il punto in cui c'e' qualcosa da fare prima.
+     nell'argento — si leggono, non si notano — e il colore comincia da
+     «alta», che è il punto in cui c'è qualcosa da fare prima.
 
-     Gli ultimi due riusano l'arancione dell'attesa e il rosso: sono i due
-     colori con cui questa interfaccia dice gia' «guarda qui». Stanno in una
-     colonna loro e portano sempre l'etichetta scritta, quindi non si
-     confondono con lo stato della task accanto. */
-  --urgenza-bassa: #8a9aa0;
-  --urgenza-media: #4a6670;
-  --urgenza-alta: #ff9500;
-  --urgenza-urgente: #ff3b30;
+     Gli ultimi due riusano l'arancione dell'attenzione e il corallo: sono i
+     due colori con cui Fluida dice già «guarda qui». */
+  --urgenza-bassa: #a9b2b8;
+  --urgenza-media: #5e6a75;
+  --urgenza-alta: #b86e00;
+  --urgenza-urgente: #ff6b4a;
 
-  /* Le tinte dei lavori, per i blocchi del calendario settimanale.
+  /* --- la tavolozza del calendario ---------------------------------------
 
-     Sono decorative, non di segnale, ed e' la ragione per cui non riusano i
-     colori degli stati qui sopra: quelli dicono una cosa — attivo, in corso,
-     completato — e un blocco colorato per dire «questo e' il lavoro LAV-003»
-     non dice niente di suo. Vanno distinte fra loro, non lette.
+     Gli accenti del calendario: la linea dell'ora corrente, il contorno del
+     blocco in corso, il giorno di oggi. Erano i colori di marca di Toggl e
+     ora sono quelli di Fluida — i nomi restano perché li cita il foglio del
+     calendario settimanale, i valori no. */
+  --toggl-rosa: #34e0c1;
+  --toggl-viola: #16a88e;
+  --toggl-prugna: #062e2d;
+  --toggl-crema: #ebfdf9;
 
-     Per questo sono smorzate e tutte alla stessa intensita': nessuna deve
-     gridare piu' delle altre, e nessuna deve somigliare al teal dell'azione o
-     al rosso dell'errore, che invece vanno notati. Otto tinte a distanza
-     regolare sulla ruota; un lavoro le prende dal proprio id, quindi la sua
-     tinta e' la stessa in ogni settimana.
+  /* Le tinte dei lavori: un blocco del calendario è una superficie **piena**
+     del colore del lavoro, con il testo bianco sopra.
 
-     Nel calendario tingono la superficie **diluite**, come il velo, e restano
-     piene solo sul filetto di sinistra: una scheda colorata per intero e'
-     fuori da questa interfaccia. Il codice del lavoro e' scritto dentro il
-     blocco, cosi' due tinte che si somigliano non perdono l'informazione. */
-  --lavoro-0: #2f6fb3;
-  --lavoro-1: #7a5bb8;
-  --lavoro-2: #b34a86;
-  --lavoro-3: #b3514a;
-  --lavoro-4: #9a7430;
-  --lavoro-5: #4f8f3f;
-  --lavoro-6: #2e8f6f;
-  --lavoro-7: #5c6b7a;
+     ⚠️ Fluida non pubblica otto tinte categoriche — non è quello che fa: ha
+     due accenti e dice di usarli con parsimonia. Ma il calendario e il
+     report hanno bisogno di distinguere otto cose fra loro, e un grigio al
+     posto di un colore sarebbe un dato perso. Queste otto sono quindi
+     **derivate dalle sue scale** — teal, acqua, corallo, argento, più il blu
+     dell'informazione — prese ai gradi scuri perché sopra ciascuna va del
+     testo bianco piccolo.
 
-  /* Le tinte delle attivita' che non appartengono a nessun lavoro: una
+     Otto tinte distanti; un lavoro prende la sua dal proprio id, quindi è la
+     stessa in ogni settimana. Il codice del lavoro resta scritto dentro il
+     blocco, così due tinte simili non perdono l'informazione. */
+  --lavoro-0: #0a4543;
+  --lavoro-1: #16a88e;
+  --lavoro-2: #d9472a;
+  --lavoro-3: #b86e00;
+  --lavoro-4: #157a76;
+  --lavoro-5: #2f62d6;
+  --lavoro-6: #8f2a15;
+  --lavoro-7: #5e6a75;
+
+  /* Le tinte delle attività che non appartengono a nessun lavoro: una
      riunione, una manutenzione interna, una formazione.
 
-     Servono perche' quei blocchi non hanno un lavoro da cui prendere il
+     Servono perché quei blocchi non hanno un lavoro da cui prendere il
      colore, e un rettangolo grigio in mezzo agli altri sembrerebbe un errore
-     invece di una categoria. Un'attivita' che cita un lavoro prende invece la
-     tinta del lavoro, non una di queste: il colpo d'occhio della griglia e'
-     «su quali progetti e' andata la settimana», e colorare per categoria lo
-     cancellerebbe.
+     invece di una categoria.
 
-     Sono smorzate come le tinte dei lavori e alla stessa intensita', per la
-     stessa ragione: vanno distinte fra loro, non lette. Si tengono piu'
-     neutre — grigi, bruni, verdi spenti — perche' queste ore sono il contorno
-     della settimana e non il suo contenuto: i blu e i viola restano ai
-     lavori, che sono quello che si guarda. */
-  --attivita-manutenzione: #7a6a4f;
-  --attivita-interna: #5f7a6a;
-  --attivita-supporto: #4a7a8a;
-  --attivita-sopralluogo: #8a7a4a;
-  --attivita-riunione: #6f6a8a;
-  --attivita-formazione: #4f7a5f;
-  --attivita-amministrazione: #7a6a7a;
-  --attivita-trasferta: #8a6f5f;
-  --attivita-altro: #77838a;
+     Piene come quelle dei lavori, ma **meno sature**, e non è una sfumatura:
+     queste ore sono il contorno della settimana e non il suo contenuto. I
+     verdi e i coralli accesi restano ai lavori, che sono quello che si
+     guarda; qui si tengono i toni spenti, che si distinguono fra loro senza
+     chiamare. */
+  --attivita-manutenzione: #6b5f4a;
+  --attivita-interna: #3f6256;
+  --attivita-supporto: #41617a;
+  --attivita-sopralluogo: #6e6245;
+  --attivita-riunione: #4f5a7f;
+  --attivita-formazione: #3a6155;
+  --attivita-amministrazione: #5f5a6b;
+  --attivita-trasferta: #70584f;
+  --attivita-altro: #5e6a75;
 
   /* L'inchiostro scomposto, per tingere le ombre. */
-  --inchiostro-rgb: 21 48 61;
+  --inchiostro-rgb: 6 46 45;
 
-  /* Il raggio cresce con la superficie che arrotonda: un valore unico su
-     tutto è il segno più riconoscibile di un modello preconfezionato. */
   /* Quanto larga può diventare una pagina.
 
-     Un numero solo per tutte, invece di uno per schermata: la dashboard stava
-     a 100rem e tutto il resto a 56rem, cioè poco più di metà di un monitor
-     normale, con le tabelle strette e due fasce vuote ai lati. Una pagina usa
-     lo spazio che ha.
-
-     Un tetto però ci vuole, e non è una contraddizione: su un monitor da
-     2560px una riga di tabella larga tutto lo schermo costringe l'occhio a
-     attraversare mezzo metro per leggere una scadenza. Centosessanta
-     centimetri di testo sono il punto in cui si smette di guadagnare.
+     Un numero solo per tutte, invece di uno per schermata. Un tetto però ci
+     vuole: su un monitor da 2560px una riga di tabella larga tutto lo schermo
+     costringe l'occhio ad attraversare mezzo metro per leggere una scadenza.
 
      `--pagina-modulo` è per le schermate che sono **un solo modulo da
-     compilare**: lì non c'è niente da allargare, e una colonna di campi
-     larghi persa in mezzo a una pagina vuota si legge peggio. */
+     compilare**: lì non c'è niente da allargare. */
   --pagina-massima: 100rem;
   --pagina-modulo: 56rem;
 
@@ -148,53 +213,91 @@
      larghezza da chiusa la deve sapere anche il corpo della pagina, che tiene
      quel margine: la barra si allarga **sopra** il contenuto e non lo spinge,
      così i calendari della dashboard non si ridimensionano a ogni passaggio
-     del mouse. Due numeri in due posti si sposterebbero l'uno senza l'altro,
-     e la barra coprirebbe il contenuto o lascerebbe una striscia vuota. */
-  --sidebar-chiusa: 56px;
-  --sidebar-aperta: 220px;
+     del mouse.
 
-  --raggio-controllo: 10px;
-  --raggio-carta: 16px;
-  --raggio-foglio: 22px;
+     In Fluida la barra **galleggia**: non tocca i bordi della finestra e ha i
+     suoi angoli tondi, quindi la larghezza qui comprende il margine che la
+     stacca dal bordo. */
+  --sidebar-chiusa: 76px;
+  --sidebar-aperta: 256px;
+  --sidebar-margine: 10px;
+  --sidebar-fondo: #062e2d;
+  --sidebar-testo: rgb(255 255 255 / 74%);
+
+  /* --- 03 · forma --------------------------------------------------------
+
+     Il raggio cresce con la superficie che arrotonda, e in Fluida parte già
+     morbido: 14 su un controllo (è il numero scritto sulla tavola dei
+     bottoni, accanto all'altezza 44 e al peso 700), 20 su una scheda, 24 su
+     un foglio che sta sopra la pagina. Un valore unico su tutto è il segno
+     più riconoscibile di un modello preconfezionato; quattro valori scelti
+     sono un sistema. */
+  --raggio-controllo: 14px;
+  --raggio-carta: 20px;
+  --raggio-foglio: 24px;
   --raggio-pillola: 980px;
+
+  /* L'altezza dei controlli: 44px, la stessa per un pulsante e per un campo,
+     così stanno su una riga senza scalini. È anche la misura minima di un
+     bersaglio da toccare con il dito. */
+  --altezza-controllo: 2.75rem;
+  --altezza-controllo-piccolo: 2.25rem;
 
   /* Due livelli di elevazione, perché ci sono due cose da dire: «questo è un
      blocco di contenuto» e «questo è un foglio sopra la pagina». Le ombre
      sono tinte d'inchiostro, mai di grigio neutro: è ciò che le tiene dentro
-     questa palette invece di farle sembrare incollate sopra. */
+     questa palette invece di farle sembrare incollate sopra. In Fluida sono
+     più larghe e più tenui di prima — una forma morbida vuole un'ombra
+     morbida, altrimenti il bordo torna a essere una linea. */
   --ombra-carta:
-    0 1px 2px rgb(var(--inchiostro-rgb) / 5%),
-    0 4px 12px -2px rgb(var(--inchiostro-rgb) / 7%);
+    0 1px 2px rgb(var(--inchiostro-rgb) / 4%),
+    0 6px 20px -4px rgb(var(--inchiostro-rgb) / 8%);
   --ombra-foglio:
-    0 2px 4px rgb(var(--inchiostro-rgb) / 5%),
-    0 12px 32px -6px rgb(var(--inchiostro-rgb) / 12%),
-    0 32px 64px -24px rgb(var(--inchiostro-rgb) / 10%);
-  --ombra-premuto: 0 1px 2px rgb(var(--inchiostro-rgb) / 8%);
+    0 2px 6px rgb(var(--inchiostro-rgb) / 5%),
+    0 16px 40px -8px rgb(var(--inchiostro-rgb) / 14%),
+    0 40px 80px -32px rgb(var(--inchiostro-rgb) / 12%);
+  --ombra-premuto: 0 1px 2px rgb(var(--inchiostro-rgb) / 10%);
 
-  /* Una sola famiglia, quella del sistema operativo: su uno strumento che si
-     apre ogni mattina il testo deve comparire subito, senza aspettare un
-     carattere dalla rete. La personalità sta nella scala e nella
-     tracciatura, non nella famiglia. */
+  /* --- 02 · tipografia ---------------------------------------------------
+
+     Figtree: una sans geometrica dalle curve morbide, amichevole nei titoli
+     e nitida nei numeri delle tabelle. Un'unica famiglia, pesi da 400 a 900.
+
+     Arriva dalla rete, e il ripiego di sistema è dichiarato nella stessa
+     riga: finché non è scaricata la pagina si legge comunque, e
+     `font-display: swap` fa il resto. */
   --testo:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI Variable Text',
+    'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text',
     'Segoe UI', system-ui, Roboto, Helvetica, Arial, sans-serif;
 
-  --scala-piccola: 0.8125rem;
-  --scala-base: 0.9375rem;
-  --scala-media: 1.0625rem;
-  --scala-sezione: 1.5rem;
-  --scala-titolo: 2rem;
+  /* La scala della tavola 02, alla lettera. I rapporti fra i passi sono
+     quelli, e le interlinee pure: corpo 16/24, piccolo 14/20, H3 20/28,
+     H2 28/34, H1 40/46. */
+  --scala-piccola: 0.875rem;
+  --scala-base: 1rem;
+  --scala-media: 1.25rem;
+  --scala-sezione: 1.75rem;
+  --scala-titolo: 2.5rem;
+
+  /* L'etichetta: maiuscoletto spaziato, peso 800. È il modo in cui Fluida
+     intesta una sezione o una colonna di tabella. */
+  --scala-etichetta: 0.75rem;
+  --tracciatura-etichetta: 0.08em;
 
   /* La tracciatura ottica: il testo grande si stringe, quello piccolo no.
-     È questo, più del carattere, a dare al testo l'aria di un'interfaccia
-     di sistema. */
-  --tracciatura-titolo: -0.022em;
-  --tracciatura-base: -0.01em;
+     Figtree è geometrica e già larga di suo, quindi il corpo non ha bisogno
+     di essere stretto — a differenza del carattere di sistema di prima. */
+  --tracciatura-titolo: -0.02em;
+  --tracciatura-base: 0;
 
-  --transizione: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* 220ms con un soffio di rimbalzo: è l'apertura che la tavola delle
+     finestre prescrive, e la stessa curva tiene insieme tutto il resto. */
+  --transizione: 180ms cubic-bezier(0.32, 0.72, 0, 1);
+  --transizione-finestra: 220ms cubic-bezier(0.34, 1.26, 0.64, 1);
 
   color-scheme: light;
 }
+
 
 *,
 *::before,
@@ -228,16 +331,29 @@ textarea {
 }
 
 /* Le caselle di scelta prendono il colore di segnale invece del blu del
-   browser: è l'unico punto dove il teal compare senza che lo si disegni. */
+   browser: è l'unico punto dove il verde compare senza che lo si disegni. */
 input[type='radio'],
 input[type='checkbox'] {
   accent-color: var(--azione);
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* Figtree ha le cifre proporzionali: in una colonna di ore o di importi le
+   cifre non si incolonnano e due numeri vicini non si confrontano più con
+   l'occhio. Le tabelle e i numeri grandi chiedono quindi le tabellari. */
+table,
+.cifra-valore {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Il contorno del focus da tastiera non va mai rimosso: è l'unico modo di
    sapere dove si è per chi non usa il mouse. */
+/* Il contorno è acqua e non verde profondo: su un pulsante principale, che
+   in Fluida è verde profondo pieno, un contorno dello stesso colore sarebbe
+   invisibile. L'accento si stacca da ogni superficie del sistema. */
 :focus-visible {
-  outline: 2px solid var(--azione);
+  outline: 2px solid var(--accento-premuto);
   outline-offset: 2px;
 }
 

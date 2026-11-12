@@ -6,13 +6,17 @@ import itLocale from '@fullcalendar/core/locales/it'
 import type {
   DateSelectArg,
   DatesSetArg,
+  EventApi,
   EventClickArg,
   EventContentArg,
+  EventDropArg,
   EventInput,
 } from '@fullcalendar/core'
+import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import {
   ETICHETTA_ATTIVITA,
   TINTA_ATTIVITA,
+  correggi,
   durata,
   istanteLocale,
   miaSettimana,
@@ -126,7 +130,7 @@ export default function CalendarioSettimanale({
     if (!scorre) {
       return
     }
-    const tick = setInterval(() => setAdesso(Date.now()), 30_000)
+    const tick = setInterval(() => setAdesso(Date.now()), 10_000)
     return () => clearInterval(tick)
   }, [scorre])
 
@@ -186,6 +190,57 @@ export default function CalendarioSettimanale({
     })
   }
 
+  /**
+   * Un blocco spostato o allungato: si riscrivono i suoi due istanti.
+   *
+   * Lo stesso gestore per i due gesti, perché sono la stessa scrittura —
+   * trascinare cambia entrambi gli estremi, allungare ne cambia uno — e il
+   * server ha una sola rotta per dire «questa sessione andava così».
+   *
+   * ⚠️ **Si rimandano anche tag, lavoro e descrizione**, e non è ridondanza:
+   * `PUT /api/mio-tempo/sessioni/{id}` **sostituisce** quei tre campi, non li
+   * aggiorna. Mandare solo i due orari cancellerebbe la descrizione e
+   * riporterebbe il tipo al suo valore vuoto — si trascinerebbe un blocco di
+   * mezz'ora e si perderebbe quello che c'era scritto dentro.
+   *
+   * Il `lavoroId` si manda solo dove ha un senso: con una task il lavoro è
+   * quello della task, e il server lo azzera comunque.
+   */
+  async function riscriviOrari(evento: EventApi, annulla: () => void) {
+    const sessione = (settimana?.sessioni ?? []).find(
+      (una) => String(una.id) === evento.id,
+    )
+
+    // `end` è nullo solo per un evento senza durata, che qui non esiste: se
+    // manca, qualcosa non torna e si preferisce rimettere il blocco dov'era.
+    if (sessione === undefined || evento.start === null || evento.end === null) {
+      annulla()
+      return
+    }
+
+    try {
+      onScritto(
+        await correggi(sessione.id, {
+          tipoAttivita: sessione.tipoAttivita,
+          lavoroId: sessione.taskId === null ? sessione.lavoroId : null,
+          descrizione: sessione.descrizione,
+          // `istanteLocale` e non `toISOString`: quello convertirebbe in UTC e
+          // in Italia l'orario slitterebbe di un'ora o due — un blocco
+          // trascinato alle 10 salvato per le 8.
+          avviataIl: istanteLocale(evento.start),
+          chiusaIl: istanteLocale(evento.end),
+        }),
+      )
+    } catch (motivo) {
+      // Il server ha rifiutato — fuori dalla settimana, sopra un'altra
+      // sessione, nel futuro — e il blocco torna dov'era. Senza questo la
+      // griglia mostrerebbe un orario che nel database non esiste, e
+      // sembrerebbe salvato.
+      annulla()
+      onErrore(testo(motivo))
+    }
+  }
+
   const eventi: EventInput[] = (settimana?.sessioni ?? []).map((sessione) => ({
     id: String(sessione.id),
     // Senza task il titolo è l'etichetta dell'attività: è la sola cosa che
@@ -195,6 +250,11 @@ export default function CalendarioSettimanale({
     // Una sessione aperta si disegna fino ad adesso: è l'unico blocco della
     // griglia che sta ancora crescendo, e senza una fine non avrebbe altezza.
     end: sessione.chiusaIl ?? istanteLocale(new Date(adesso)),
+    // Una sessione che sta scorrendo non si trascina e non si allunga: la sua
+    // fine non esiste ancora — quella disegnata è «adesso», che cresce da sé —
+    // e il server rifiuta una correzione su di essa. Il pannello dice già di
+    // metterla in pausa prima di toccarne gli orari.
+    editable: sessione.chiusaIl !== null,
     classNames: classiSessione(sessione),
     extendedProps: {
       // In coda al titolo: il codice del lavoro se c'è, altrimenti niente —
@@ -275,6 +335,37 @@ export default function CalendarioSettimanale({
           eventContent={contenutoSessione}
           datesSet={periodoCambiato}
           eventClick={modificabile ? bloccoCliccato : undefined}
+
+          // --- i due gesti sui blocchi già registrati --------------------
+          //
+          // Trascinare un blocco lo sposta; tirarne un bordo lo allunga. Sono
+          // le due correzioni che prima costavano l'apertura del pannello e la
+          // riscrittura di due orari a mano, per dire una cosa che si sa
+          // indicando: «era un'ora più tardi», «è durato mezz'ora in più».
+          //
+          // Spento fuori dalla settimana corrente, come la selezione: lì il
+          // server rifiuta ogni correzione, e un blocco che si lascia
+          // trascinare per poi tornare indietro è una promessa non mantenuta.
+          // Spento anche sulla sessione che scorre, per blocco (vedi `editable`
+          // su ciascun evento).
+          editable={modificabile}
+          // Si allunga da entrambi i bordi. Dal basso è il gesto ovvio; dall'alto
+          // serve quando si è cominciato prima di quando si era segnato, che è
+          // l'altra metà degli stessi casi.
+          eventResizableFromStart
+          eventDrop={(arg: EventDropArg) => void riscriviOrari(arg.event, arg.revert)}
+          eventResize={(arg: EventResizeDoneArg) =>
+            void riscriviOrari(arg.event, arg.revert)
+          }
+          // Gli stessi due limiti della selezione, per la stessa ragione: un
+          // gesto che finirebbe in un rifiuto non si deve poter compiere. Una
+          // sessione sta dentro un giorno, e non si sposta nel futuro.
+          eventAllow={(periodo) =>
+            periodo.start.toDateString()
+              === new Date(periodo.end.getTime() - 1).toDateString()
+            && periodo.end.getTime() <= Date.now()
+          }
+
           // Trascinare una zona vuota apre il pannello. Spento fuori dalla
           // settimana corrente: una selezione che porta a un 409 è una
           // selezione che non andava permessa.
@@ -313,7 +404,8 @@ export default function CalendarioSettimanale({
       {modificabile && (
         <p className="settimana-vuota">
           Hai lavorato a qualcosa senza avviare il timer? Trascina quelle ore
-          sulla griglia. Si registra solo tempo già passato.
+          sulla griglia. Un blocco già registrato si sposta trascinandolo e si
+          allunga tirandone un bordo. Si registra solo tempo già passato.
         </p>
       )}
 

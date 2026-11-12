@@ -1,0 +1,83 @@
+# La configurazione di nginx per il frontend.
+#
+# ⚠️ QUESTO FILE NON E' DECORATIVO: senza di esso l'immagine del frontend e'
+# rotta in due modi, e nessuno dei due si vede subito.
+#
+# 1. **Niente proxy per /api.** Il `Dockerfile` del frontend copia `dist` e
+#    lascia la configurazione predefinita di nginx. In sviluppo le chiamate a
+#    `/api` funzionano perche' le inoltra il proxy di Vite
+#    (`vite.config.ts`), ma quel proxy vive solo nel server di sviluppo: nel
+#    container non esiste, e ogni chiamata all'API risponderebbe 404 da nginx.
+#
+# 2. **Niente ripiego sull'indice.** L'applicazione usa `BrowserRouter`, quindi
+#    `/lavori/2` e' una rotta del browser e non un file su disco. Con la
+#    configurazione predefinita, aprire quell'indirizzo o premere F5 su quella
+#    pagina da **404**: funziona solo la radice. E' il difetto piu' facile da
+#    non notare, perche' navigando dentro l'applicazione non si manifesta mai.
+#
+# Si monta come file, cosi' l'immagine non va ricostruita: il Deployment la
+# aggancia su /etc/nginx/conf.d/default.conf, che e' il nome del file
+# predefinito e quindi lo sostituisce.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-nginx
+  namespace: gestionale
+data:
+  default.conf: |
+    # Lo schema originale della richiesta, per il backend.
+    #
+    # Se davanti c'e' un Ingress che termina il TLS, l'informazione «era
+    # HTTPS» arriva solo nell'header: `$scheme` qui dentro vale `http`, perche'
+    # fra Ingress e nginx si parla in chiaro sulla rete interna. Questa mappa
+    # inoltra l'header quando c'e' e ripiega sullo schema reale quando non
+    # c'e' — il caso di un `kubectl port-forward` diretto a questo servizio.
+    #
+    # Al backend serve perche' application-prod.properties attiva
+    # `server.forward-headers-strategy=framework`.
+    map $http_x_forwarded_proto $proto_originale {
+        default $http_x_forwarded_proto;
+        ''      $scheme;
+    }
+
+    server {
+        listen 80;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Le chiamate all'API vanno al backend, che nello stesso spazio dei
+        # nomi si chiama cosi'. Il nome `backend` deve coincidere con quello
+        # del Service in 11-backend.yaml: e' l'unico collegamento fra i due
+        # file.
+        #
+        # Passando da qui il browser vede tutto sulla stessa origine, ed e'
+        # necessario e non comodo: il cookie di sessione e' `SameSite=Strict`
+        # — lo dice ConfigurazioneSicurezza, ed e' la ragione per cui il CSRF
+        # e' disattivato — quindi su un'origine diversa il browser non lo
+        # allegherebbe e nessuno riuscirebbe ad autenticarsi.
+        location /api {
+            proxy_pass http://backend:8080;
+            proxy_http_version 1.1;
+
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $proto_originale;
+            proxy_set_header X-Forwarded-Host  $host;
+
+            # Il backend applica ventuno migrazioni al primo avvio e puo'
+            # tardare a rispondere: il minuto predefinito di nginx basta, ma
+            # dichiararlo evita di scoprire un 504 durante un rilascio.
+            proxy_connect_timeout 10s;
+            proxy_read_timeout    60s;
+        }
+
+        # Il ripiego dell'applicazione a pagina singola: se il percorso non e'
+        # un file, si serve l'indice e il router del browser decide. Senza
+        # questo, ogni ricaricamento fuori dalla radice e' un 404.
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }

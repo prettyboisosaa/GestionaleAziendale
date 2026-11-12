@@ -60,6 +60,16 @@ export const VOCI: Voce[] = [
     icona: 'utenti',
     permessi: ['UTENTI_VISUALIZZA'],
   },
+  {
+    id: 'report',
+    etichetta: 'Report',
+    percorso: '/report',
+    icona: 'report',
+    // Lo stesso permesso che `App.tsx` mette sulla rotta. È quello che dice
+    // già «vedi il tempo registrato da tutti»: il report ne è il riassunto,
+    // e un permesso nuovo avrebbe solo duplicato un significato esistente.
+    permessi: ['TEMPO_VISUALIZZA_TUTTI'],
+  },
 ]
 
 /** Le voci che toccano a chi guarda, nell'ordine in cui sono dichiarate. */

@@ -6,6 +6,7 @@ import type { DatesSetArg, EventInput } from '@fullcalendar/core'
 import { calendarioAssenze } from './api'
 import type { RigaCalendarioAssenza } from './api'
 import Pannello from '../componenti/Pannello'
+import { tintaPersona } from '../stato/stati'
 import { testo } from '../api/http'
 
 /**
@@ -82,6 +83,12 @@ export default function CalendarioAssenze() {
     classNames: [
       'assenza-evento',
       una.stato === 'IN_ATTESA' ? 'assenza-in-attesa' : 'assenza-approvata',
+      // Un colore per persona: con cinque colleghi via nella stessa settimana,
+      // rettangoli tutti della stessa tinta costringono a leggere ogni nome per
+      // capire quante persone sono davvero fuori — e tre giorni di una stessa
+      // persona sembrano tre colleghi in ferie. La tinta viene dal nome, quindi
+      // non cambia da un mese all'altro.
+      tintaPersona(una.richiedente),
     ],
   }))
 
@@ -90,7 +97,7 @@ export default function CalendarioAssenze() {
   return (
     <Pannello
       titolo="Chi è via"
-      sottotitolo="approvate piene, in attesa tratteggiate"
+      sottotitolo="un colore per persona · approvate piene, in attesa tratteggiate"
       azioni={
         inAttesa > 0 ? (
           <span className="nota">

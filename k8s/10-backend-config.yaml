@@ -1,0 +1,57 @@
+# La configurazione del backend: cio' che si puo' leggere e cio' che non si
+# puo'.
+#
+# ⚠️ IL DATABASE NON STA IN QUESTA CARTELLA. Hai chiesto i manifest di
+# frontend e backend, e MySQL non c'e': `DB_URL` deve puntare a un database che
+# esiste gia' — un servizio gestito, una macchina fuori dal cluster, o uno
+# StatefulSet che aggiungerai. Un database dentro un Deployment senza volume
+# persistente perde i dati al primo riavvio del pod, e non e' una cosa da
+# mettere in un manifest come se andasse bene.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: gestionale
+data:
+  # ⚠️ Questa riga accende il profilo di produzione, e cambia quattro
+  # comportamenti dichiarati in application-prod.properties:
+  #
+  # 1. Flyway esegue SOLO db/migration. Senza il profilo verrebbe eseguito
+  #    anche db/dev, cioe' R__dati_sviluppo.sql, che su un database vuoto crea
+  #    sette utenti con la stessa password scritta in chiaro nel sorgente, fra
+  #    cui admin@gestionale.local con il ruolo Amministratore. In produzione
+  #    questo profilo non e' un'opzione: e' la riga che evita quello.
+  # 2. ddl-auto passa a `validate`: Hibernate confronta le entita' con lo
+  #    schema e rifiuta di avviarsi se divergono, invece di "sistemarlo" da se'.
+  # 3. Il cookie di sessione diventa Secure — vedi l'avvertimento qui sotto.
+  # 4. Vengono letti gli header X-Forwarded-*, perche' davanti c'e' un proxy.
+  SPRING_PROFILES_ACTIVE: "prod"
+
+  # L'indirizzo del database. Nell'URL non ci sono segreti, quindi sta qui e
+  # non nel Secret.
+  #
+  # ⚠️ SOSTITUISCI questo valore. Niente `useSSL=false`: MySQL 8.4 autentica
+  # con caching_sha2_password e senza TLS pretenderebbe
+  # allowPublicKeyRetrieval=true, altrimenti il pod muore in avvio con
+  # «Public Key Retrieval is not allowed» e finisce in CrashLoopBackOff. E' la
+  # stessa trappola che il docker-compose documenta.
+  DB_URL: "jdbc:mysql://CAMBIAMI-host-del-database:3306/gestionale"
+---
+# Le credenziali. `stringData` e non `data`: si scrive in chiaro e Kubernetes
+# codifica lui in base64, cosi' il file resta leggibile.
+#
+# ⚠️ Un Secret di Kubernetes NON e' cifrato: e' base64, che e' una codifica e
+# non una protezione. Chi legge le risorse dello spazio dei nomi legge la
+# password. Questo file va bene per provare, ma **non va messo in git** con
+# valori veri: per quello servono un SealedSecret, un External Secrets
+# Operator o `kubectl create secret` a mano.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backend-credenziali
+  namespace: gestionale
+type: Opaque
+stringData:
+  DB_USERNAME: "CAMBIAMI"
+  DB_PASSWORD: "CAMBIAMI"

@@ -2,13 +2,16 @@
    table) sono sempre annidati sotto una classe: lasciati globali si
    scontrerebbero con le pagine che aggiungeremo.
 
-   Tre regole tengono insieme tutto il file:
-   - l'elevazione indica contenimento, non decorazione: solo le schede di
-     contenuto e il foglio d'accesso portano un'ombra;
-   - il raggio cresce con la superficie, dai 10px di un campo ai 22px di un
-     foglio;
-   - il teal resta l'unico colore di segnale, e quando deve tingere una
-     superficie lo fa diluito (--azione-velo), non con un grigio. */
+   Lo stile e' quello del design system **Fluida**. I valori non stanno qui:
+   stanno nei token di `index.css`, e questo file li dispone.
+
+   Tre regole tengono insieme tutto:
+   - l'elevazione indica contenimento, non decorazione: niente bordi sulle
+     schede, un'ombra morbida al loro posto;
+   - il raggio cresce con la superficie, dai 14px di un controllo ai 24px di
+     un foglio. Non esiste un angolo vivo;
+   - gli accenti — acqua e corallo — non coprono mai piu' del 10% di una
+     schermata. La struttura e' verde profondo, argento e bianco. */
 
 /* --- pezzi condivisi ------------------------------------------------------ */
 
@@ -68,9 +71,12 @@
 .colonna h1 {
   margin-top: 0.125rem;
   font-size: var(--scala-titolo);
-  font-weight: 600;
+  /* 800, il peso degli H1 di Fluida. Figtree a questo peso ha le curve piene
+     che il design system chiama «amichevoli nei titoli»: a 600 sembrerebbe
+     un altro carattere. */
+  font-weight: 800;
   letter-spacing: var(--tracciatura-titolo);
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 /* --- campi e pulsanti ---------------------------------------------------- */
@@ -107,7 +113,10 @@
 .campo label,
 .campo legend {
   font-size: var(--scala-piccola);
-  font-weight: 500;
+  /* 600 e non 500: in Fluida l'etichetta di un campo e' piu' decisa del
+     valore che sta sotto, perche' e' quella che si legge per prima quando si
+     scorre un modulo cercando dove scrivere. */
+  font-weight: 600;
   padding: 0;
 }
 
@@ -133,8 +142,8 @@
 .campo input[type='time'],
 .campo input:not([type]),
 .campo select {
-  height: 2.875rem;
-  padding: 0 0.75rem;
+  height: var(--altezza-controllo);
+  padding: 0 0.875rem;
 }
 
 .campo textarea {
@@ -144,12 +153,16 @@
 
 /* L'anello morbido al focus è il segnale di «stai scrivendo qui». Non
    sostituisce il contorno da tastiera, che resta in index.css. */
+/* L'anello al focus e' acqua: su un campo bianco il verde profondo del bordo
+   si confonderebbe con il testo, mentre l'accento dice «stai scrivendo qui»
+   da due metri. E' lo stesso anello che la tavola delle tendine mostra sotto
+   il selettore aperto. */
 .campo input:focus,
 .campo select:focus,
 .campo textarea:focus {
   background-color: var(--superficie);
-  border-color: var(--azione);
-  box-shadow: 0 0 0 3px var(--azione-velo);
+  border-color: var(--accento-premuto);
+  box-shadow: 0 0 0 3px var(--acqua-100);
 }
 
 .campo input:disabled,
@@ -183,14 +196,19 @@
   font-style: normal;
 }
 
+/* Altezza 44, raggio 14, peso 700: i tre numeri scritti sulla tavola dei
+   bottoni, accanto al titolo. Il fondo e' il verde profondo pieno — in Fluida
+   l'azione principale non e' un colore acceso, e' la tinta piu' scura della
+   pagina. L'acqua resta all'accento, che non deve diventare il colore dei
+   pulsanti o smetterebbe di segnalare. */
 .colonna button,
 .modulo button {
-  height: 2.875rem;
+  height: var(--altezza-controllo);
   border: 1px solid var(--azione);
   border-radius: var(--raggio-controllo);
   background-color: var(--azione);
   color: #fff;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
   box-shadow: var(--ombra-premuto);
   transition:
@@ -222,6 +240,10 @@
 /* Resta appesa in alto mentre l'elenco scorre, e lascia intravedere ciò che
    le passa sotto: è il modo in cui un'interfaccia di sistema dice «questo
    livello non fa parte del contenuto». */
+/* Resta appesa in alto mentre l'elenco scorre. Senza filetto sotto: in
+   Fluida la testata non e' una barra di sistema staccata dal contenuto, e' il
+   contenuto che comincia. Quando qualcosa le passa sotto si vede, ed e' la
+   sfocatura a dirlo. */
 .barra {
   position: sticky;
   top: 0;
@@ -229,14 +251,13 @@
   display: flex;
   align-items: center;
   gap: 2rem;
-  padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid var(--riga-tenue);
-  background-color: var(--superficie);
+  padding: 0.875rem 1.5rem;
+  background-color: var(--carta);
 }
 
 @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
   .barra {
-    background-color: var(--superficie-velata);
+    background-color: rgb(243 245 247 / 76%);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
     backdrop-filter: saturate(180%) blur(20px);
   }
@@ -377,8 +398,9 @@
 
 .testata h1 {
   font-size: var(--scala-sezione);
-  font-weight: 600;
+  font-weight: 800;
   letter-spacing: var(--tracciatura-titolo);
+  line-height: 1.2;
 }
 
 .testata a {
@@ -387,11 +409,14 @@
 }
 
 .testata a.azione {
-  padding: 0.5rem 1.125rem;
+  display: inline-flex;
+  align-items: center;
+  height: var(--altezza-controllo);
+  padding: 0 1.25rem;
   background-color: var(--azione);
-  border-radius: var(--raggio-pillola);
+  border-radius: var(--raggio-controllo);
   color: #fff;
-  font-weight: 500;
+  font-weight: 700;
   text-decoration: none;
   box-shadow: var(--ombra-premuto);
   transition:
@@ -431,18 +456,25 @@
   font-size: var(--scala-base);
 }
 
+/* L'intestazione di colonna e' l'«etichetta» della tavola della tipografia:
+   maiuscoletto spaziato, peso 800, piccolo. Non ha piu' un fondo grigio ne'
+   un filetto spesso sotto — in Fluida una tabella e' bianca dentro una scheda
+   bianca, e sono il peso e lo spazio a dire dove finisce la testata. */
 .tabella th {
-  padding: 0.8125rem 0.875rem;
-  background-color: var(--carta);
-  border-bottom: 1px solid var(--riga);
+  padding: 0.9375rem 0.875rem;
+  background-color: transparent;
+  border-bottom: 1px solid var(--riga-tenue);
   text-align: left;
-  font-size: var(--scala-piccola);
-  font-weight: 600;
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+  color: var(--inchiostro-tenue);
   white-space: nowrap;
 }
 
 .tabella td {
-  padding: 0.8125rem 0.875rem;
+  padding: 0.9375rem 0.875rem;
   border-bottom: 1px solid var(--riga-tenue);
   vertical-align: baseline;
 }
@@ -608,7 +640,6 @@
   margin-top: 1.5rem;
   padding: 1rem 1.25rem;
   background-color: var(--superficie);
-  border: 1px solid var(--riga-tenue);
   border-radius: var(--raggio-carta);
   box-shadow: var(--ombra-carta);
 }
@@ -711,7 +742,6 @@
   margin-top: 1.5rem;
   padding: 1rem 1.25rem 1.25rem;
   background-color: var(--superficie);
-  border: 1px solid var(--riga-tenue);
   border-radius: var(--raggio-carta);
   box-shadow: var(--ombra-carta);
 }
@@ -740,15 +770,19 @@
 }
 
 .cifra-etichetta {
-  font-size: var(--scala-piccola);
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
   color: var(--inchiostro-tenue);
 }
 
 .cifra-valore {
   font-size: var(--scala-sezione);
-  font-weight: 600;
+  font-weight: 800;
   letter-spacing: var(--tracciatura-titolo);
   font-variant-numeric: tabular-nums;
+  line-height: 1.2;
 }
 
 /* Le ore libere sono il numero su cui si decide: prendono il colore di
@@ -813,13 +847,13 @@
    Serve dove l'azione e' disponibile ma non e' quella che la pagina
    suggerisce. */
 button.secondario {
-  height: 2.25rem;
-  padding: 0 0.875rem;
+  height: var(--altezza-controllo-piccolo);
+  padding: 0 1rem;
   border: 1px solid var(--riga);
   border-radius: var(--raggio-controllo);
   background-color: var(--superficie);
-  color: var(--azione);
-  font-weight: 500;
+  color: var(--inchiostro);
+  font-weight: 700;
   cursor: pointer;
   transition:
     background-color var(--transizione),
@@ -827,8 +861,8 @@ button.secondario {
 }
 
 button.secondario:hover:not(:disabled) {
-  background-color: var(--azione-velo);
-  border-color: var(--azione);
+  background-color: var(--carta);
+  border-color: var(--inchiostro-tenue);
 }
 
 button.secondario:disabled {
@@ -840,12 +874,13 @@ button.secondario:disabled {
    allargarla. */
 button.minuscolo {
   margin-top: 0.25rem;
-  padding: 0.125rem 0.5rem;
+  padding: 0.1875rem 0.625rem;
   border: 1px solid var(--riga);
   border-radius: var(--raggio-pillola);
   background-color: var(--superficie);
-  color: var(--azione);
+  color: var(--inchiostro);
   font-size: var(--scala-piccola);
+  font-weight: 600;
   cursor: pointer;
   transition: background-color var(--transizione);
 }
@@ -920,10 +955,10 @@ button.minuscolo:disabled {
 .pillola {
   display: inline-flex;
   align-items: center;
-  padding: 0.15em 0.6em;
+  padding: 0.25em 0.75em;
   border-radius: var(--raggio-pillola);
   font-size: var(--scala-piccola);
-  font-weight: 590;
+  font-weight: 700;
   letter-spacing: 0;
   white-space: nowrap;
 
@@ -1316,20 +1351,56 @@ button.minuscolo:disabled {
    cornice, gli stessi pulsanti e la stessa mappatura delle variabili di
    FullCalendar: due calendari nella stessa pagina che non si somigliassero
    sarebbero due applicazioni. Qui c'e' solo quello che cambia. */
+/* La griglia in stile Toggl: un foglio quasi bianco, righe appena accennate,
+   e tutto il colore nei blocchi. Il contrario di una tabella: la struttura
+   arretra perche' il contenuto e' l'unica cosa colorata. */
 .scheda-settimana {
+  /* Righe piu' chiare delle altre schermate: su una griglia di sette giorni
+     per quattordici ore sono quasi duecento linee, e al contrasto normale
+     diventano un reticolo che compete con i blocchi. */
+  --fc-border-color: #ececf1;
+  --fc-page-bg-color: #fff;
+
   /* Le ore fuori dall'orario di lavoro — prima delle 9, dopo le 18, il
      sabato e la domenica — si velano invece di sparire. Spariscono in tanti
      gestionali, e il risultato e' che chi ha lavorato alle 20 non trova dove
      dirlo: la griglia gli direbbe che quell'ora non esiste. Velate si vede
      dov'e' l'orario senza che il resto sia vietato. */
-  --fc-non-business-color: var(--campo-fondo);
-  --fc-now-indicator-color: var(--azione);
+  --fc-non-business-color: #fafafc;
+
+  /* Oggi: un soffio del rosa di marca invece del velo teal dell'azione. Deve
+     dire «sei qui» e non «premi qui». */
+  --fc-today-bg-color: color-mix(in srgb, var(--toggl-rosa) 7%, #fff);
+
+  /* La linea dell'ora corrente nel rosa di Toggl, che e' il colore con cui
+     quell'applicazione segna l'adesso. */
+  --fc-now-indicator-color: var(--toggl-rosa);
 }
 
+/* Le etichette delle ore e dei giorni: minuscole, in maiuscoletto spaziato e
+   grigie. In Toggl la cornice temporale si legge solo quando la si cerca. */
 .scheda-settimana .fc-timegrid-slot-label-cushion,
 .scheda-settimana .fc-col-header-cell-cushion {
   color: var(--inchiostro-tenue);
   text-decoration: none;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Le fasce orarie respirano: in Toggl un blocco di mezz'ora e' alto abbastanza
+   da contenere due righe di testo, ed e' la ragione per cui si legge senza
+   aprirlo. */
+.scheda-settimana .fc-timegrid-slot {
+  height: 1.75rem;
+}
+
+/* Via il bordo sotto l'intestazione dei giorni: in questo stile le colonne si
+   separano da se', con lo spazio. */
+.scheda-settimana .fc-col-header-cell {
+  border-bottom-width: 0;
+  padding-bottom: 0.25rem;
 }
 
 /* Il totale della settimana, accanto al titolo della sezione. */
@@ -1347,33 +1418,67 @@ button.minuscolo:disabled {
    filetto, come gli eventi dell'altro calendario. La forma e' la stessa
    perche' la grammatica e' la stessa; cambia solo da dove viene la tinta —
    li' lo stato, qui il lavoro. */
+/* ⚠️ Il blocco e' una superficie **piena**, con il testo bianco sopra.
+   Prima la tinta velava il fondo al 16% e restava piena solo su un filetto a
+   sinistra, perche' in questa interfaccia «una scheda colorata per intero»
+   era fuori regola. Qui quella regola non vale piu', e la deroga e'
+   dichiarata: su questa griglia il colore *e'* il dato — a quale lavoro sono
+   andate quelle ore — e non una decorazione. E' anche cio' che rende il
+   calendario leggibile da lontano, che e' il suo mestiere. */
 .scheda-settimana .sessione {
-  padding: 0.1rem 0.3rem;
+  padding: 0.1875rem 0.4375rem;
   border: 0;
-  border-left: 3px solid var(--tinta-lavoro, var(--inchiostro-tenue));
-  border-radius: var(--raggio-controllo);
-  background-color: color-mix(in srgb, var(--tinta-lavoro, var(--inchiostro-tenue)) 16%, var(--superficie));
-  color: var(--inchiostro);
-  cursor: pointer;
+  /* Angoli piccoli: un raggio da controllo su un rettangolo alto venti pixel
+     lo fa sembrare una pillola. */
+  border-radius: 4px;
+  background-color: var(--tinta-lavoro, var(--inchiostro-tenue));
+  color: #fff;
+  /* `grab` e non `pointer`: il blocco si trascina per spostarlo, e la mano
+     aperta e' l'unico indizio che lo dica prima di provare. Un dito da
+     collegamento prometterebbe solo il clic. */
+  cursor: grab;
   overflow: hidden;
+  transition:
+    filter var(--transizione),
+    box-shadow var(--transizione);
 }
 
+/* Al passaggio il blocco si schiarisce e si solleva appena: e' il solo effetto
+   di profondita' della griglia, e dice quale blocco riceverebbe il gesto. */
+.scheda-settimana .sessione:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 2px 6px rgb(var(--inchiostro-rgb) / 22%);
+}
+
+/* Mentre si trascina, la mano si chiude: e' la conferma che il gesto e' stato
+   preso in carico. */
+.scheda-settimana .sessione:active {
+  cursor: grabbing;
+}
+
+/* Sul fondo pieno la gerarchia non si fa piu' col colore ma con l'opacita' del
+   bianco: l'ora e il codice del lavoro arretrano, il titolo resta in primo
+   piano. */
 .scheda-settimana .sessione .fc-event-time {
-  font-size: var(--scala-piccola);
+  font-size: 0.6875rem;
   font-weight: 500;
-  opacity: 0.75;
+  /* Non `opacity` sull'elemento: quella sbiadirebbe anche il fondo che ha
+     dietro. Si sbiadisce il solo colore del testo. */
+  opacity: 1;
+  color: rgb(255 255 255 / 72%);
 }
 
 .scheda-settimana .sessione .fc-event-title {
-  font-weight: 500;
+  font-weight: 600;
+  color: #fff;
   white-space: normal;
 }
 
 .scheda-settimana .sessione .lavoro-del-blocco {
   display: block;
-  font-size: var(--scala-piccola);
+  font-size: 0.6875rem;
   font-weight: 400;
-  color: var(--inchiostro-tenue);
+  color: rgb(255 255 255 / 68%);
 }
 
 .scheda-settimana .lavoro-0 { --tinta-lavoro: var(--lavoro-0); }
@@ -1409,21 +1514,36 @@ button.minuscolo:disabled {
    convenzione, e una voce importata dalla V16 ha un'ora del mattino scelta
    dalla migrazione. Contano comunque nei totali — non contarle farebbe
    sparire lavoro vero — ma un blocco pieno rivendicherebbe una precisione
-   che quel dato non ha. Il tratteggio lo dice senza una parola. */
+   che quel dato non ha. Il tratteggio lo dice senza una parola.
+
+   ⚠️ Le righe non si disegnano piu' con la tinta del lavoro ma col **bianco
+   velato**: sopra un fondo pieno una riga della stessa tinta e' invisibile.
+   Ed e' sparito il filetto tratteggiato di sinistra, perche' il filetto non
+   c'e' piu'. */
 .scheda-settimana .sessione-dedotta {
-  border-left-style: dashed;
   background-image: repeating-linear-gradient(
     135deg,
-    transparent 0 5px,
-    color-mix(in srgb, var(--tinta-lavoro, var(--inchiostro-tenue)) 12%, transparent) 5px 10px
+    transparent 0 6px,
+    rgb(255 255 255 / 16%) 6px 12px
   );
 }
 
-/* La sessione che sta scorrendo adesso: il filetto pulsa appena, perche' e'
-   l'unico blocco della griglia che sta ancora crescendo. */
+/* La sessione che sta scorrendo adesso: un anello nel rosa di Toggl, che e' il
+   colore con cui quell'applicazione segna l'adesso — lo stesso della linea
+   dell'ora corrente, qualche riga piu' su. E' l'unico blocco della griglia che
+   sta ancora crescendo, e deve distinguersi da fermo e non all'hover. */
 .scheda-settimana .sessione-in-corso {
-  border-left-width: 4px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tinta-lavoro, var(--azione)) 35%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 45%),
+    0 0 0 2px var(--toggl-rosa);
+  /* Questa non si trascina: la sua fine non esiste ancora, e il componente le
+     mette `editable: false`. Il dito dice che si puo' cliccare — il pannello
+     si apre e spiega di metterla in pausa — e non che si puo' spostare. */
+  cursor: pointer;
+}
+
+.scheda-settimana .sessione-in-corso:active {
+  cursor: pointer;
 }
 
 /* Niente sessioni in questa settimana: si dice, non si lascia una griglia
@@ -1512,17 +1632,58 @@ button.minuscolo:disabled {
    della chiusura d'ufficio, perche' la cosa che dicono e' la stessa — l'ora
    del giorno, qui, l'ha scelta una persona a memoria. */
 .scheda-settimana .sessione-manuale {
-  border-left-style: dashed;
   background-image: repeating-linear-gradient(
     135deg,
-    transparent 0 5px,
-    color-mix(in srgb, var(--tinta-lavoro, var(--inchiostro-tenue)) 12%, transparent) 5px 10px
+    transparent 0 6px,
+    rgb(255 255 255 / 16%) 6px 12px
   );
 }
 
 /* L'ombra di quello che si sta trascinando sulla griglia. */
 .scheda-settimana .fc-highlight {
-  background-color: var(--azione-velo-fermo);
+  /* Nel rosa di marca invece del velo teal dell'azione: in questa griglia il
+     teal non compare piu' da nessuna parte, e un'ombra di un colore che non
+     c'e' nel resto sembrerebbe di un'altra applicazione. */
+  background-color: color-mix(in srgb, var(--toggl-rosa) 28%, transparent);
+}
+
+/* I pulsanti della settimana, in stile Toggl: senza cornice, grigi, e si
+   accendono solo al passaggio. Le regole generali di `.scheda-calendario` li
+   disegnano come controlli bordati, che su questa griglia quasi bianca
+   peserebbero piu' dei blocchi. Qui vincono per specificita'. */
+.scheda-settimana .fc .fc-button-primary {
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--inchiostro-tenue);
+}
+
+.scheda-settimana .fc .fc-button-primary:hover {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--toggl-rosa) 12%, transparent);
+  color: var(--toggl-prugna);
+}
+
+.scheda-settimana .fc .fc-button-primary:not(:disabled):active,
+.scheda-settimana .fc .fc-button-primary:not(:disabled).fc-button-active {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--toggl-rosa) 20%, transparent);
+  color: var(--toggl-prugna);
+}
+
+.scheda-settimana .fc .fc-toolbar-title {
+  color: var(--toggl-prugna);
+}
+
+/* La settimana chiusa non si tocca, e si vede: le tinte perdono mordente
+   invece di restare accese su una griglia inerte. Il cursore lo dice gia' —
+   qui lo dice anche il colore. */
+.settimana-chiusa .sessione {
+  filter: saturate(0.45);
+}
+
+.settimana-chiusa .sessione:hover {
+  filter: saturate(0.45);
+  box-shadow: none;
 }
 
 /* --- il proprio profilo --------------------------------------------------- */
@@ -1534,7 +1695,6 @@ button.minuscolo:disabled {
   margin-top: 1.5rem;
   padding: 1rem 1.25rem 1.25rem;
   background-color: var(--superficie);
-  border: 1px solid var(--riga-tenue);
   border-radius: var(--raggio-carta);
   box-shadow: var(--ombra-carta);
 }
@@ -1620,18 +1780,28 @@ button.minuscolo:disabled {
   min-width: 0;
 }
 
+/* La barra **galleggia**: non tocca i bordi della finestra e ha i suoi
+   angoli tondi, come in ogni schermata del design system. Non e' una
+   decorazione — e' quello che la rende un oggetto posato sulla pagina invece
+   di un pannello incollato al lato, ed e' la stessa idea delle schede.
+
+   Il fondo e' il verde acqua profondo: e' l'unica superficie grande scura del
+   gestionale, e per questo la struttura si legge al primo sguardo. Il margine
+   sta in una variabile perche' lo deve conoscere anche `.sidebar-mobile`,
+   che scivola fuori di quel tanto in piu'. */
 .sidebar {
   position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
+  top: var(--sidebar-margine);
+  left: var(--sidebar-margine);
+  bottom: var(--sidebar-margine);
   z-index: 40;
   display: flex;
   flex-direction: column;
-  width: var(--sidebar-chiusa);
-  padding: 0.5rem;
-  border-right: 1px solid var(--riga-tenue);
-  background-color: var(--superficie);
+  width: calc(var(--sidebar-chiusa) - var(--sidebar-margine));
+  padding: 0.625rem;
+  border-radius: var(--raggio-foglio);
+  background-color: var(--sidebar-fondo);
+  color: #fff;
   /* Le etichette esistono nel DOM anche da chiusa — gli assistenti vocali le
      leggono — e qui vengono tagliate invece di essere rimosse. */
   overflow: hidden;
@@ -1641,7 +1811,7 @@ button.minuscolo:disabled {
 }
 
 .sidebar-larga {
-  width: var(--sidebar-aperta);
+  width: calc(var(--sidebar-aperta) - var(--sidebar-margine));
   box-shadow: var(--ombra-foglio);
 }
 
@@ -1649,26 +1819,31 @@ button.minuscolo:disabled {
 .sidebar-marchio {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: 0.75rem;
   width: 100%;
   padding: 0.375rem;
   border: 0;
   border-radius: var(--raggio-controllo);
   background: none;
-  color: var(--inchiostro);
+  color: #fff;
+  font-weight: 800;
   cursor: pointer;
 }
 
+/* Il simbolo e' il solo punto di acqua piena in tutta la barra, ed e' voluto:
+   su una superficie scura di questa estensione l'accento si spende una volta
+   sola, in cima, dove dice «questo prodotto». Metterlo anche altrove lo
+   ridurrebbe a decorazione. */
 .sidebar-simbolo {
   display: grid;
   place-items: center;
   flex: none;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: var(--raggio-controllo);
-  background-color: var(--azione);
-  color: var(--superficie);
-  font-weight: 600;
+  background-color: var(--accento);
+  color: var(--inchiostro);
+  font-weight: 800;
 }
 
 /* L'etichetta non si nasconde con display:none, che la toglierebbe anche a
@@ -1686,20 +1861,24 @@ button.minuscolo:disabled {
 
 .sidebar-voci {
   list-style: none;
-  margin: 0.5rem 0 0;
+  margin: 0.875rem 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: 0.25rem;
 }
 
 .sidebar-voce {
   display: flex;
   align-items: center;
-  gap: 0.625rem;
-  padding: 0.5rem 0.375rem;
+  gap: 0.75rem;
+  min-height: var(--altezza-controllo-piccolo);
+  padding: 0.5rem 0.5rem;
   border-radius: var(--raggio-controllo);
-  color: var(--inchiostro);
+  /* Non bianco pieno: le voci che non sono quella corrente devono arretrare,
+     altrimenti sono sei titoli tutti uguali e nessuno dice dove si e'. */
+  color: var(--sidebar-testo);
+  font-weight: 600;
   text-decoration: none;
   transition:
     background-color var(--transizione),
@@ -1711,30 +1890,35 @@ button.minuscolo:disabled {
 }
 
 .sidebar-voce:hover {
-  background-color: var(--azione-velo);
-  color: var(--azione);
+  background-color: rgb(255 255 255 / 10%);
+  color: #fff;
 }
 
-/* Dove si e' adesso. Fondo e colore si vedono anche da barra chiusa, dove
-   l'etichetta non c'e': e' l'unico modo di sapere su che pagina si sta
-   senza aprirla. */
+/* Dove si e' adesso: una pillola **bianca piena** sul verde profondo. E' il
+   contrasto piu' forte che la barra possa fare, e in Fluida e' cosi' che si
+   segna la pagina corrente — non con un velo, che su un fondo scuro si
+   leggerebbe appena. Si vede anche da barra chiusa, dove l'etichetta non c'e':
+   e' l'unico modo di sapere su che pagina si sta senza aprirla. */
 .sidebar-voce.attivo {
-  background-color: var(--azione-velo-fermo);
-  color: var(--azione);
-  font-weight: 500;
+  background-color: var(--superficie);
+  color: var(--inchiostro);
+  font-weight: 700;
+  box-shadow: var(--ombra-premuto);
 }
 
 .sidebar-voce:focus-visible,
 .sidebar-marchio:focus-visible {
-  outline: 2px solid var(--azione);
+  outline: 2px solid var(--accento);
   outline-offset: 1px;
 }
 
 /* Da schermo stretto l'hover non esiste: la barra si ritira del tutto e torna
    come menu sopra il contenuto, aperta dal pulsante in testata. */
 .sidebar-mobile {
-  width: var(--sidebar-aperta);
-  transform: translateX(-100%);
+  width: calc(var(--sidebar-aperta) - var(--sidebar-margine));
+  /* Fuori dallo schermo del proprio margine in piu', altrimenti resterebbe
+     una striscia verde di dieci pixel appiccicata al bordo. */
+  transform: translateX(calc(-100% - var(--sidebar-margine)));
   transition:
     transform var(--transizione),
     box-shadow var(--transizione);
@@ -1780,11 +1964,13 @@ button.minuscolo:disabled {
 /* Il riquadro di cui sono fatti i blocchi. Si chiama `.pannello-blocco` e non
    `.pannello`, che e' il dialogo modale: due cose diverse con lo stesso nome
    si ruberebbero le regole a vicenda. */
+/* Niente bordo: in Fluida una scheda si stacca dalla pagina con l'ombra e
+   con il bianco contro il grigio chiaro del fondo. Un bordo in piu' sarebbe
+   una terza linea a dire la stessa cosa. */
 .pannello-blocco {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border: 1px solid var(--riga-tenue);
   border-radius: var(--raggio-carta);
   background-color: var(--superficie);
   box-shadow: var(--ombra-carta);
@@ -1795,7 +1981,7 @@ button.minuscolo:disabled {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 1.125rem 1.25rem 0.875rem;
   border-bottom: 1px solid var(--riga-tenue);
 }
 
@@ -2234,7 +2420,6 @@ button.minuscolo:disabled {
   gap: 0.5rem;
   min-height: 13rem;
   padding: 1rem 1.125rem 1.125rem;
-  border: 1px solid var(--riga-tenue);
   border-radius: var(--raggio-carta);
   background-color: var(--superficie);
   box-shadow: var(--ombra-carta);
@@ -2646,26 +2831,77 @@ button.minuscolo:disabled {
   height: 34rem;
 }
 
-/* Un'assenza approvata e' un fatto: tinta piena. */
+/* Un colore per persona, non uno per «assenza».
+
+   Il calendario serve a sapere **quante** persone sono via la settimana del
+   14, e con tutti i rettangoli dello stesso viola quel numero si contava
+   leggendo i nomi uno per uno: tre giorni di un collega sembravano tre
+   colleghi in ferie. La tinta la decide il nome di chi chiede — vedi
+   `tintaPersona` in `stato/stati.ts` — quindi e' la stessa in ogni mese e la
+   memoria visiva serve a qualcosa.
+
+   Le otto tinte sono quelle dei lavori, e non una tavolozza nuova: la serie
+   delle «cose distinte fra loro» di questa interfaccia esiste gia', e due
+   serie di otto tinte vicine sarebbero solo due modi di dire la stessa cosa.
+   Con piu' di otto persone via nello stesso mese due coincidono, e si accetta:
+   il nome resta scritto dentro il rettangolo. */
+.pannello-assenze .persona-0 { --tinta-persona: var(--lavoro-0); }
+.pannello-assenze .persona-1 { --tinta-persona: var(--lavoro-1); }
+.pannello-assenze .persona-2 { --tinta-persona: var(--lavoro-2); }
+.pannello-assenze .persona-3 { --tinta-persona: var(--lavoro-3); }
+.pannello-assenze .persona-4 { --tinta-persona: var(--lavoro-4); }
+.pannello-assenze .persona-5 { --tinta-persona: var(--lavoro-5); }
+.pannello-assenze .persona-6 { --tinta-persona: var(--lavoro-6); }
+.pannello-assenze .persona-7 { --tinta-persona: var(--lavoro-7); }
+
 .assenza-evento {
-  border: 1px solid var(--assenza);
+  /* Il viola delle assenze resta come ripiego: se un evento arrivasse senza
+     classe della persona, si vedrebbe il colore di prima e non il trasparente. */
+  border: 1px solid var(--tinta-persona, var(--assenza));
   border-radius: var(--raggio-controllo);
   padding: 0 0.25rem;
   font-size: var(--scala-piccola);
 }
 
+/* Un'assenza approvata e' un fatto: tinta **piena**, con il nome in bianco
+   sopra.
+
+   Era un velo al 22% della tinta unica, e il velo e' stato lasciato con la
+   tavolozza: otto colori diluiti a quel punto diventano otto grigi appena
+   accennati, e la distinzione fra le persone — l'unica ragione per cui il
+   colore e' qui — si perderebbe. E' la stessa scelta, con la stessa ragione,
+   che il calendario del tempo dichiara per i blocchi dei lavori: dove il
+   colore *e'* il dato, la superficie si tinge per intero. */
 .assenza-approvata {
-  background-color: color-mix(in srgb, var(--assenza) 22%, var(--superficie));
-  color: var(--inchiostro);
+  background-color: var(--tinta-persona, var(--assenza));
+  color: #fff;
+}
+
+/* FullCalendar tinge il testo dell'evento con `--fc-event-text-color`, e quel
+   valore vince sul `color` dell'ancora: senza queste due righe il nome
+   resterebbe del colore preimpostato invece di seguire il fondo della pillola.
+   E' lo stesso motivo per cui il calendario del tempo dichiara il colore del
+   titolo dei suoi blocchi. */
+.assenza-approvata .fc-event-title {
+  color: #fff;
+}
+
+.assenza-in-attesa .fc-event-title {
+  color: var(--inchiostro-tenue);
 }
 
 /* Una richiesta in attesa non e' ancora un'assenza: il tratteggio lo dice,
    ed e' lo stesso significato che ha nel calendario del tempo per le ore che
    nessun orologio ha misurato. Chi approva deve vederle — sono il rischio da
-   valutare — senza confonderle con i giorni concessi. */
+   valutare — senza confonderle con i giorni concessi.
+
+   Resta velata di proposito, ora che le approvate sono piene: la differenza
+   fra «concesso» e «da decidere» deve restare piu' forte della differenza fra
+   due persone, perche' e' quella su cui si decide. La tinta della persona si
+   legge comunque, nel bordo tratteggiato e nel velo. */
 .assenza-in-attesa {
   border-style: dashed;
-  background-color: color-mix(in srgb, var(--assenza) 8%, var(--superficie));
+  background-color: color-mix(in srgb, var(--tinta-persona, var(--assenza)) 16%, var(--superficie));
   color: var(--inchiostro-tenue);
 }
 
@@ -2673,4 +2909,299 @@ button.minuscolo:disabled {
 .pannello-assenze .fc-daygrid-more-link {
   font-size: var(--scala-piccola);
   color: var(--azione);
+}
+
+/* ===== il report: come e' stato speso il tempo ===========================
+
+   Una sezione di sola lettura, e lo stile lo dice: nessun pulsante d'azione,
+   nessuna pillola di stato. L'unica cosa che si clicca e' la riga di una
+   persona, per scendere di un livello.
+
+   Le tinte dei segmenti sono quelle dei lavori (`--lavoro-0..7`, via
+   `tintaLavoro`): un progetto che nel calendario del tempo e' verde e' verde
+   anche qui. Non c'e' nessuna tavolozza nuova, come non c'e' nessuna libreria
+   di grafici — una barra e' un div con una larghezza in percentuale, ed e' la
+   stessa scelta dichiarata da `.barra-temporale-*`. */
+
+.elenco-report {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.riga-report {
+  border-bottom: 1px solid var(--riga-tenue);
+}
+
+.riga-report:last-child {
+  border-bottom: none;
+}
+
+/* La riga chiusa: nome, totale e barra su una griglia a tre colonne. La barra
+   prende lo spazio che resta — e' il colpo d'occhio, e va letta per prima. */
+.riga-report-capo {
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) 6rem 1fr;
+  align-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  padding: 0.75rem 0.875rem;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.riga-report-capo:hover:not(:disabled) {
+  background-color: var(--azione-velo);
+}
+
+/* Una persona a zero ore non si apre: non c'e' niente sotto. Resta leggibile —
+   «chi non ha registrato niente» e' un'informazione, non una riga spenta — ma
+   il cursore dice che non e' un bersaglio. */
+.riga-report-capo:disabled {
+  cursor: default;
+  color: var(--inchiostro-tenue);
+}
+
+.riga-report-chi {
+  font-weight: 500;
+}
+
+/* I numeri incolonnati a destra e in cifre tabellari: due totali che si
+   confrontano con l'occhio devono avere le cifre una sopra l'altra. */
+.riga-report-ore {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.riga-report-avviso {
+  margin: 0;
+  padding: 0 0.875rem 0.625rem;
+}
+
+.riga-report-corpo {
+  padding: 0 0.875rem 1rem;
+}
+
+.barra-ripartizione {
+  display: flex;
+  overflow: hidden;
+  height: 0.625rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--campo-fondo);
+}
+
+/* Il posto della barra quando la ripartizione non e' ancora arrivata: tiene la
+   riga alta uguale, cosi' aprire una persona non fa sobbalzare l'elenco. */
+.barra-ripartizione-vuota {
+  height: 0.625rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--campo-fondo);
+}
+
+.segmento-ripartizione {
+  background-color: var(--tinta-lavoro, var(--inchiostro-tenue));
+  /* Un filetto chiaro fra i segmenti: due tinte vicine, accostate senza
+     stacco, si leggono come una sola larghezza. */
+  box-shadow: inset -1px 0 0 var(--superficie);
+}
+
+.segmento-ripartizione:last-child {
+  box-shadow: none;
+}
+
+/* Il tempo che non appartiene a nessun lavoro — riunioni, formazione — prende
+   un tono neutro e non una tinta della serie: non e' un progetto, e dargli un
+   colore da progetto lo farebbe sembrare tale. */
+.segmento-neutro {
+  background-color: var(--urgenza-bassa);
+}
+
+.elenco-report .lavoro-0 { --tinta-lavoro: var(--lavoro-0); }
+.elenco-report .lavoro-1 { --tinta-lavoro: var(--lavoro-1); }
+.elenco-report .lavoro-2 { --tinta-lavoro: var(--lavoro-2); }
+.elenco-report .lavoro-3 { --tinta-lavoro: var(--lavoro-3); }
+.elenco-report .lavoro-4 { --tinta-lavoro: var(--lavoro-4); }
+.elenco-report .lavoro-5 { --tinta-lavoro: var(--lavoro-5); }
+.elenco-report .lavoro-6 { --tinta-lavoro: var(--lavoro-6); }
+.elenco-report .lavoro-7 { --tinta-lavoro: var(--lavoro-7); }
+
+/* Il pallino della tinta accanto al codice del lavoro: lega la riga della
+   tabella al suo segmento nella barra sopra. Il codice resta scritto, quindi
+   due tinte simili non perdono l'informazione. */
+.punto-tinta {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.5rem;
+  border-radius: 50%;
+  background-color: var(--tinta-lavoro, var(--inchiostro-tenue));
+}
+
+.tabella-report {
+  min-width: 0;
+}
+
+.tabella-report td:nth-child(2),
+.tabella-report td:nth-child(3),
+.tabella-report th:nth-child(2),
+.tabella-report th:nth-child(3) {
+  width: 7rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Il lavoro e la sua quota: la riga che si legge attraversando la tabella. */
+.tabella-report .riga-gruppo > th,
+.tabella-report .riga-gruppo > td {
+  background-color: transparent;
+  border-bottom: 1px solid var(--riga-tenue);
+  font-weight: 600;
+  white-space: normal;
+}
+
+/* Le task e le attivita' dentro un lavoro: rientrate e piu' tenui. Il rientro
+   fa il lavoro che farebbe un albero di controlli, senza i controlli: qui non
+   c'e' niente da aprire, le task sono gia' arrivate col lavoro. */
+.tabella-report .riga-figlia td:first-child {
+  padding-left: 2.25rem;
+  color: var(--inchiostro-tenue);
+}
+
+.tabella-report .riga-figlia td {
+  border-bottom: none;
+  padding-top: 0.4375rem;
+  padding-bottom: 0.4375rem;
+  color: var(--inchiostro-tenue);
+}
+
+/* Su schermo stretto la barra esce dalla riga e va sotto: tre colonne in
+   300px vorrebbero dire tre colonne illeggibili. */
+@media (max-width: 48rem) {
+  .riga-report-capo {
+    grid-template-columns: 1fr 5.5rem;
+  }
+
+  .riga-report-capo .barra-ripartizione,
+  .riga-report-capo .barra-ripartizione-vuota {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ===== Fluida: il calendario ============================================
+
+   Due delle sette tavole del design system sono calendari, e il trattamento
+   e' sempre lo stesso: il mese non e' una griglia di celle separate da
+   filetti, e' una **distesa di tessere** bianche con lo spazio fra loro. Il
+   filetto sparisce perche' lo spazio fa gia' il suo lavoro, e la giornata
+   diventa un oggetto che si puo' guardare da solo.
+
+   Vale per la vista a mese (daygrid). La settimana a fasce orarie ha le sue
+   regole piu' in alto e non viene toccata: li' le righe dell'ora servono, e
+   sono la scala su cui si legge la durata di un blocco. */
+
+.scheda-calendario .fc-daygrid-day,
+.pannello-calendario .fc-daygrid-day,
+.scheda-calendario .fc-daygrid-day-frame,
+.pannello-calendario .fc-daygrid-day-frame {
+  border: none;
+}
+
+.scheda-calendario .fc-daygrid-day-frame,
+.pannello-calendario .fc-daygrid-day-frame {
+  margin: 2px;
+  padding: 0.25rem;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--superficie);
+  box-shadow: inset 0 0 0 1px var(--riga-tenue);
+  transition: box-shadow var(--transizione);
+}
+
+/* I giorni che non appartengono al mese in vista arretrano: ci sono perche'
+   la griglia e' rettangolare, non perche' ci sia qualcosa da guardarci. */
+.scheda-calendario .fc-day-other .fc-daygrid-day-frame,
+.pannello-calendario .fc-day-other .fc-daygrid-day-frame {
+  background-color: var(--carta);
+  box-shadow: none;
+}
+
+/* Oggi: velo d'acqua e anello verde. Nella tavola del calendario e' l'unica
+   cella con un contorno, ed e' giusto — «oggi» e' una sola, e si deve
+   trovare senza cercarla. */
+.scheda-calendario .fc-day-today .fc-daygrid-day-frame,
+.pannello-calendario .fc-day-today .fc-daygrid-day-frame {
+  background-color: var(--acqua-50);
+  box-shadow: inset 0 0 0 2px var(--accento);
+}
+
+.scheda-calendario .fc-daygrid-day-number,
+.pannello-calendario .fc-daygrid-day-number {
+  font-weight: 700;
+}
+
+/* L'intestazione dei giorni della settimana: l'etichetta del design system,
+   maiuscoletto spaziato e tenue. Senza filetto sotto, come le colonne di una
+   tabella. */
+.scheda-calendario .fc-col-header-cell,
+.pannello-calendario .fc-col-header-cell {
+  border: none;
+  padding-bottom: 0.375rem;
+}
+
+.scheda-calendario .fc-col-header-cell-cushion,
+.pannello-calendario .fc-col-header-cell-cushion {
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+  color: var(--inchiostro-tenue);
+}
+
+/* La cornice esterna della griglia non serve piu': le tessere hanno gia' un
+   contorno ciascuna, e un rettangolo attorno a tutto sarebbe una gabbia. */
+.scheda-calendario .fc-scrollgrid,
+.pannello-calendario .fc-scrollgrid,
+.scheda-calendario .fc-scrollgrid td,
+.pannello-calendario .fc-scrollgrid td,
+.scheda-calendario .fc-scrollgrid th,
+.pannello-calendario .fc-scrollgrid th {
+  border: none;
+}
+
+/* Gli eventi sono pillole morbide, non rettangoli: e' la forma che hanno in
+   ogni tavola, e la stessa dei badge di stato. */
+.scheda-calendario .fc-daygrid-event,
+.pannello-calendario .fc-daygrid-event {
+  border-radius: 10px;
+  padding: 0.0625rem 0.375rem;
+  font-weight: 600;
+}
+
+/* La barra di comando del calendario: un gruppo segmentato a pillola, con la
+   scelta corrente in verde profondo pieno. E' il «Settimana · Mese · Anno»
+   della tavola della dashboard, ed e' anche il modo in cui questo gestionale
+   dice gia' «uno di questi e' acceso» altrove. */
+.scheda-calendario .fc .fc-button-group,
+.pannello-calendario .fc .fc-button-group {
+  gap: 0.1875rem;
+  padding: 0.1875rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--campo-fondo);
+}
+
+.scheda-calendario .fc .fc-button-group .fc-button-primary,
+.pannello-calendario .fc .fc-button-group .fc-button-primary {
+  border: none;
+  border-radius: var(--raggio-pillola);
+  background-color: transparent;
+  font-weight: 600;
+}
+
+.scheda-calendario .fc .fc-button-group .fc-button-primary:not(:disabled).fc-button-active,
+.pannello-calendario .fc .fc-button-group .fc-button-primary:not(:disabled).fc-button-active {
+  background-color: var(--azione);
+  color: #fff;
 }

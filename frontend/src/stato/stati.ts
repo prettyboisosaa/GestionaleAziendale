@@ -82,3 +82,33 @@ export function chiusoLavoro(stato: StatoLavoro): boolean {
 export function tintaLavoro(lavoroId: number): string {
   return `lavoro-${lavoroId % 8}`
 }
+
+/**
+ * La tinta di una persona, per gli eventi del calendario delle assenze.
+ *
+ * Serve perché la domanda a cui quel calendario risponde è «**quante** persone
+ * sono via la settimana del 14», e con tutti i rettangoli dello stesso viola
+ * bisognava leggere i nomi uno per uno per saperlo: tre giorni della stessa
+ * persona sembravano tre colleghi in ferie.
+ *
+ * Si ricava dal **nome** e non da un id perché la rotta del calendario non
+ * manda l'id del richiedente — solo il nome visualizzato. È comunque stabile:
+ * chi questo mese è verde è verde anche il mese prossimo, che è la proprietà
+ * che serve. Il moltiplicatore 31 è quello dell'`hashCode` di Java, e sparge
+ * su indici diversi anche nomi vicini come «Rossi Marco» e «Rossi Mario»;
+ * il modulo tiene la somma lontana dall'interno non sicuro dei float.
+ *
+ * Otto tinte che si ripetono, come per i lavori: con più di otto persone via
+ * nello stesso mese due possono coincidere, e si accetta — il nome resta
+ * scritto dentro il rettangolo.
+ *
+ * Come `tinta` e `tintaLavoro`, restituisce **il nome della classe**: i valori
+ * stanno in `App.css` accanto al resto della tavolozza.
+ */
+export function tintaPersona(nome: string): string {
+  let somma = 0
+  for (let i = 0; i < nome.length; i += 1) {
+    somma = (somma * 31 + nome.charCodeAt(i)) % 1000003
+  }
+  return `persona-${somma % 8}`
+}

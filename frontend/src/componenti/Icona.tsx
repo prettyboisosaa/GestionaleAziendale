@@ -19,6 +19,7 @@ export type NomeIcona =
   | 'assenze'
   | 'richieste-assenza'
   | 'utenti'
+  | 'report'
   | 'menu'
   | 'chiudi'
 
@@ -97,6 +98,15 @@ function tratti(nome: NomeIcona) {
           <path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" />
           <path d="M16.5 5.2a3.2 3.2 0 0 1 0 6.1" />
           <path d="M18 14.9c2 .7 3.5 2.5 3.5 5.1" />
+        </>
+      )
+    // Tre colonne di altezza diversa: la ripartizione del tempo. Non un
+    // grafico a torta, perché la pagina non ne disegna nessuno.
+    case 'report':
+      return (
+        <>
+          <path d="M3 21h18" />
+          <path d="M7 21V11M12 21V4M17 21v-6" />
         </>
       )
     case 'menu':

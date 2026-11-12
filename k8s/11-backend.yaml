@@ -1,0 +1,120 @@
+# Il backend: Spring Boot, porta 8080.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: gestionale
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: gestionale
+spec:
+  # ⚠️ Una replica, e non e' pigrizia.
+  #
+  # Flyway gira all'avvio di ogni pod. Con due repliche che partono insieme su
+  # un database non ancora migrato, entrambe provano ad applicare le stesse
+  # migrazioni: Flyway si difende con un lock sulla tabella di storia, quindi
+  # la seconda aspetta invece di corrompere lo schema — ma resta un avvio in
+  # cui una delle due puo' andare in timeout.
+  #
+  # C'e' una seconda ragione, piu' seria: la sessione utente vive **nella
+  # memoria del pod** (HttpSessionSecurityContextRepository, nessun Redis).
+  # Con due repliche e un bilanciamento round-robin, una richiesta su due
+  # arriva al pod che non conosce quella sessione e l'utente viene buttato
+  # fuori. Per scalare servirebbero le sessioni condivise, non solo
+  # `replicas: 2`.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend
+    spec:
+      containers:
+        - name: backend
+          # ⚠️ SOSTITUISCI con la tua immagine. Il Dockerfile e' in backend/,
+          # fa il build con Maven e produce un jar eseguibile su JRE 25.
+          #
+          # Un tag preciso e non `latest`: con `latest` e
+          # `imagePullPolicy: Always` non si sa quale versione sta girando, e
+          # un rollback non ha niente a cui tornare.
+          image: CAMBIAMI/gestionale-backend:0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-credenziali
+
+          # ⚠️ Le probe sono su TCP e non su HTTP, e la ragione va detta:
+          # **questo progetto non ha Actuator**, quindi `/actuator/health` non
+          # esiste. E non c'e' nessuna rotta HTTP utilizzabile al suo posto:
+          # ogni `/api/**` pretende l'autenticazione e risponde 401, che una
+          # probe HTTP considera un fallimento, e il pod entrerebbe in un ciclo
+          # di riavvii pur essendo sano.
+          #
+          # Una probe TCP dice soltanto «la porta e' aperta», che e' meno di
+          # «l'applicazione funziona»: non si accorge di un backend vivo che
+          # non raggiunge piu' il database. Se vuoi una vera probe di salute,
+          # basta aggiungere spring-boot-starter-actuator al pom e puntarla a
+          # /actuator/health/readiness — una dipendenza, e queste tre probe
+          # diventano oneste.
+          startupProbe:
+            tcpSocket:
+              port: http
+            # Flyway applica ventuno migrazioni al primo avvio: la finestra e'
+            # larga di proposito. Finche' la startupProbe non passa, le altre
+            # due non vengono valutate, quindi un avvio lento non conta come
+            # un guasto.
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: 250m
+              # La JVM non e' avara: sotto questa soglia il pod viene ucciso
+              # dall'OOM killer durante il build del contesto di Spring.
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            # Un utente qualunque senza privilegi: l'immagine gira come root
+            # perche' il Dockerfile non dichiara USER, e questo lo corregge
+            # dall'esterno senza ricostruirla.
+            runAsUser: 10001
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: gestionale
+spec:
+  # ClusterIP: il backend non si espone fuori dal cluster. Chi lo raggiunge e'
+  # nginx del frontend, che sta nello stesso spazio dei nomi e lo trova come
+  # `http://backend:8080`.
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

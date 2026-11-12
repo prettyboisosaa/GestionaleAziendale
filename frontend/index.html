@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Figtree, il carattere del design system Fluida. Pesi da 400 a 900,
+         come dichiara la tavola della tipografia: 400 per il corpo, 500 per il
+         testo piccolo, 700 per gli H3, 800 per i titoli e le etichette, 900
+         per i numeri grandi.
+
+         `preconnect` su entrambi i domini perché i fogli di Google stanno su
+         fonts.googleapis.com ma i file del carattere su fonts.gstatic.com:
+         senza il secondo, la connessione che conta si apre solo dopo che il
+         foglio è arrivato. `display=swap` fa comparire subito il testo con il
+         carattere di sistema, che è il ripiego dichiarato in `--testo`. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
     <title>Gestionale Anitia</title>
   </head>
   <body>

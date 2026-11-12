@@ -1,0 +1,14 @@
+# Uno spazio dei nomi tutto suo.
+#
+# Non per ordine estetico: e' il confine su cui agiscono le quote, le
+# NetworkPolicy e un `kubectl delete namespace` quando si vuole buttare via
+# tutto. Dentro `default` non si cancella niente senza elencarlo a mano.
+#
+# I file di questa cartella hanno un prefisso numerico perche'
+# `kubectl apply -f k8s/` li applica in ordine alfabetico: lo spazio dei nomi
+# deve esistere prima di cio' che gli va dentro, e la configurazione prima dei
+# pod che la leggono.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gestionale

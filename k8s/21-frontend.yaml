@@ -1,0 +1,108 @@
+# Il frontend: nginx che serve i file costruiti da Vite, porta 80.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: gestionale
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: gestionale
+spec:
+  # Qui due repliche si possono: nginx serve file statici e non tiene niente
+  # in memoria fra una richiesta e l'altra. E' il contrario del backend, che
+  # custodisce le sessioni nella propria memoria e per questo resta a una.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frontend
+      annotations:
+        # ⚠️ Cambiando la ConfigMap, i pod **non si riavviano da se'** e
+        # continuano a servire la vecchia configurazione: un file montato si
+        # aggiorna nel volume, ma nginx l'ha letto all'avvio e non lo rilegge.
+        # Dopo un `kubectl apply` su 20-frontend-config.yaml serve
+        # `kubectl rollout restart deployment/frontend -n gestionale`.
+        #
+        # Questa annotazione e' il posto dove mettere la somma di controllo del
+        # file, se un domani usi Kustomize o Helm: cambiandola, il rilascio
+        # avviene da se'.
+        configurazione/versione: "1"
+    spec:
+      containers:
+        - name: frontend
+          # ⚠️ SOSTITUISCI con la tua immagine. Il Dockerfile e' in frontend/:
+          # costruisce con Node 20 e serve `dist` con nginx:alpine.
+          image: CAMBIAMI/gestionale-frontend:0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              # `subPath` monta il solo file: senza, il volume coprirebbe
+              # tutta la cartella conf.d.
+              subPath: default.conf
+              readOnly: true
+
+          # Qui le probe sono HTTP e possono esserlo: nginx risponde 200 su
+          # `/` senza autenticazione, al contrario del backend dove ogni rotta
+          # pretende una sessione.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20
+
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            # ⚠️ Non c'e' `runAsNonRoot: true`, al contrario del backend, e
+            # non e' una dimenticanza: l'immagine `nginx:alpine` parte come
+            # root per scrivere il suo pid e i log, e poi scende a `nginx` per
+            # servire le richieste. Forzandola come utente qualunque il
+            # container muore in avvio. Per farla girare senza root serve
+            # `nginxinc/nginx-unprivileged`, che ascolta sulla 8080: e' un
+            # cambio di immagine e di porta, non una riga di securityContext.
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: frontend-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: gestionale
+spec:
+  # ClusterIP perche' davanti c'e' l'Ingress. Senza un controller Ingress nel
+  # cluster, per provare basta:
+  #   kubectl port-forward -n gestionale svc/frontend 8080:80
+  # e l'applicazione funziona per intero, API comprese, perche' il proxy verso
+  # il backend lo fa nginx dentro il pod.
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -21,6 +21,7 @@ import PaginaRichiesteOre from './ore/PaginaRichiesteOre'
 import PaginaDashboard from './dashboard/PaginaDashboard'
 import PaginaMieAssenze from './assenza/PaginaMieAssenze'
 import PaginaAssenze from './assenza/PaginaAssenze'
+import PaginaReport from './report/PaginaReport'
 import './App.css'
 
 /**
@@ -237,6 +238,14 @@ export default function App() {
             element={
               <Protetta utente={utente} permesso="ASSENZE_GESTISCI">
                 <PaginaAssenze />
+              </Protetta>
+            }
+          />
+          <Route
+            path="/report"
+            element={
+              <Protetta utente={utente} permesso="TEMPO_VISUALIZZA_TUTTI">
+                <PaginaReport />
               </Protetta>
             }
           />
