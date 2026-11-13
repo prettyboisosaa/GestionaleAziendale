@@ -1,2 +1,29 @@
+# Senza questo file, `COPY . .` nel Dockerfile si porta dentro node_modules e
+# dist della macchina di chi costruisce. Due guai, non uno:
+#
+# - node_modules sono centinaia di megabyte spediti al motore di Docker a ogni
+#   build, e vengono dal sistema operativo dello sviluppatore: i pacchetti con
+#   parti native compilate per Windows o macOS dentro un'immagine Linux non
+#   funzionano. `npm ci` li ha gia' installati nel livello precedente, giusti
+#   per l'immagine;
+# - dist e' il risultato di un build fatto chissa' quando, che verrebbe
+#   sovrascritto da `npm run build` ma intanto ha gia' invalidato la cache.
 
-node_modules/
+node_modules
+dist
+
+Dockerfile
+.dockerignore
+
+# Non servono dentro l'immagine e cambiano spesso: ogni modifica a uno di
+# questi invaliderebbe la cache del build per niente.
+.git
+.gitignore
+README.md
+*.log
+
+# Come per il backend: `COPY . .` porterebbe un .env dentro l'immagine. Qui il
+# rischio e' peggiore, perche' Vite inlinea le variabili VITE_* nel bundle
+# servito al browser: un segreto messo in un .env del frontend e' pubblico.
+.env
+.env.*

@@ -7,6 +7,7 @@ import type { RigaRuolo } from '../ruolo/api'
 import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
+import ModaleResetPassword from './ModaleResetPassword'
 
 /**
  * Il filtro dell'elenco. «Invitati» esiste nel design system e resta qui con
@@ -64,8 +65,14 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
   const [ruoloScelto, setRuoloScelto] = useState('')
   const [scelti, setScelti] = useState<number[]>([])
 
+  /** La persona di cui si sta assegnando una password nuova, se c'è. */
+  const [resetDi, setResetDi] = useState<RigaUtente | null>(null)
+  /** La conferma dopo un reset riuscito: resta finché non si fa altro. */
+  const [conferma, setConferma] = useState<string | null>(null)
+
   const puoAssegnare = ha(utente, 'RUOLI_ASSEGNA')
   const puoDisattivare = ha(utente, 'UTENTI_DISATTIVA')
+  const puoAzzerarePassword = ha(utente, 'UTENTI_RESET_PASSWORD')
 
   useEffect(() => {
     let annullato = false
@@ -176,6 +183,19 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
       {errore !== null && (
         <p className="errore" role="alert">
           {errore}
+        </p>
+      )}
+
+      {/* La conferma del cambio password. Resta in pagina invece di
+          svanire da sé: contiene l'unica istruzione che conta — che la
+          password va comunicata a voce — e chi la legge deve poterla
+          rileggere mentre compone il numero. */}
+      {conferma !== null && (
+        <p className="avviso" role="status">
+          {conferma}{' '}
+          <button type="button" className="bottone-riga" onClick={() => setConferma(null)}>
+            Ho capito
+          </button>
         </p>
       )}
 
@@ -297,7 +317,7 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
 
                       <td>
                         <div className="cella-utente">
-                          <span className={`gettone gettone-${riga.id % 8}`}>
+                          <span className={`gettone gettone-${riga.id % 5}`}>
                             <span aria-hidden="true">{iniziali(riga)}</span>
                           </span>
                           <span className="cella-utente-testo">
@@ -370,6 +390,23 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
                             Permessi
                           </Link>
                         )}
+                        {/* Non sulla propria riga: il server la rifiuta
+                            comunque con RESET_DI_SE_STESSI, e offrire un
+                            pulsante che non può funzionare è peggio che non
+                            offrirlo. La propria password si cambia da
+                            «Profilo», indicando quella attuale. */}
+                        {puoAzzerarePassword && riga.id !== utente.id && (
+                          <button
+                            type="button"
+                            className="bottone-riga"
+                            onClick={() => {
+                              setConferma(null)
+                              setResetDi(riga)
+                            }}
+                          >
+                            Password
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )
@@ -384,6 +421,17 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
           </>
         )}
       </section>
+
+      {resetDi !== null && (
+        <ModaleResetPassword
+          persona={resetDi}
+          onChiudi={() => setResetDi(null)}
+          onFatto={(messaggio) => {
+            setResetDi(null)
+            setConferma(messaggio)
+          }}
+        />
+      )}
     </main>
   )
 }

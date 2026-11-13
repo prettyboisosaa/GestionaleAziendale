@@ -1,0 +1,172 @@
+# =============================================================================
+# Il gestionale su un server solo.
+#
+#   docker compose -f compose.prod.yml up -d
+#
+# E' un file SEPARATO da docker-compose.yml e non un profilo in piu' dentro
+# quello, di proposito: il file di sviluppo avvia il backend senza il profilo
+# "prod", quindi con i dati di prova e con Hibernate che riscrive lo schema.
+# Due comportamenti cosi' diversi non devono stare a tre righe di distanza,
+# dove si sceglie quello sbagliato per distrazione.
+#
+# -----------------------------------------------------------------------------
+# PRIMA DI AVVIARE: il file .env
+# -----------------------------------------------------------------------------
+# Accanto a questo file ci va un `.env` che il compose legge da se'. Non e'
+# versionato (.gitignore lo esclude gia') e contiene i segreti veri:
+#
+#   MYSQL_ROOT_PASSWORD=...
+#   DB_PASSWORD=...
+#   ADMIN_EMAIL=nome.cognome@azienda.it
+#   ADMIN_PASSWORD=...
+#
+# La sintassi ${VAR:?messaggio} qui sotto ferma `docker compose up` PRIMA di
+# avviare qualunque cosa se una manca, dicendo quale. Senza il `:?`, Spring
+# partirebbe con il segnaposto non risolto e il messaggio d'errore
+# incolperebbe il database — succede davvero: «Access denied for user
+# '${DB_USERNAME}'».
+#
+# -----------------------------------------------------------------------------
+# IL PRIMO AVVIO
+# -----------------------------------------------------------------------------
+# Su un database vuoto, db/dev NON viene eseguito (e' il senso del profilo
+# prod), quindi non esiste nessun utente e il gestionale non ha registrazione
+# pubblica. ADMIN_EMAIL e ADMIN_PASSWORD creano il primo amministratore, e
+# solo se la tabella utente e' vuota: dal secondo avvio in poi sono inerti.
+#
+# Dopo il primo accesso: cambiare la password da «Profilo», poi togliere
+# ADMIN_PASSWORD dal .env e `docker compose -f compose.prod.yml up -d` per
+# ricreare il container senza quel segreto nell'ambiente del processo.
+#
+# -----------------------------------------------------------------------------
+# QUELLO CHE QUESTO FILE NON FA
+# -----------------------------------------------------------------------------
+# * Non fa HTTPS. Il frontend ascolta in HTTP sulla porta 80, e per questo il
+#   servizio `backend` qui sotto imposta COOKIE_SECURE: "false". Senza quella
+#   riga il cookie di sessione nasce `Secure`, il browser non lo rimanda mai
+#   su HTTP, e il gestionale si rompe in un modo che non somiglia a un errore:
+#   il login risponde 200 e ogni richiesta successiva e' anonima. Il giorno
+#   che davanti al frontend arriva un proxy TLS, quella riga va rimessa a
+#   "true" o cancellata - il valore predefinito nelle properties e' il sicuro.
+#   Il cookie in chiaro e' una decisione, non una svista: su una rete dove
+#   qualcuno puo' ascoltare, rubarlo vale quanto rubare la password.
+# * Non fa backup. Il volume `dati-mysql` vive su questo server e basta. Un
+#   mysqldump schedulato su un disco diverso e' la cosa da aggiungere PRIMA di
+#   inserire il primo dato vero, non dopo.
+# * Non espone phpMyAdmin, che in sviluppo serve a guardare dentro il
+#   database e in produzione e' una porta aperta sui dati di tutti.
+# =============================================================================
+
+services:
+
+  # Nessun `container_name` in questo file, al contrario del compose di
+  # sviluppo: un nome fisso e' unico per tutto il motore Docker, quindi questi
+  # servizi non potrebbero convivere con quelli di sviluppo sulla stessa
+  # macchina — e nemmeno essere avviati per prova accanto a loro. Senza, i
+  # container si chiamano come il progetto (`gestionale-db-1`) e i due mondi
+  # non si urtano. Fra loro si trovano comunque per nome di servizio, che e'
+  # cio' che usa `proxy_pass http://backend:8080`.
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: gestionale
+      MYSQL_USER: gestionale
+      MYSQL_PASSWORD: ${DB_PASSWORD:?manca DB_PASSWORD nel .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?manca MYSQL_ROOT_PASSWORD nel .env}
+      TZ: Europe/Rome
+    # Nessun `ports`, al contrario del compose di sviluppo: il database e'
+    # raggiungibile solo dagli altri container di questa rete. Pubblicare la
+    # 3306 sul server vorrebbe dire offrirla a tutta la rete aziendale, e
+    # nessuno fuori da qui ha motivo di parlarci.
+    volumes:
+      # Un volume nominato e NON un bind mount su ./.data/mysql come in
+      # sviluppo. Due ragioni: su un host Windows il datadir di MySQL su
+      # filesystem montato da' problemi di lock e prestazioni, e un volume lo
+      # gestisce Docker con il filesystem giusto; e un volume non si cancella
+      # con un `rm -rf` della cartella del progetto.
+      - dati-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  backend:
+    build: ./backend
+    image: gestionale-backend:locale
+    restart: unless-stopped
+    # Nessun `ports`: al backend ci parla solo nginx del frontend, dalla rete
+    # interna del compose. La 8080 non va offerta alla rete aziendale, dove
+    # scavalcherebbe il frontend — e con lui le intestazioni di sicurezza.
+    environment:
+      # ⚠️ La riga piu' importante del file: accende application-prod.properties.
+      # Senza, Flyway esegue anche db/dev (sette utenti di prova, password in
+      # chiaro nel sorgente, uno di loro amministratore) e ddl-auto torna a
+      # "update", cioe' Hibernate che riscrive lo schema invece di validarlo.
+      SPRING_PROFILES_ACTIVE: prod
+
+      # Niente useSSL=false, e non e' una dimenticanza: con quello la
+      # connessione va in chiaro, e MySQL 8.4 autentica con
+      # caching_sha2_password, che senza TLS pretende
+      # allowPublicKeyRetrieval=true. Mancando, il backend muore in avvio con
+      # «Public Key Retrieval is not allowed» e il container entra in crash
+      # loop. Lasciando decidere al driver si ottiene sslMode=PREFERRED.
+      DB_URL: jdbc:mysql://db:3306/gestionale
+      DB_USERNAME: gestionale
+      DB_PASSWORD: ${DB_PASSWORD:?manca DB_PASSWORD nel .env}
+
+      # Il primo amministratore. Letti solo se la tabella utente e' vuota.
+      #
+      # `${VAR-}` e non `${VAR:?...}` come per il database, benche' al primo
+      # avvio siano altrettanto indispensabili: la sintassi `:?` fallisce
+      # anche sulla variabile VUOTA, e svuotare ADMIN_PASSWORD e' esattamente
+      # il passo che si deve fare dopo il primo accesso (vedi IL PRIMO AVVIO,
+      # in testa al file). Con `:?` quella procedura si sarebbe conclusa con
+      # un `docker compose up` che si rifiuta di partire.
+      #
+      # Non si perde la rete di protezione: se mancano, il backend parte e
+      # scrive nel log un WARN che dice che nessuno puo' accedere. Dal secondo
+      # deploy in poi e' il comportamento giusto, perche' la tabella utente
+      # non e' piu' vuota e questi due valori sono inerti comunque.
+      #
+      # Al PRIMO avvio invece quel WARN e' l'unica cosa che distingue un
+      # gestionale pronto da uno in cui non entra nessuno: il container resta
+      # sano e la pagina di login si apre normalmente. Va letto.
+      GESTIONALE_AMMINISTRATOREINIZIALE_EMAIL: ${ADMIN_EMAIL-}
+      GESTIONALE_AMMINISTRATOREINIZIALE_PASSWORD: ${ADMIN_PASSWORD-}
+
+      # Il cookie di sessione in chiaro, perche' qui non c'e' HTTPS: si veda
+      # la nota in testa al file. Con un proxy TLS davanti al frontend questa
+      # riga va a "true", o si cancella - nelle properties il valore
+      # predefinito e' gia' quello sicuro.
+      COOKIE_SECURE: "false"
+
+      TZ: Europe/Rome
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    image: gestionale-frontend:locale
+    restart: unless-stopped
+    ports:
+      # L'unica porta pubblicata di tutto il sistema. Cambiando la 80 di
+      # sinistra si sposta l'indirizzo per gli utenti; quella di destra e'
+      # dentro il container e resta com'e'.
+      - "80:80"
+    environment:
+      TZ: Europe/Rome
+    depends_on:
+      # service_started e non service_healthy, di proposito: nginx deve poter
+      # servire la pagina anche mentre il backend sta ancora applicando le
+      # migrazioni. Aspettarlo vorrebbe dire che durante un riavvio lungo il
+      # browser non trova nessuno, invece di trovare l'applicazione che dice
+      # che il server non risponde.
+      backend:
+        condition: service_started
+
+volumes:
+  dati-mysql:

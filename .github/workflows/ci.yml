@@ -93,15 +93,149 @@ jobs:
           # e dirlo, non caricare un artefatto vuoto e passare verde.
           if-no-files-found: error
 
-  deploy:
+  # ===========================================================================
+  # Il profilo di produzione, provato qui e non in produzione.
+  #
+  # `spring.jpa.hibernate.ddl-auto=validate` e' il controllo piu' importante di
+  # application-prod.properties: confronta le entita' con lo schema e rifiuta
+  # di avviarsi se divergono. Ma il lavoro "build" qui sopra gira senza
+  # profilo, cioe' con ddl-auto=update, che una divergenza la sistema da se'
+  # in silenzio — quindi la PRIMA esecuzione di quel controllo sarebbe stata
+  # in produzione, su un container che non parte e un rilascio da disfare.
+  #
+  # Questo lavoro fa partire l'applicazione come in produzione, su un database
+  # migrato con le SOLE migrazioni versionate (niente db/dev), e dimostra due
+  # cose in un colpo:
+  #
+  #   1. entita' e schema concordano;
+  #   2. su un database senza nessun utente, l'amministratore iniziale viene
+  #      creato e ci si riesce ad autenticare. E' il percorso del primo avvio
+  #      su un server nuovo, che altrimenti nessuno prova finche' non tocca
+  #      provarlo per davvero.
+  # ===========================================================================
+  profilo-produzione:
     needs: build
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: gestionale
+          MYSQL_USER: gestionale
+          MYSQL_PASSWORD: prova_ci
+          MYSQL_ROOT_PASSWORD: root_ci
+          TZ: Europe/Rome
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
     steps:
-      - name: Download JAR Artifact
+      - name: checkout repository
+        uses: actions/checkout@v5
+
+      - name: setup jdk 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: download backend jar
         uses: actions/download-artifact@v4
         with:
           name: backend-jar
-          path: ./downloaded-jar
+          path: ./jar
 
-      - name: Verify downloaded file
-        run: ls -la ./downloaded-jar
+      - name: avvia il backend con il profilo prod
+        env:
+          SPRING_PROFILES_ACTIVE: prod
+          # I nomi delle variabili sono quelli veri, non quelli comodi:
+          # application-prod.properties legge ${DB_URL}, ${DB_USERNAME},
+          # ${DB_PASSWORD} e non spring.datasource.*, e se un giorno
+          # cambiassero questo lavoro deve rompersi.
+          DB_URL: jdbc:mysql://127.0.0.1:3306/gestionale
+          DB_USERNAME: gestionale
+          DB_PASSWORD: prova_ci
+          GESTIONALE_AMMINISTRATOREINIZIALE_EMAIL: prova@ci.local
+          GESTIONALE_AMMINISTRATOREINIZIALE_PASSWORD: ProvaCi1!
+          # Il profilo prod lo mette a true per il cookie Secure, ma qui si
+          # parla in HTTP su localhost: con Secure il cookie non tornerebbe
+          # indietro e il controllo sulla sessione piu' sotto fallirebbe per
+          # il motivo sbagliato. E' l'unica riga del profilo che si smentisce,
+          # ed e' esattamente la decisione che l'installazione vera deve
+          # prendere su HTTPS.
+          SERVER_SERVLET_SESSION_COOKIE_SECURE: "false"
+        run: |
+          java -jar ./jar/*.jar > backend.log 2>&1 &
+          echo $! > backend.pid
+
+      - name: aspetta che risponda
+        run: |
+          for tentativo in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/actuator/health/readiness > /dev/null; then
+              echo "Il backend risponde."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Il backend non è partito entro due minuti."
+          exit 1
+
+      - name: l'amministratore iniziale riesce ad accedere
+        run: |
+          stato=$(curl -s -o risposta.json -w '%{http_code}' \
+            -X POST http://127.0.0.1:8080/api/autenticazione/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"prova@ci.local","password":"ProvaCi1!"}')
+          if [ "$stato" != "200" ]; then
+            echo "Login fallito con stato $stato:"
+            cat risposta.json
+            exit 1
+          fi
+          echo "Accesso riuscito con l'amministratore creato all'avvio."
+
+      - name: il log del backend
+        # Anche quando i passi precedenti falliscono: senza, un avvio non
+        # riuscito lascerebbe solo «exit 1» e nessun modo di sapere perche'.
+        if: always()
+        run: cat backend.log
+
+  frontend:
+    runs-on: ubuntu-latest
+    # Non dipende da "build": il frontend non ha niente a che vedere con il
+    # jar, e farlo aspettare vorrebbe dire scoprire un errore di tipo solo
+    # dopo i test del backend.
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v5
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          # 22 e non 20: Vite 8 pretende Node 20.19+ o 22+, come il Dockerfile.
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: install
+        # `ci` e non `install`: installa esattamente le versioni del lockfile e
+        # fallisce se package.json e lockfile non concordano.
+        run: npm ci
+        working-directory: frontend
+
+      - name: lint
+        run: npm run lint
+        working-directory: frontend
+
+      - name: build
+        # Lo script e' `tsc -b && vite build`, quindi questo passo controlla
+        # anche i tipi. Prima non girava niente di tutto cio' sul CI: il
+        # frontend non era nel workflow per niente, e un errore di tipo si
+        # scopriva al primo `npm run build` di qualcuno.
+        run: npm run build
+        working-directory: frontend

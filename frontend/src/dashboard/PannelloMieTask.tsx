@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import type { MiaTask, ContatoriDashboard } from './api'
 import { scadenzaBreve } from './orario'
+import Icona from '../componenti/Icona'
 import Pannello from '../componenti/Pannello'
 import { Pillola } from '../componenti/Stato'
 import { TINTA_URGENZA, ETICHETTA_URGENZA } from '../task/api'
@@ -190,34 +191,61 @@ export default function PannelloMieTask({
 
             <div className="riga-task-coda">
 
+              {/* Due simboli al posto di due parole.
+                  «Avvia», «Pausa» e «Completa» erano tre etichette di testo su
+                  ogni riga di un elenco di otto: moltiplicate per otto
+                  diventavano ventiquattro parole da saltare per leggere i
+                  titoli, che sono la ragione per cui l'elenco esiste. Il
+                  triangolo del player e la casella da spuntare dicono la
+                  stessa cosa in due simboli che si riconoscono senza
+                  leggerli — e sono i due gesti che si fanno cento volte al
+                  giorno, quindi è quello che serve.
+
+                  Il nome resta, in `aria-label` e in `title`: è quello che
+                  legge chi usa un assistente vocale, e quello che compare a
+                  chi si ferma col mouse. Un'icona senza nome è un indovinello
+                  per tutti e un muro per qualcuno. */}
               {puoAggiornare && apertaTask(una.stato) && (
                 <span className="riga-task-azioni">
                   {una.inCorso ? (
                     <button
                       type="button"
-                      className="minuscolo"
+                      className="comando comando-player comando-in-corso"
                       disabled={inAggiornamento === una.taskId}
                       onClick={() => onPausa(una)}
+                      aria-label={`Metti in pausa ${una.titolo}`}
+                      title="Pausa"
                     >
-                      Pausa
+                      <Icona nome="pausa" />
                     </button>
                   ) : (
                     <button
                       type="button"
-                      className="minuscolo"
+                      className="comando comando-player"
                       disabled={inAggiornamento === una.taskId}
                       onClick={() => onAvvia(una)}
+                      aria-label={`Avvia il timer su ${una.titolo}`}
+                      title="Avvia"
                     >
-                      Avvia
+                      <Icona nome="avvia" />
                     </button>
                   )}
+
+                  {/* La casella da spuntare e non un secondo pulsante tondo:
+                      completare una task è il gesto della lista di cose da
+                      fare, e la casella è il modo in cui quel gesto si
+                      scrive. Non è un `input` vero perché il server può
+                      rifiutare, e una casella che torna indietro da sola
+                      sarebbe peggio di un pulsante che non ha funzionato. */}
                   <button
                     type="button"
-                    className="minuscolo"
+                    className="comando comando-spunta"
                     disabled={inAggiornamento === una.taskId}
                     onClick={() => onCompleta(una)}
+                    aria-label={`Completa ${una.titolo}`}
+                    title="Completa"
                   >
-                    Completa
+                    <Icona nome="spunta" />
                   </button>
                 </span>
               )}

@@ -36,6 +36,13 @@ services:
     # `docker compose up`, serve `docker compose --profile app up`. Cosi'
     # `up` tira su solo db e phpmyadmin, cioe' l'infrastruttura che serve al
     # backend lanciato dall'IDE, senza litigare sulla porta 8080.
+    #
+    # ⚠️ QUESTO SERVIZIO E' DI SVILUPPO, e il file che usarlo per andare in
+    # produzione e' un errore: non attiva SPRING_PROFILES_ACTIVE=prod, quindi
+    # Flyway esegue anche db/dev e il database nasce con sette utenti di prova
+    # fra cui un amministratore con la password scritta in chiaro nel
+    # sorgente, e ddl-auto resta "update", cioe' Hibernate che riscrive lo
+    # schema da se'. Per il server vero c'e' compose.prod.yml.
     profiles: ["app"]
     build: ./backend
     container_name: gestionale-backend
@@ -60,6 +67,13 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/gestionale
       - SPRING_DATASOURCE_USERNAME=gestionale
       - SPRING_DATASOURCE_PASSWORD=gestionale_dev
+      # Lo stesso fuso del servizio db. Il Dockerfile lo dichiara gia', e
+      # ripeterlo qui non e' ridondanza inutile: e' la riga che si vede
+      # accanto a quella di MySQL, dove si nota se i due divergono. La JVM
+      # senza TZ parte in UTC, e un'ora di scarto fra chi scrive
+      # `creato_il` (MySQL) e chi scrive `avviata_il` (la JVM) in un
+      # gestionale di ore lavorate si somma nei consuntivi.
+      - TZ=Europe/Rome
     depends_on:
       db:
         condition: service_healthy

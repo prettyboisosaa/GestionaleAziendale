@@ -1,14 +1,23 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { login } from './api'
+import { testo } from '../api/http'
 import type { UtenteCorrente } from './api'
 
 type Proprieta = {
   /** Riceve l'utente appena il backend ha verificato le credenziali. */
   onAccesso: (utente: UtenteCorrente) => void
+
+  /**
+   * Perché si è qui, quando non ci si è arrivati da soli: oggi l'unico caso è
+   * la sessione scaduta per inattività. Senza, chi torna da una riunione si
+   * ritrova alla schermata di accesso senza nessuna spiegazione e pensa di
+   * aver perso il lavoro fatto.
+   */
+  avviso?: string
 }
 
-export default function PaginaLogin({ onAccesso }: Proprieta) {
+export default function PaginaLogin({ onAccesso, avviso }: Proprieta) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errore, setErrore] = useState<string | null>(null)
@@ -22,7 +31,10 @@ export default function PaginaLogin({ onAccesso }: Proprieta) {
     try {
       onAccesso(await login(email, password))
     } catch (motivo) {
-      setErrore(motivo instanceof Error ? motivo.message : 'Accesso non riuscito. Riprova.')
+      // `testo` toglie il codice in testa: il 429 del limite di tentativi
+      // arriva come «TROPPI_TENTATIVI: Troppi tentativi…», e quel prefisso
+      // serve al codice, non a chi legge.
+      setErrore(testo(motivo))
       setInCorso(false)
     }
   }
@@ -33,6 +45,16 @@ export default function PaginaLogin({ onAccesso }: Proprieta) {
         <p className="azienda">Anitia</p>
         <h1>Gestionale</h1>
         <p className="sommario">Allocazione di progetti e risorse.</p>
+
+        {/* L'avviso sta fuori dal modulo e sopra, perché non parla di un
+            campo: dice perché si è tornati qui. Sparisce al primo tentativo,
+            quando al suo posto c'è un errore da leggere — `errore` e `avviso`
+            non si mostrano mai insieme. */}
+        {avviso !== undefined && errore === null && (
+          <p className="avviso" role="status">
+            {avviso}
+          </p>
+        )}
 
         <form onSubmit={invia}>
           <div className="campo">

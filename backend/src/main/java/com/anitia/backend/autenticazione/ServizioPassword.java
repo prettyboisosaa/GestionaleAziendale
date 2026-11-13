@@ -12,18 +12,26 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Il cambio della propria password.
+ * Le password: la propria, che si cambia, e quella di un altro, che si azzera.
  *
- * <p><strong>Solo la propria.</strong> Chi sta cambiando lo dice la sessione e
- * non la richiesta: non esiste un parametro per indicare un altro utente,
- * quindi non esiste il caso da difendere. Un amministratore che debba
- * rimettere in piedi l'accesso di qualcuno non passa da qui — quella è un'altra
- * operazione, con un altro permesso, e non c'è.
+ * <p>Sono due operazioni diverse e qui stanno vicine di proposito, perché la
+ * differenza è tutta in <strong>che cosa dimostra chi scrive</strong>:
  *
- * <p><strong>Nessun permesso.</strong> Cambiarsi la password non è una cosa
- * che si concede: è parte dell'avere un accesso. Un permesso che si darebbe a
- * tutti è un permesso che non esiste, come dice già
- * {@code TempoController} per le rotte di chi lavora.
+ * <ul>
+ *   <li>{@link #cambia} — <strong>solo la propria</strong>. Chi sta cambiando
+ *       lo dice la sessione e non la richiesta: non esiste un parametro per
+ *       indicare un altro utente, quindi non esiste il caso da difendere. Si
+ *       dimostra di essere il padrone dell'utenza esibendo la password
+ *       attuale. Nessun permesso: cambiarsi la password non è una cosa che si
+ *       concede, è parte dell'avere un accesso, e un permesso che si darebbe a
+ *       tutti è un permesso che non esiste.
+ *   <li>{@link #azzera} — <strong>quella di un altro</strong>, senza
+ *       conoscerla. Qui non si dimostra niente sull'utenza toccata, e la
+ *       garanzia è tutta nel permesso {@code UTENTI_RESET_PASSWORD}, che la
+ *       {@code V22} tiene separato da {@code UTENTI_CREA} proprio perché
+ *       entrare nell'identità di una persona che lavora non è la stessa cosa
+ *       che aprire un'utenza nuova.
+ * </ul>
  */
 @Service
 public class ServizioPassword {
@@ -33,12 +41,14 @@ public class ServizioPassword {
     private final UtenteRepository utenti;
     private final PasswordEncoder codificatorePassword;
     private final LimiteTentativiPassword limite;
+    private final LimiteTentativiAccesso limiteAccesso;
 
     ServizioPassword(UtenteRepository utenti, PasswordEncoder codificatorePassword,
-                     LimiteTentativiPassword limite) {
+                     LimiteTentativiPassword limite, LimiteTentativiAccesso limiteAccesso) {
         this.utenti = utenti;
         this.codificatorePassword = codificatorePassword;
         this.limite = limite;
+        this.limiteAccesso = limiteAccesso;
     }
 
     /**
@@ -103,5 +113,63 @@ public class ServizioPassword {
         // log di un gestionale un indirizzo è un dato personale che non serve
         // a ricostruire l'accaduto.
         log.info("Password cambiata dall'utente {}", io.getId());
+    }
+
+    /**
+     * Azzera la password di un altro utente, senza conoscere quella attuale.
+     *
+     * <p>Esiste perché prima non c'era nessuna strada. Il gestionale non manda
+     * email, non ha domande di sicurezza e non ha un «password dimenticata»:
+     * chi dimenticava la propria restava fuori, e l'unico rimedio era una
+     * {@code UPDATE} a mano sul database di produzione. Con diciassette
+     * persone, la prima password dimenticata arriva nel giro di settimane.
+     *
+     * <p><strong>Non si può azzerare la propria.</strong> È il controllo meno
+     * ovvio di questo metodo e il più importante: chi ha questo permesso ha
+     * anche una sessione aperta, e permettergli di riscriversi la password
+     * senza esibire quella attuale trasformerebbe una sessione lasciata
+     * incustodita in un cambio di credenziali definitivo — il legittimo
+     * padrone non entrerebbe più. Per la propria c'è {@link #cambia}, che la
+     * password attuale la chiede.
+     *
+     * <p><strong>I contatori dei tentativi si azzerano.</strong> Chi ha
+     * dimenticato la password ha quasi certamente provato a indovinarla
+     * qualche volta prima di chiedere aiuto, e senza questa riga si
+     * troverebbe bloccato proprio con la password nuova in mano.
+     *
+     * <p>Un'utenza disattivata si può azzerare: rimettere in piedi l'accesso
+     * di chi rientra è una password nuova <em>e</em> una riattivazione, in
+     * qualunque ordine le si faccia.
+     *
+     * @param emailAutore chi sta azzerando, per il log e per impedire che sia
+     *                    la propria
+     */
+    @Transactional
+    public void azzera(Long idUtente, RichiestaResetPassword richiesta, String emailAutore) {
+        Utente bersaglio = utenti.findById(idUtente).orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utente non trovato."));
+
+        if (bersaglio.getEmail().equalsIgnoreCase(emailAutore)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "RESET_DI_SE_STESSI: la propria password si cambia da «Profilo», "
+                            + "indicando quella attuale.");
+        }
+
+        if (!RegolePassword.valida(richiesta.password())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "WEAK_PASSWORD: la nuova password "
+                            + RegolePassword.perche(richiesta.password()) + ".");
+        }
+
+        bersaglio.cambiaPassword(codificatorePassword.encode(richiesta.password()));
+
+        limite.riuscito(bersaglio.getId());
+        limiteAccesso.riuscito(bersaglio.getEmail());
+
+        // Chi e su chi, per id: in un gestionale che non ha un registro degli
+        // accessi, questa e' una delle poche righe che dicono che qualcuno e'
+        // entrato nei panni di qualcun altro, e serve che resti.
+        log.warn("Password dell'utente {} azzerata da {}",
+                bersaglio.getId(), emailAutore);
     }
 }

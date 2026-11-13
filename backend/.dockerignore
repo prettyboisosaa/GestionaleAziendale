@@ -1,1 +1,30 @@
+# target/ e .m2/ sono il risultato dei build fatti sulla macchina di chi
+# costruisce: centinaia di megabyte che il client Docker spedisce al motore
+# come contesto a ogni build, prima ancora di sapere quali file le COPY
+# useranno davvero. Dentro l'immagine non servono — `mvn package` li
+# ricostruisce — e il tempo speso a mandarli e' tutto perso.
 target/
+.m2/
+
+# Lo script di avvio locale e il wrapper: dentro l'immagine si usa il Maven
+# dell'immagine di build, non il wrapper.
+avvia.ps1
+mvnw
+mvnw.cmd
+.mvn/
+
+Dockerfile
+.dockerignore
+
+.git
+.gitignore
+HELP.md
+*.log
+
+# I file d'ambiente non entrano mai nel contesto di build: il Dockerfile fa
+# `COPY . .`, quindi un .env finirebbe dentro l'immagine - cioe' leggibile da
+# chiunque possa fare `docker run` su quel tag. In produzione il .env vive
+# accanto a compose.prod.yml, nella radice del progetto; questa riga c'e'
+# perche' la regola valga anche il giorno che qualcuno ne crea uno qui.
+.env
+.env.*

@@ -28,7 +28,11 @@ import org.springframework.test.web.servlet.MockMvc;
  * esterna, il caricamento dell'utente, e' simulata.
  */
 @WebMvcTest(AutenticazioneController.class)
-@Import(ConfigurazioneSicurezza.class)
+// LimiteTentativiAccesso e' un @Component, e @WebMvcTest non scansiona i
+// componenti: senza importarlo il contesto non si costruisce. Si importa
+// quello VERO e non un finto, perche' qui la cosa da provare e' proprio il
+// suo conteggio — un mock direbbe solo che il controller lo interroga.
+@Import({ConfigurazioneSicurezza.class, LimiteTentativiAccesso.class})
 class AutenticazioneControllerTest {
 
     /** Hash di "Password1!", lo stesso dei dati di sviluppo. */
@@ -201,6 +205,70 @@ class AutenticazioneControllerTest {
 
         mockMvc.perform(get(IO).session(sessione))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * Dopo dieci tentativi sbagliati sulla stessa email, l'undicesimo non
+     * arriva nemmeno a bcrypt.
+     *
+     * <p>Prima non c'era nessun limite: {@code /login} accettava tentativi a
+     * raffica e l'unico freno era la lentezza di bcrypt.
+     *
+     * <p><strong>Un'email tutta sua</strong>, diversa da {@code EMAIL}: il
+     * conteggio e' per indirizzo e il bean e' uno solo per tutta la classe,
+     * quindi usando quella comune questo test spenderebbe i tentativi degli
+     * altri e gli altri i suoi, con un esito che dipende dall'ordine di
+     * esecuzione.
+     */
+    @Test
+    void dopoDieciTentativiSbagliatiIlLoginRisponde429() throws Exception {
+        String bersaglio = "sotto.attacco@gestionale.local";
+        given(dettagliUtente.loadUserByUsername(bersaglio))
+                .willThrow(new UsernameNotFoundException("non trovato"));
+
+        for (int tentativo = 1; tentativo <= 10; tentativo++) {
+            mockMvc.perform(post(LOGIN)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(corpo(bersaglio, "indovino" + tentativo)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post(LOGIN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo(bersaglio, "indovino11")))
+                .andExpect(status().isTooManyRequests())
+                // Il codice in testa, che il frontend usa per riconoscere il
+                // caso senza interpretare il testo italiano.
+                .andExpect(jsonPath("$.detail").value(
+                        org.hamcrest.Matchers.startsWith("TROPPI_TENTATIVI:")));
+    }
+
+    /**
+     * Il conteggio e' per email e non globale: bloccare chi tira a indovinare
+     * su un indirizzo non deve chiudere fuori tutti gli altri.
+     *
+     * <p>E' la proprieta' che rende accettabile contare per email: senza,
+     * dieci tentativi sbagliati su un indirizzo qualunque spegnerebbero il
+     * gestionale per l'intera azienda.
+     */
+    @Test
+    void ilBloccoDiUnIndirizzoNonToccaGliAltri() throws Exception {
+        String bersaglio = "altro.bersaglio@gestionale.local";
+        given(dettagliUtente.loadUserByUsername(bersaglio))
+                .willThrow(new UsernameNotFoundException("non trovato"));
+        utenteNelDatabase(true);
+
+        for (int tentativo = 1; tentativo <= 10; tentativo++) {
+            mockMvc.perform(post(LOGIN)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(corpo(bersaglio, "indovino" + tentativo)))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mockMvc.perform(post(LOGIN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpo(EMAIL, "Password1!")))
+                .andExpect(status().isOk());
     }
 
     /** Stessa logica per i permessi: un ruolo modificato vale subito. */

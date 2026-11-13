@@ -55,17 +55,50 @@ public class ConfigurazioneSicurezza {
      * dentro la cartella. Lasciarne fuori una qualunque si vede allo stesso
      * modo: la pagina si apre bianca o resta a «caricamento».
      *
-     * <p>⚠️ Aperte **senza autenticazione**, ed e' una scelta da rivedere
-     * prima di esporre il gestionale fuori dalla rete aziendale: l'elenco
-     * completo delle rotte, dei corpi accettati e dei codici d'errore e' la
-     * mappa di come attaccarlo. In produzione conviene o spegnere springdoc
-     * con {@code springdoc.api-docs.enabled=false}, o chiedere qui un
-     * permesso invece di {@code permitAll()}.
+     * <p>⚠️ Aperte **senza autenticazione**: l'elenco completo delle rotte,
+     * dei corpi accettati e dei codici d'errore e' la mappa di come attaccare
+     * il gestionale. Questa {@code permitAll()} resta perche' in sviluppo la
+     * pagina deve aprirsi senza accesso; in produzione la risposta non e'
+     * qui ma in {@code application-prod.properties}, che spegne springdoc del
+     * tutto. Spento, queste tre rotte non esistono e la regola non concede
+     * niente.
      */
     private static final String[] SWAGGER = {
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
+    };
+
+    /**
+     * La salute dell'applicazione, aperta a chi non ha fatto l'accesso.
+     *
+     * <p>Deve esserlo: chi la interroga e' il motore dei container — la
+     * {@code healthcheck} del compose, le probe di Kubernetes — che non ha
+     * credenziali e non puo' averne. E' lo stesso motivo per cui prima le
+     * probe erano su TCP: ogni {@code /api/**} risponde 401, che una probe
+     * legge come un guasto, e il pod finiva per riavviarsi pur essendo sano.
+     *
+     * <p>Quello che si lascia vedere e' il minimo: {@code show-details=never}
+     * in {@code application.properties} riduce la risposta a
+     * {@code {"status":"UP"}}. Senza quella riga, questa permitAll
+     * racconterebbe a chiunque quale database si usa e che cosa non sta
+     * funzionando.
+     *
+     * <p>Solo {@code health}, e per estensione i suoi gruppi
+     * {@code liveness}/{@code readiness}: il pattern non e'
+     * {@code /actuator/**}, perche' quello aprirebbe anche gli endpoint che
+     * un domani qualcuno aggiungesse a
+     * {@code management.endpoints.web.exposure.include}.
+     *
+     * <p>Due voci e non una: la rotta nuda e i suoi gruppi. Il pattern
+     * {@code /**} da solo coprirebbe gia' entrambe con PathPattern, ma
+     * dipendere di quale matcher sia in uso per una regola di sicurezza e'
+     * esattamente il genere di sottigliezza che si rompe in silenzio a un
+     * aggiornamento.
+     */
+    private static final String[] SALUTE = {
+            "/actuator/health",
+            "/actuator/health/**",
     };
 
     @Bean
@@ -97,6 +130,8 @@ public class ConfigurazioneSicurezza {
                         // prende tutto quello che arriva fin li' — una
                         // permitAll() scritta sotto non verrebbe mai letta.
                         .requestMatchers(SWAGGER).permitAll()
+                        // La salute, per chi sorveglia i container. Vedi SALUTE.
+                        .requestMatchers(SALUTE).permitAll()
                         .anyRequest().authenticated())
                 // Rilegge utente e permessi dal database. Va dopo il filtro
                 // che carica il contesto dalla sessione e prima di quello che

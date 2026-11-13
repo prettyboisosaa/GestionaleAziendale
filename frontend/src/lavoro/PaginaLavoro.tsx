@@ -1004,7 +1004,7 @@ export default function PaginaLavoro({
                       {singola.assegnatari.map((persona) => (
                         <span
                           key={persona.utenteId}
-                          className={`gettone gettone-${persona.utenteId % 8}`}
+                          className={`gettone gettone-${persona.utenteId % 5}`}
                           title={`${persona.nome} ${persona.cognome}`}
                         >
                           <span aria-hidden="true">
@@ -1413,7 +1413,7 @@ function Squadra({ task }: { task: RigaTask[] }) {
       {[...persone.values()].map((persona) => (
         <span
           key={persona.utenteId}
-          className={`gettone gettone-${persona.utenteId % 8}`}
+          className={`gettone gettone-${persona.utenteId % 5}`}
           title={`${persona.nome} ${persona.cognome}`}
         >
           <span aria-hidden="true">

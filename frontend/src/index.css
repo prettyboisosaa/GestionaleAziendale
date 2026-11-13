@@ -166,32 +166,54 @@
      e la regola si legge dal calendario senza bisogno di una legenda: **un
      blocco colorato è un lavoro, un blocco grigio non lo è.**
 
-     Otto tinte distanti; un lavoro prende la sua dal proprio id, quindi è la
-     stessa in ogni settimana. Il codice del lavoro resta scritto dentro il
-     blocco, così due tinte simili non perdono l'informazione. */
-  --lavoro-0: #062e2d;
-  --lavoro-1: #16a88e;
-  --lavoro-2: #d9472a;
-  --lavoro-3: #157a76;
-  --lavoro-4: #0b6b5a;
-  --lavoro-5: #ff6b4a;
-  --lavoro-6: #8f2a15;
-  --lavoro-7: #0a4543;
+     **Cinque tinte, non otto.** Sono quelle scelte per il calendario della
+     dashboard, e la serie è una sola in tutta l'interfaccia: i blocchi del
+     tempo, le pastiglie delle persone, i segmenti del report e le assenze
+     pescano tutti da qui. Cinque invece di otto vuol dire che due lavori
+     coincidono prima — e si accetta, perché dentro il blocco c'è scritto il
+     codice, e cinque colori che si riconoscono valgono più di otto che si
+     confondono.
+
+     Un lavoro prende la sua dal proprio id, quindi è la stessa in ogni
+     settimana e la memoria visiva serve a qualcosa.
+
+     ⚠️ **Due di queste cinque sono chiare**: `--lavoro-2` e `--lavoro-3`.
+     Sopra di loro il testo bianco non si legge, e chi le usa per tingere una
+     superficie piena deve passare all'inchiostro — in `App.css` c'è una
+     regola per ciascun posto in cui succede. È il prezzo di avere due tinte
+     accese nella serie, ed è voluto: senza, i cinque colori sarebbero tre
+     scuri e due quasi uguali. */
+  --lavoro-0: #0a4543;
+  --lavoro-1: #d9472a;
+  --lavoro-2: #34e0c1;
+  --lavoro-3: #ffb8a5;
+  --lavoro-4: #5e6a75;
 
   /* Le attività che non appartengono a nessun lavoro: una riunione, una
      manutenzione interna, una formazione.
 
-     **Una tinta sola per tutte, l'argento scuro.** Prima erano nove colori
-     spenti, inventati per distinguerle fra loro: nessuno dei nove stava
-     nella tavola 01, e per averli si era usciti dalla palette — che è
-     l'unica cosa che questa tavolozza chiede di non fare.
+     Nove tinte, una per tipo, perché la settimana di chi fa metà del proprio
+     tempo fuori dai progetti sarebbe altrimenti una colonna di rettangoli
+     tutti uguali — e «quanto se n'è andato in riunioni» è una delle domande
+     che questa griglia deve far vedere senza leggere.
 
-     Non è un'informazione persa. Dentro il blocco c'è scritto di che attività
-     si tratta, e la domanda a cui il colore risponde su questa griglia è
-     un'altra: su quali progetti è andata la settimana. Queste ore sono il
-     contorno della settimana e non il suo contenuto, e un neutro è il modo
-     esatto di dirlo. */
-  --attivita: #5e6a75;
+     **Tutte e nove sono gradi della tavola 01**, e nessuna coincide con le
+     cinque dei lavori: la palette ha ventotto gradini, e ce ne sono
+     abbastanza perché due serie distinte stiano dentro le stesse quattro
+     scale senza inventare un colore.
+
+     ⚠️ Come fra le tinte dei lavori, due sono chiare — la formazione e
+     l'amministrazione — e vogliono il testo scuro sopra: la regola sta in
+     `App.css`, accanto a quella delle altre due. */
+  --attivita-manutenzione: #0b6b5a;
+  --attivita-interna: #157a76;
+  --attivita-supporto: #16a88e;
+  --attivita-sopralluogo: #062e2d;
+  --attivita-riunione: #8f2a15;
+  --attivita-formazione: #4fb3ab;
+  --attivita-amministrazione: #a9b2b8;
+  --attivita-trasferta: #ff6b4a;
+  --attivita-altro: #2c343c;
 
   /* L'inchiostro scomposto, per tingere le ombre. */
   --inchiostro-rgb: 6 46 45;

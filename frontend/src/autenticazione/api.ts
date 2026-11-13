@@ -1,4 +1,4 @@
-import { chiama, chiedi, messaggioErrore, postJson } from '../api/http'
+import { chiama, chiamaGrezza, messaggioErrore, postJson } from '../api/http'
 
 const BASE = '/api/autenticazione'
 
@@ -10,19 +10,37 @@ export type UtenteCorrente = {
   cognome: string
 }
 
-export function login(email: string, password: string): Promise<UtenteCorrente> {
-  return chiedi<UtenteCorrente>(`${BASE}/login`, postJson({ email, password }))
+/**
+ * Verifica le credenziali e apre la sessione.
+ *
+ * Usa `chiamaGrezza` e non `chiedi`: qui il 401 vuol dire «email o password
+ * sbagliate», non «la tua sessione è finita». Passando da `chiama`, chi
+ * digita male la password si vedrebbe dire che la sessione è scaduta — e
+ * `App` lo rimanderebbe alla schermata su cui si trova già.
+ *
+ * Il 429 (`TROPPI_TENTATIVI`) arriva da qui come messaggio normale: il
+ * backend lo manda dopo dieci tentativi sbagliati sulla stessa email, e dice
+ * fra quanti minuti riprovare.
+ */
+export async function login(email: string, password: string): Promise<UtenteCorrente> {
+  const risposta = await chiamaGrezza(`${BASE}/login`, postJson({ email, password }))
+
+  if (!risposta.ok) {
+    throw new Error(await messaggioErrore(risposta))
+  }
+
+  return (await risposta.json()) as UtenteCorrente
 }
 
 /**
  * Chi è collegato, oppure null se non c'è una sessione.
  *
  * Il 401 qui non è un errore: all'avvio dell'applicazione è la risposta
- * normale per chi non ha ancora fatto il login. Per questo non si usa
- * `chiedi`, che solleverebbe.
+ * normale per chi non ha ancora fatto il login. Per questo si usa
+ * `chiamaGrezza`, che non lo interpreta.
  */
 export async function io(): Promise<UtenteCorrente | null> {
-  const risposta = await chiama(`${BASE}/io`)
+  const risposta = await chiamaGrezza(`${BASE}/io`)
 
   if (risposta.status === 401) {
     return null

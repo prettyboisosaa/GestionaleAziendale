@@ -1436,9 +1436,37 @@ button.minuscolo:disabled {
 .scheda-settimana .lavoro-2 { --tinta-lavoro: var(--lavoro-2); }
 .scheda-settimana .lavoro-3 { --tinta-lavoro: var(--lavoro-3); }
 .scheda-settimana .lavoro-4 { --tinta-lavoro: var(--lavoro-4); }
-.scheda-settimana .lavoro-5 { --tinta-lavoro: var(--lavoro-5); }
-.scheda-settimana .lavoro-6 { --tinta-lavoro: var(--lavoro-6); }
-.scheda-settimana .lavoro-7 { --tinta-lavoro: var(--lavoro-7); }
+
+/* Le due tinte chiare della serie vogliono il testo scuro sopra: su un fondo
+   acqua o corallo chiaro il bianco non si legge. Vale ovunque la tinta
+   diventi una superficie piena, e i posti sono questo, le pastiglie delle
+   persone e le assenze approvate.
+
+   La gerarchia resta quella del fondo scuro, rovesciata: il titolo pieno,
+   l'ora e il codice del lavoro arretrati — qui con l'inchiostro diluito
+   invece che col bianco. */
+.scheda-settimana .sessione.lavoro-2,
+.scheda-settimana .sessione.lavoro-3,
+.scheda-settimana .sessione.lavoro-2 .fc-event-title,
+.scheda-settimana .sessione.lavoro-3 .fc-event-title {
+  color: var(--inchiostro);
+}
+
+.scheda-settimana .sessione.lavoro-2 .fc-event-time,
+.scheda-settimana .sessione.lavoro-3 .fc-event-time,
+.scheda-settimana .sessione.lavoro-2 .lavoro-del-blocco,
+.scheda-settimana .sessione.lavoro-3 .lavoro-del-blocco {
+  color: rgb(var(--inchiostro-rgb) / 72%);
+}
+
+/* E con loro cambia anche il filetto delle sessioni non misurate e l'anello
+   di quella in corso: un bianco velato sopra una tinta chiara sparisce. */
+.scheda-settimana .sessione.lavoro-2.sessione-dedotta,
+.scheda-settimana .sessione.lavoro-3.sessione-dedotta,
+.scheda-settimana .sessione.lavoro-2.sessione-manuale,
+.scheda-settimana .sessione.lavoro-3.sessione-manuale {
+  box-shadow: inset 0 2px 0 rgb(var(--inchiostro-rgb) / 35%);
+}
 
 /* Le attivita' che non appartengono a nessun lavoro tingono la stessa
    variabile dei lavori, invece di averne una loro: tutto quello che disegna un
@@ -1446,24 +1474,48 @@ button.minuscolo:disabled {
    legge `--tinta-lavoro`, e una seconda variabile vorrebbe dire ripetere
    ciascuna di quelle regole. Qui cambia solo da dove viene il colore.
 
-   **Una tinta sola per tutte e nove**, l'argento scuro: le nove tinte spente
-   di prima non stavano nella tavola 01 della palette, ed erano l'unico punto
-   della griglia a uscirne. Che attivita' sia c'e' scritto dentro il blocco;
-   il colore, qui, risponde a un'altra domanda — su quali progetti e' andata
-   la settimana — e per quella un neutro e' la risposta giusta: colorato
-   vuol dire lavoro, grigio vuol dire tutto il resto.
+   Una tinta per tipo, e tutte e nove sono gradi della tavola 01: la settimana
+   di chi passa meta' del proprio tempo fuori dai progetti sarebbe altrimenti
+   una colonna di rettangoli tutti uguali, e «quanto se n'e' andato in
+   riunioni» e' una delle domande che questa griglia deve far vedere senza
+   leggere. Nessuna di queste nove coincide con le cinque dei lavori.
 
    `LAVORO_TASK` non e' in questa lista di proposito: un blocco di lavoro su
    task ha sempre un lavoro, e la sua tinta e' quella. */
-.scheda-settimana .attivita-manutenzione,
-.scheda-settimana .attivita-interna,
-.scheda-settimana .attivita-supporto,
-.scheda-settimana .attivita-sopralluogo,
-.scheda-settimana .attivita-riunione,
-.scheda-settimana .attivita-formazione,
-.scheda-settimana .attivita-amministrazione,
-.scheda-settimana .attivita-trasferta,
-.scheda-settimana .attivita-altro { --tinta-lavoro: var(--attivita); }
+.scheda-settimana .attivita-manutenzione { --tinta-lavoro: var(--attivita-manutenzione); }
+.scheda-settimana .attivita-interna { --tinta-lavoro: var(--attivita-interna); }
+.scheda-settimana .attivita-supporto { --tinta-lavoro: var(--attivita-supporto); }
+.scheda-settimana .attivita-sopralluogo { --tinta-lavoro: var(--attivita-sopralluogo); }
+.scheda-settimana .attivita-riunione { --tinta-lavoro: var(--attivita-riunione); }
+.scheda-settimana .attivita-formazione { --tinta-lavoro: var(--attivita-formazione); }
+.scheda-settimana .attivita-amministrazione {
+  --tinta-lavoro: var(--attivita-amministrazione);
+}
+.scheda-settimana .attivita-trasferta { --tinta-lavoro: var(--attivita-trasferta); }
+.scheda-settimana .attivita-altro { --tinta-lavoro: var(--attivita-altro); }
+
+/* Le due chiare della serie delle attivita', come le due dei lavori: sopra un
+   verde acqua chiaro o un argento medio il bianco non si legge. */
+.scheda-settimana .sessione.attivita-formazione,
+.scheda-settimana .sessione.attivita-amministrazione,
+.scheda-settimana .sessione.attivita-formazione .fc-event-title,
+.scheda-settimana .sessione.attivita-amministrazione .fc-event-title {
+  color: var(--inchiostro);
+}
+
+.scheda-settimana .sessione.attivita-formazione .fc-event-time,
+.scheda-settimana .sessione.attivita-amministrazione .fc-event-time,
+.scheda-settimana .sessione.attivita-formazione .lavoro-del-blocco,
+.scheda-settimana .sessione.attivita-amministrazione .lavoro-del-blocco {
+  color: rgb(var(--inchiostro-rgb) / 72%);
+}
+
+.scheda-settimana .sessione.attivita-formazione.sessione-dedotta,
+.scheda-settimana .sessione.attivita-amministrazione.sessione-dedotta,
+.scheda-settimana .sessione.attivita-formazione.sessione-manuale,
+.scheda-settimana .sessione.attivita-amministrazione.sessione-manuale {
+  box-shadow: inset 0 2px 0 rgb(var(--inchiostro-rgb) / 35%);
+}
 
 /* Il blocco la cui ora del giorno non l'ha misurata nessuno si vede che non
    e' stata misurata, e su una griglia che colloca per ora del giorno e' la
@@ -1995,9 +2047,18 @@ button.minuscolo:disabled {
   opacity: 1;
 }
 
+/* `margin-bottom: auto` sull'elenco delle voci, e non `margin-top: auto` su
+   quello che viene dopo: e' l'elenco a prendersi tutto lo spazio che avanza,
+   quindi **tutto cio' che lo segue** scende in fondo alla barra — la scheda
+   del timer e il blocco dell'account insieme, nell'ordine in cui stanno nel
+   markup.
+
+   Con l'auto sul solo account succedeva il contrario: lo spazio si apriva
+   prima di lui, e il timer restava appeso sotto le voci a meta' barra invece
+   di scendere con il resto. */
 .sidebar-voci {
   list-style: none;
-  margin: 0.875rem 0 0;
+  margin: 0.875rem 0 auto;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -2964,9 +3025,12 @@ button.minuscolo:disabled {
 .gettone-2 { background-color: var(--lavoro-2); }
 .gettone-3 { background-color: var(--lavoro-3); }
 .gettone-4 { background-color: var(--lavoro-4); }
-.gettone-5 { background-color: var(--lavoro-5); }
-.gettone-6 { background-color: var(--lavoro-6); }
-.gettone-7 { background-color: var(--lavoro-7); }
+
+/* Le due tinte chiare: iniziali in inchiostro, o non si leggono. */
+.gettone-2,
+.gettone-3 {
+  color: var(--inchiostro);
+}
 
 /* La crocetta per togliere un'assegnazione: compare dentro la pastiglia e
    solo a chi gestisce il lavoro. */
@@ -3426,19 +3490,24 @@ button.minuscolo:disabled {
    `tintaPersona` in `stato/stati.ts` — quindi e' la stessa in ogni mese e la
    memoria visiva serve a qualcosa.
 
-   Le otto tinte sono quelle dei lavori, e non una tavolozza nuova: la serie
+   Le cinque tinte sono quelle dei lavori, e non una tavolozza nuova: la serie
    delle «cose distinte fra loro» di questa interfaccia esiste gia', e due
-   serie di otto tinte vicine sarebbero solo due modi di dire la stessa cosa.
-   Con piu' di otto persone via nello stesso mese due coincidono, e si accetta:
-   il nome resta scritto dentro il rettangolo. */
+   serie di tinte vicine sarebbero solo due modi di dire la stessa cosa.
+   Con piu' di cinque persone via nello stesso mese due coincidono, e si
+   accetta: il nome resta scritto dentro il rettangolo. */
 .pannello-assenze .persona-0 { --tinta-persona: var(--lavoro-0); }
 .pannello-assenze .persona-1 { --tinta-persona: var(--lavoro-1); }
 .pannello-assenze .persona-2 { --tinta-persona: var(--lavoro-2); }
 .pannello-assenze .persona-3 { --tinta-persona: var(--lavoro-3); }
 .pannello-assenze .persona-4 { --tinta-persona: var(--lavoro-4); }
-.pannello-assenze .persona-5 { --tinta-persona: var(--lavoro-5); }
-.pannello-assenze .persona-6 { --tinta-persona: var(--lavoro-6); }
-.pannello-assenze .persona-7 { --tinta-persona: var(--lavoro-7); }
+
+/* Le due tinte chiare della serie: nome in inchiostro sul fondo pieno. */
+.pannello-assenze .persona-2.assenza-approvata,
+.pannello-assenze .persona-3.assenza-approvata,
+.pannello-assenze .persona-2.assenza-approvata .fc-event-title,
+.pannello-assenze .persona-3.assenza-approvata .fc-event-title {
+  color: var(--inchiostro);
+}
 
 .assenza-evento {
   /* Il viola delle assenze resta come ripiego: se un evento arrivasse senza
@@ -3713,9 +3782,6 @@ button.minuscolo:disabled {
 .griglia-report .lavoro-2 { --tinta-lavoro: var(--lavoro-2); }
 .griglia-report .lavoro-3 { --tinta-lavoro: var(--lavoro-3); }
 .griglia-report .lavoro-4 { --tinta-lavoro: var(--lavoro-4); }
-.griglia-report .lavoro-5 { --tinta-lavoro: var(--lavoro-5); }
-.griglia-report .lavoro-6 { --tinta-lavoro: var(--lavoro-6); }
-.griglia-report .lavoro-7 { --tinta-lavoro: var(--lavoro-7); }
 
 /* Il pallino della tinta accanto al codice del lavoro: lega la riga al suo
    segmento nella barra della persona. Il codice resta scritto, quindi due
@@ -4323,12 +4389,12 @@ button.minuscolo:disabled {
 
 /* --- la scheda del timer, in fondo alla barra laterale -------------------- */
 
-/* `margin-top: auto` la spinge in fondo: la barra e' gia' una colonna flex, e
-   non serve altro. */
-/* Il timer sta sopra il blocco del proprio account, e non e' piu' lui a
-   spingersi in fondo: con due `margin-top: auto` nella stessa colonna lo
-   spazio libero si dividerebbe fra i due, e la scheda resterebbe a mezz'aria.
-   Adesso in fondo ci va il conto, e il timer lo precede. */
+/* La scheda del timer sta in fondo alla barra, appena sopra il blocco del
+   proprio account: scende laggiu' insieme a lui perche' e' l'elenco delle
+   voci a prendersi lo spazio che avanza, non perche' questa scheda si spinga
+   da sola. Due `margin-top: auto` nella stessa colonna dividerebbero il vuoto
+   fra i due e la lascerebbero a mezz'aria, che e' esattamente quello che
+   succedeva. */
 .scheda-timer {
   margin-bottom: 0.625rem;
   padding: 0.625rem;
@@ -4820,10 +4886,11 @@ button.minuscolo:disabled {
 /* Prima era l'email in testata, in alto fra le cose del gestionale. Il
    proprio account non e' una sezione dell'applicazione: e' chi la sta
    usando, e il design system lo mette in fondo alla barra, sotto a tutto.
-   `margin-top: auto` lo spinge laggiu' qualunque cosa ci sia sopra — con o
-   senza la scheda del timer. */
+
+   In fondo ci scende perche' l'elenco delle voci si prende lo spazio che
+   avanza, non per un `margin-top: auto` suo: quello apriva il vuoto *prima*
+   di lui e lasciava la scheda del timer a meta' barra. */
 .sidebar-conto {
-  margin-top: auto;
   padding-top: 0.75rem;
   border-top: 1px solid rgb(255 255 255 / 10%);
 }
@@ -4914,4 +4981,291 @@ button.minuscolo:disabled {
 
 .sidebar-esci:hover {
   color: var(--superficie);
+}
+
+/* --- la creazione di un lavoro -------------------------------------------- */
+
+.testata-nuovo {
+  margin-top: 0.75rem;
+}
+
+.testata-nuovo h1 {
+  font-size: var(--scala-titolo);
+  line-height: 1.1;
+}
+
+.sottotitolo-nuovo {
+  margin-top: 0.25rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Il modulo a sinistra, il riepilogo a destra. Il riepilogo e' la parte che
+   conta: un modulo di sette campi si compila guardando i campi, ma quello che
+   si sta per creare — e quante ore si stanno impegnando — non si vede mentre
+   lo si scrive. Per questo il pulsante che crea sta la' dentro e non in fondo
+   ai campi: si preme dopo aver letto, non prima. */
+.griglia-nuovo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 30rem);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 62rem) {
+  .griglia-nuovo {
+    grid-template-columns: 1fr;
+  }
+}
+
+.colonna-nuovo {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+/* Un passo per scheda, numerato. Tre superfici invece di una sola lunga: la
+   numerazione dice quanto manca, e tre blocchi si attraversano senza perdere
+   il segno — che e' l'unico vero problema di un modulo lungo. */
+.scheda-passo {
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-radius: var(--raggio-foglio);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+}
+
+.passo-titolo {
+  margin-bottom: 0.875rem;
+  font-size: var(--scala-media);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-base);
+}
+
+.scheda-passo .campo + .campo {
+  margin-top: 0.875rem;
+}
+
+/* I campi di questa schermata sono vasche piene senza cornice, alte come un
+   controllo del design system: e' un modulo che si compila una volta sola, e
+   i bersagli larghi contano piu' della densita'. */
+.campo-grande {
+  width: 100%;
+  min-height: var(--altezza-controllo);
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--argento-200);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--campo-fondo);
+}
+
+.campo-grande:focus {
+  border-color: var(--acqua-700);
+  outline: none;
+}
+
+textarea.campo-grande {
+  resize: vertical;
+}
+
+/* Le due date e il responsabile su una riga: sono la stessa domanda — quando
+   e con chi — e separarle in tre righe la spezzerebbe in tre. */
+.riga-campi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.875rem;
+}
+
+.riga-durata {
+  margin-top: 0.875rem;
+  font-weight: 600;
+  color: var(--inchiostro-tenue);
+}
+
+/* Il terzo passo e' un numero solo, e la scheda lo dispone come tale: il
+   titolo a sinistra, la cifra grande a destra. Un campo numerico largo quanto
+   la scheda farebbe sembrare le ore una nota a margine. */
+.scheda-monte {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.scheda-monte .passo-titolo {
+  margin-bottom: 0.125rem;
+}
+
+.scheda-monte .nota {
+  margin-top: 0;
+}
+
+.campo-monte {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.campo-monte input {
+  width: 8.75rem;
+  height: 3.5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--argento-200);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--superficie);
+  font-size: var(--scala-sezione);
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.campo-monte input:focus {
+  border-color: var(--acqua-700);
+  outline: none;
+}
+
+.campo-monte .unita {
+  font-size: var(--scala-base);
+  font-weight: 600;
+  color: var(--inchiostro-tenue);
+}
+
+/* Il riepilogo: resta in alto mentre si scorre il modulo, perche' e' la
+   risposta alla domanda «che cosa sto creando» e quella domanda si fa in
+   qualunque punto del modulo si sia. */
+.scheda-riepilogo {
+  position: sticky;
+  top: 1rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-radius: var(--raggio-foglio);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-carta);
+}
+
+.elenco-riepilogo {
+  margin: 0 0 1rem;
+}
+
+.riga-riepilogo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3125rem 0;
+}
+
+.riga-riepilogo dt {
+  color: var(--inchiostro-tenue);
+}
+
+.riga-riepilogo dd {
+  margin: 0;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* La riga che spiega perche' il pulsante e' spento: compare solo quando
+   manca qualcosa, e a modulo finito il riepilogo non aggiunge niente. */
+.nota-manca {
+  margin-bottom: 1rem;
+  color: var(--attenzione);
+}
+
+/* I due pulsanti impilati e larghi quanto la scheda: «Crea lavoro» e' l'unica
+   azione della pagina, e nel riepilogo non ha niente accanto con cui
+   dividersi la riga. */
+.azioni-riepilogo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.azioni-riepilogo button {
+  width: 100%;
+  justify-content: center;
+}
+
+/* --- i comandi a simbolo delle task ---------------------------------------- */
+
+/* Il player e la spunta al posto di «Avvia» e «Completa». Tre parole per riga,
+   su un elenco di otto, erano ventiquattro parole da saltare per arrivare ai
+   titoli — che sono la ragione per cui l'elenco esiste. Il nome non sparisce:
+   sta in `aria-label` e in `title`, perche' un'icona senza nome e' un
+   indovinello per tutti e un muro per chi usa un assistente vocale. */
+.comando {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--argento-200);
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  color: var(--inchiostro);
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    border-color var(--transizione),
+    color var(--transizione);
+}
+
+.comando .icona {
+  width: 16px;
+  height: 16px;
+}
+
+.comando:hover:not(:disabled) {
+  border-color: var(--argento-300);
+  background-color: var(--argento-100);
+}
+
+.comando:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Il player e' tondo pieno, come il pulsante di avvio di un cronometro: e' il
+   gesto che si fa piu' spesso, e deve trovarsi senza cercarlo. */
+.comando-player {
+  border-color: var(--azione);
+  background-color: var(--azione);
+  color: var(--superficie);
+}
+
+.comando-player:hover:not(:disabled) {
+  border-color: var(--azione-premuta);
+  background-color: var(--azione-premuta);
+}
+
+/* Mentre scorre diventa acqua: e' il colore con cui questa interfaccia dice
+   «adesso» — la linea dell'ora corrente, il punto che pulsa nella barra — e
+   il simbolo dentro e' gia' passato alla pausa. */
+.comando-in-corso {
+  border-color: var(--accento);
+  background-color: var(--accento);
+  color: var(--inchiostro);
+}
+
+.comando-in-corso:hover:not(:disabled) {
+  border-color: var(--accento-premuto);
+  background-color: var(--accento-premuto);
+  color: var(--superficie);
+}
+
+/* La spunta e' una casella, non un secondo tondo: completare e' il gesto
+   della lista di cose da fare, e la casella e' il modo in cui quel gesto si
+   scrive. Da ferma la spunta e' appena accennata nell'argento — su un
+   telefono l'hover non esiste, e una casella vuota del tutto sembrerebbe
+   disattivata — e al passaggio si accende nel verde del «fatto». */
+.comando-spunta {
+  border-radius: var(--raggio-controllo);
+  color: var(--argento-500);
+}
+
+.comando-spunta:hover:not(:disabled),
+.comando-spunta:focus-visible {
+  border-color: var(--stato-completato);
+  background-color: var(--successo-velo);
+  color: var(--stato-completato);
 }

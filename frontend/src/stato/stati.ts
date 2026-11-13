@@ -80,7 +80,7 @@ export function chiusoLavoro(stato: StatoLavoro): boolean {
  * stanno in `App.css` accanto al resto della tavolozza.
  */
 export function tintaLavoro(lavoroId: number): string {
-  return `lavoro-${lavoroId % 8}`
+  return `lavoro-${lavoroId % 5}`
 }
 
 /**
@@ -110,5 +110,5 @@ export function tintaPersona(nome: string): string {
   for (let i = 0; i < nome.length; i += 1) {
     somma = (somma * 31 + nome.charCodeAt(i)) % 1000003
   }
-  return `persona-${somma % 8}`
+  return `persona-${somma % 5}`
 }

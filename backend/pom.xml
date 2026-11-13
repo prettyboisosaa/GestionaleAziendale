@@ -34,9 +34,22 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
+        <!-- Solo /actuator/health, e solo per dire se l'applicazione e' viva.
+
+             Senza, le probe non avevano niente di HTTP da interrogare: ogni
+             /api/** pretende l'autenticazione e risponde 401, che una probe
+             considera un fallimento, quindi i manifest k8s ripiegavano su
+             probe TCP. Una probe TCP dice «la porta e' aperta», che e' meno di
+             «l'applicazione funziona»: un backend vivo che ha perso il
+             database resta Ready e continua a ricevere traffico.
+
+             Il health indicator del datasource fa parte del pacchetto e viene
+             incluso da se': e' proprio il caso che le probe TCP non vedevano.
+             Che cosa sia esposto e quanto si racconti lo dicono le righe
+             management.* di application.properties. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webservices</artifactId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
         <dependency>
@@ -56,12 +69,6 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webservices-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
@@ -115,6 +122,47 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+
+            <!--
+                db/dev non deve entrare nell'artefatto.
+
+                `db/dev/R__dati_sviluppo.sql` crea sette utenti di prova che
+                condividono un hash bcrypt noto - la password e' scritta in
+                chiaro nel commento in testa al file - e uno di loro e'
+                amministratore. In sviluppo e' comodo; dentro il jar e' una
+                porta di servizio.
+
+                Fino a qui l'unica cosa che lo teneva fuori dal database di
+                produzione era una riga di properties:
+                `spring.flyway.locations=classpath:db/migration` nel profilo
+                prod, che riscrive la lista del file base e lascia indietro
+                db/dev. Funziona, ma dipende da una variabile d'ambiente:
+                dimenticare SPRING_PROFILES_ACTIVE=prod su un database vuoto
+                vuol dire seminare quei sette utenti accanto ai dati veri, e
+                nessun errore lo segnala - il gestionale parte e funziona.
+                Una difesa che si disarma per distrazione non e' una difesa.
+
+                Escluso qui, il file non esiste piu' nell'artefatto e il
+                profilo sbagliato non puo' piu' far danni: Flyway cerca
+                db/dev, non trova niente e va avanti.
+
+                I test continuano a vederlo. maven-jar-plugin filtra cio' che
+                finisce nel jar, non `target/classes`, dove la fase
+                process-resources ha gia' copiato tutto: UtenteRepositoryTest
+                gira sul classpath di test e trova il seed dove l'ha sempre
+                trovato. Da verificare dopo un package:
+
+                  unzip -l target/*.jar | grep db/dev     -> nessuna riga
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>db/dev/**</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
         </plugins>
     </build>

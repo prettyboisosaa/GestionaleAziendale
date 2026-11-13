@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import PaginaLogin from './autenticazione/PaginaLogin'
 import { io, logout } from './autenticazione/api'
+import { quandoLaSessioneScade } from './api/http'
 import { mioTempo } from './tempo/api'
 import type { SituazioneTempo } from './tempo/api'
 import type { UtenteCorrente } from './autenticazione/api'
@@ -34,8 +35,10 @@ const RICHIESTE_ORE = ['ORE_RICHIESTE_GESTISCI', 'ORE_RICHIEDI']
 
 type Stato =
   | { fase: 'caricamento' }
-  | { fase: 'anonimo' }
+  | { fase: 'anonimo'; avviso?: string }
   | { fase: 'collegato'; utente: UtenteCorrente }
+
+const SESSIONE_SCADUTA = 'La sessione è scaduta per inattività. Accedi di nuovo.'
 
 export default function App() {
   const [stato, setStato] = useState<Stato>({ fase: 'caricamento' })
@@ -67,6 +70,21 @@ export default function App() {
    */
   const [menuAperto, setMenuAperto] = useState(false)
   const stretto = useSchermoStretto()
+
+  /**
+   * La sessione scade per inattività dopo trenta minuti, e il server lo dice
+   * rispondendo 401 alla prima richiesta successiva. Senza questo, ogni
+   * azione dopo una pausa lunga falliva con «Richiesta non riuscita. Riprova.»
+   * e riprovare non serviva: l'applicazione restava aperta su schermate che
+   * sembravano a posto, dentro una sessione che non esisteva più.
+   *
+   * Si registra una volta sola: `quandoLaSessioneScade` tiene l'ultima
+   * callback, e l'array di dipendenze vuoto fa sì che sia sempre questa.
+   * `setStato` di React è stabile, quindi non c'è niente che possa invecchiare.
+   */
+  useEffect(() => {
+    quandoLaSessioneScade(() => setStato({ fase: 'anonimo', avviso: SESSIONE_SCADUTA }))
+  }, [])
 
   // Il cookie di sessione è HttpOnly, quindi invisibile a JavaScript: l'unico
   // modo di sapere se la sessione è ancora viva è chiederlo al server.
@@ -152,7 +170,10 @@ export default function App() {
           <Route
             path="/login"
             element={
-              <PaginaLogin onAccesso={(utente) => setStato({ fase: 'collegato', utente })} />
+              <PaginaLogin
+                avviso={stato.avviso}
+                onAccesso={(utente) => setStato({ fase: 'collegato', utente })}
+              />
             }
           />
           <Route path="*" element={<Navigate to="/login" replace />} />

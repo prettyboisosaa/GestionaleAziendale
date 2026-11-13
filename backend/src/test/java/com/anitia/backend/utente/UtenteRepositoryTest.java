@@ -7,6 +7,7 @@ import com.anitia.backend.permesso.PermessoRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Le query native di {@link UtenteRepository}, eseguite contro il database
@@ -92,11 +93,44 @@ class UtenteRepositoryTest {
      * Un'utenza chiusa non ha nessun permesso, pavimento compreso: il filtro
      * {@code attivo = TRUE} è ripetuto in tutti e tre i rami della vista
      * proprio perché è questa la proprietà su cui si appoggia il resto.
+     *
+     * <p><strong>L'utente se lo crea il test.</strong> Prima qui c'era
+     * {@code paolo = 7}, il disattivato di prova del seed, e questo test
+     * falliva su qualunque macchina dove qualcuno avesse riattivato Paolo
+     * dall'interfaccia: {@code R__dati_sviluppo.sql} è una migrazione
+     * ripetibile, e Flyway la rilancia quando cambia il <em>file</em>, non
+     * quando cambiano i <em>dati</em>. Passava sul CI, dove il database nasce
+     * vuoto a ogni corsa, e falliva in locale — cioè era verde esattamente
+     * dove nessuno lo guardava.
+     *
+     * <p>È la stessa regola che {@code ilRimpiazzoDiENelTeam} qui sotto mette
+     * per iscritto a proposito dei lavori: un test che asserisce su righe che
+     * l'applicazione può modificare è vero o falso a seconda della giornata.
+     * Creando e chiudendo un'utenza propria, l'asserzione dipende solo da
+     * quello che il test ha fatto.
+     *
+     * <p>Le due asserzioni vanno in coppia: la prima dimostra che
+     * quell'utenza <em>aveva</em> qualcosa da perdere — un utente senza
+     * nessun ruolo riceve comunque il pavimento — così la seconda non può
+     * essere vera per il motivo sbagliato.
+     *
+     * <p>{@code @Transactional} e non una cancellazione in coda: il test
+     * scrive su un database condiviso con gli altri, e il rollback è l'unico
+     * modo di non lasciare niente dietro nemmeno quando l'asserzione fallisce.
      */
     @Test
+    @Transactional
     void unUtenteDisattivatoNonHaNemmenoIlPavimento() {
-        long paolo = 7;
-        assertThat(utenti.trovaCodiciPermesso(paolo)).isEmpty();
+        Utente chiuso = utenti.saveAndFlush(Utente.nuovo(
+                "Utenza", "DiProva", "utenza.diprova@test.local", "{noop}non-serve"));
+
+        assertThat(utenti.trovaCodiciPermesso(chiuso.getId()))
+                .containsExactlyInAnyOrder(PERMESSI_DI_BASE);
+
+        chiuso.disattiva();
+        utenti.saveAndFlush(chiuso);
+
+        assertThat(utenti.trovaCodiciPermesso(chiuso.getId())).isEmpty();
     }
 
     /**

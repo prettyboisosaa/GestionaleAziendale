@@ -252,7 +252,7 @@ function Persona({
         aria-pressed={scelta}
       >
         <span className="riga-persona-capo">
-          <span className={`gettone gettone-${persona.utenteId % 8}`}>
+          <span className={`gettone gettone-${persona.utenteId % 5}`}>
             <span aria-hidden="true">
               {persona.nome.charAt(0)}
               {persona.cognome.charAt(0)}
@@ -304,7 +304,7 @@ function Ripartizione({ dettaglio }: { dettaglio: ReportPersona }) {
   return (
     <>
       <div className="testa-ripartizione">
-        <span className={`gettone gettone-${dettaglio.utenteId % 8}`}>
+        <span className={`gettone gettone-${dettaglio.utenteId % 5}`}>
           <span aria-hidden="true">
             {dettaglio.nome.charAt(0)}
             {dettaglio.cognome.charAt(0)}

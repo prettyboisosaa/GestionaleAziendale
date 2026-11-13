@@ -141,6 +141,23 @@ public interface SessioneTaskRepository extends JpaRepository<SessioneTask, Long
      * <p>Le chiude ad adesso e non al tetto: la sessione finisce nel momento
      * in cui il lavoro viene annullato, che è un istante noto e vero.
      *
+     * <p><strong>L'istante arriva da fuori, e non è un dettaglio di stile.</strong>
+     * Qui c'era {@code NOW()}, cioè l'orologio di MySQL, mentre
+     * {@code avviata_il} la scrive la JVM ({@code LocalDateTime.now()} in
+     * {@link SessioneTask}). Finché i due processi stanno sullo stesso fuso la
+     * differenza non si vede; in container no — l'immagine del backend non
+     * dichiara {@code TZ} e parte in UTC, il container di MySQL ha
+     * {@code TZ=Europe/Rome}. La colonna generata
+     * {@code minuti = TIMESTAMPDIFF(MINUTE, avviata_il, chiusa_il)} calcolava
+     * allora la distanza fra due orologi diversi, e ogni sessione chiusa
+     * annullando un lavoro guadagnava un'ora (due in estate) di lavoro mai
+     * svolto, che finiva nei totali del monte ore.
+     *
+     * <p>Passando l'istante dal chiamante, i due estremi vengono dallo stesso
+     * orologio per costruzione: il fuso del container resta una cosa da
+     * configurare bene (e lo è, nel compose), ma non è più questa riga a
+     * dipenderne.
+     *
      * <p>Il {@code JOIN} sulla task resta interno e non guarda
      * {@code s.lavoro_id}: le attività che citano un lavoro senza averne una
      * task nascono già chiuse, quindi non ce n'è mai una da chiudere qui.
@@ -148,9 +165,10 @@ public interface SessioneTaskRepository extends JpaRepository<SessioneTask, Long
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "UPDATE sessione_task s "
                  + "JOIN task t ON t.id = s.task_id "
-                 + "SET s.chiusa_il = NOW(), s.origine = 'AUTOMATICA', s.confermata = FALSE "
+                 + "SET s.chiusa_il = :quando, s.origine = 'AUTOMATICA', s.confermata = FALSE "
                  + "WHERE t.lavoro_id = :lavoroId "
                  + "AND s.chiusa_il IS NULL AND s.annullata_il IS NULL",
             nativeQuery = true)
-    int chiudiTutteDelLavoro(@Param("lavoroId") Long lavoroId);
+    int chiudiTutteDelLavoro(@Param("lavoroId") Long lavoroId,
+                             @Param("quando") LocalDateTime quando);
 }

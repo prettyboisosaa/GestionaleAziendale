@@ -51,34 +51,41 @@ spec:
             - secretRef:
                 name: backend-credenziali
 
-          # ⚠️ Le probe sono su TCP e non su HTTP, e la ragione va detta:
-          # **questo progetto non ha Actuator**, quindi `/actuator/health` non
-          # esiste. E non c'e' nessuna rotta HTTP utilizzabile al suo posto:
-          # ogni `/api/**` pretende l'autenticazione e risponde 401, che una
-          # probe HTTP considera un fallimento, e il pod entrerebbe in un ciclo
-          # di riavvii pur essendo sano.
+          # Le probe sono su HTTP, e prima non potevano esserlo: il progetto
+          # non aveva Actuator, e nessuna rotta era utilizzabile al suo posto
+          # perche' ogni `/api/**` pretende l'autenticazione e risponde 401,
+          # che una probe legge come un guasto. Si ripiegava sul TCP, che dice
+          # soltanto «la porta e' aperta» — e non si accorge di un backend
+          # vivo che non raggiunge piu' il database.
           #
-          # Una probe TCP dice soltanto «la porta e' aperta», che e' meno di
-          # «l'applicazione funziona»: non si accorge di un backend vivo che
-          # non raggiunge piu' il database. Se vuoi una vera probe di salute,
-          # basta aggiungere spring-boot-starter-actuator al pom e puntarla a
-          # /actuator/health/readiness — una dipendenza, e queste tre probe
-          # diventano oneste.
+          # Ora `/actuator/health` c'e' ed e' permitAll in
+          # ConfigurazioneSicurezza, con `show-details=never`: la risposta e'
+          # `{"status":"UP"}` e niente altro, quindi aprirla non racconta a
+          # nessuno quale database si usa o che cosa non funziona.
+          #
+          # readiness e liveness puntano a due gruppi diversi e non allo
+          # stesso indirizzo: readiness comprende il controllo sul datasource,
+          # liveness no. E' voluto — un database irraggiungibile deve togliere
+          # il pod dal traffico, non farlo riavviare in ciclo: riavviarlo non
+          # rimette in piedi il database.
           startupProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health/readiness
               port: http
-            # Flyway applica ventuno migrazioni al primo avvio: la finestra e'
+            # Flyway applica tutte le migrazioni al primo avvio: la finestra e'
             # larga di proposito. Finche' la startupProbe non passa, le altre
             # due non vengono valutate, quindi un avvio lento non conta come
             # un guasto.
             periodSeconds: 5
-            failureThreshold: 30
+            failureThreshold: 60
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health/readiness
               port: http
             periodSeconds: 10
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health/liveness
               port: http
             periodSeconds: 20
 
@@ -95,9 +102,11 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
-            # Un utente qualunque senza privilegi: l'immagine gira come root
-            # perche' il Dockerfile non dichiara USER, e questo lo corregge
-            # dall'esterno senza ricostruirla.
+            # Lo stesso utente che il Dockerfile dichiara ormai con USER:
+            # l'immagine e' gia' a posto da se', e queste righe restano come
+            # conferma esplicita invece che come correzione. Prima erano una
+            # correzione, perche' il Dockerfile non diceva niente e l'immagine
+            # girava come root.
             runAsUser: 10001
             capabilities:
               drop: ["ALL"]

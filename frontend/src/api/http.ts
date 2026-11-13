@@ -1,5 +1,6 @@
 const ERRORE_GENERICO = 'Richiesta non riuscita. Riprova.'
 const SERVER_MUTO = 'Server non raggiungibile. Controlla che il backend sia avviato.'
+const SESSIONE_SCADUTA = 'La sessione è scaduta. Accedi di nuovo.'
 
 /** Il corpo degli errori del backend, in formato RFC 9457. */
 type Problema = {
@@ -7,14 +8,42 @@ type Problema = {
 }
 
 /**
- * Esegue la richiesta traducendo la caduta della rete in un messaggio
- * leggibile.
+ * Chi viene avvisato quando il server dice che la sessione non c'è più.
+ *
+ * È una variabile di modulo e non un contesto React perché chi deve accorgersene
+ * è questo modulo, che React non lo conosce: la registra `App`, l'unico
+ * componente che possiede la sessione.
+ */
+let allaScadenza: (() => void) | null = null
+
+/**
+ * Registra che cosa fare quando la sessione scade.
+ *
+ * Serve perché il timeout è di **inattività** e vale trenta minuti: chi lascia
+ * la pagina aperta durante una riunione torna davanti a un'applicazione che ha
+ * tutte le sue schermate al posto giusto e un server che non lo riconosce più.
+ * Prima il 401 era gestito in un punto solo, `io()`, cioè all'avvio: dopo, ogni
+ * azione falliva con «Richiesta non riuscita. Riprova.» e riprovare non
+ * serviva a niente.
+ */
+export function quandoLaSessioneScade(callback: () => void): void {
+  allaScadenza = callback
+}
+
+/**
+ * La richiesta nuda, senza nessuna interpretazione del 401.
+ *
+ * La usano le due sole rotte in cui un 401 **non** significa «la tua sessione è
+ * finita»: `io()`, dove all'avvio è la risposta normale per chi non ha ancora
+ * fatto l'accesso, e `login()`, dove significa che la password è sbagliata.
+ * Passando quelle due da `chiama`, digitare male la password manderebbe
+ * l'applicazione a dire che la sessione è scaduta.
  *
  * L'autenticazione sta nel cookie di sessione: non c'è niente da allegare a
- * mano, perché `fetch` usa `credentials: 'same-origin'` per default e, passando
- * dal proxy di Vite, tutto è sulla stessa origine.
+ * mano, perché `fetch` usa `credentials: 'same-origin'` per default e tutto è
+ * sulla stessa origine.
  */
-export async function chiama(url: string, opzioni?: RequestInit): Promise<Response> {
+export async function chiamaGrezza(url: string, opzioni?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, opzioni)
   } catch {
@@ -22,6 +51,28 @@ export async function chiama(url: string, opzioni?: RequestInit): Promise<Respon
     // backend è spento o il proxy punta all'indirizzo sbagliato.
     throw new Error(SERVER_MUTO)
   }
+}
+
+/**
+ * La richiesta, con il 401 letto come sessione finita.
+ *
+ * **Solleva** invece di restituire la risposta: chi ha chiamato stava per
+ * leggere dei dati che non arriveranno, e lasciargli una Response 401 da
+ * interpretare significherebbe rimettere questo controllo in ogni chiamante.
+ */
+export async function chiama(url: string, opzioni?: RequestInit): Promise<Response> {
+  const risposta = await chiamaGrezza(url, opzioni)
+
+  if (risposta.status === 401) {
+    // Prima l'avviso, poi l'eccezione: così `App` è già tornata alla
+    // schermata di accesso quando il messaggio compare, e chi lo legge ha
+    // davanti il modulo per rientrare invece di una pagina che non si
+    // aggiorna più.
+    allaScadenza?.()
+    throw new Error(SESSIONE_SCADUTA)
+  }
+
+  return risposta
 }
 
 /** La richiesta con il corpo JSON già letto. Solleva sugli stati di errore. */

@@ -11,6 +11,7 @@ import com.anitia.backend.task.TaskRepository.OrePerLavoro;
 import com.anitia.backend.utente.Utente;
 import com.anitia.backend.utente.UtenteRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -359,7 +360,10 @@ public class ServizioLavori {
         // normalmente una sessione viene chiusa. E una sessione aperta su una
         // task annullata non e' solo una riga sbagliata: il vincolo di unicita'
         // impedirebbe a quella persona di avviarne un'altra, su qualunque task.
-        sessioni.chiudiTutteDelLavoro(idLavoro);
+        // L'istante lo decide la JVM, lo stesso orologio che ha scritto
+        // `avviata_il`: la durata che ne esce e' la distanza fra due letture
+        // dello stesso orologio. Vedi chiudiTutteDelLavoro.
+        sessioni.chiudiTutteDelLavoro(idLavoro, LocalDateTime.now());
 
         return risposta;
     }

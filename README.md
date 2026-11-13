@@ -156,9 +156,46 @@ nel menu di assegnazione.
 > ⚠️ **Le credenziali nel repository sono solo per lo sviluppo.**
 > `docker-compose.yml` e `application.properties` contengono in chiaro
 > `gestionale_dev` e `root_dev`: sono le password del container MySQL locale, e
-> stanno nel repository perché `docker compose up` funzioni appena clonato. In
-> produzione vanno sostituite con variabili d'ambiente — il backend legge già
-> `SPRING_DATASOURCE_*`, come mostra il servizio `backend` del compose.
+> stanno nel repository perché `docker compose up` funzioni appena clonato.
+>
+> Per il server vero **non si usa `docker-compose.yml`**, nemmeno con
+> `--profile app`: quel percorso non attiva il profilo `prod`, quindi carica i
+> dati di prova e lascia a Hibernate la riscrittura dello schema. Si usa
+> `compose.prod.yml`, con un `.env` accanto — vedi `.env.example`.
+
+---
+
+## In produzione
+
+```bash
+cp .env.example .env            # poi si riempiono i valori
+docker compose -f compose.prod.yml up -d --build
+```
+
+L'applicazione è sulla porta 80 del server. Le differenze rispetto allo
+sviluppo le dichiara `application-prod.properties`, riga per riga con il
+motivo; quelle che contano di più:
+
+| | sviluppo | produzione |
+|---|---|---|
+| dati di prova (`db/dev`) | caricati | **esclusi** |
+| schema | `ddl-auto=update` | `validate`: non parte se le entità divergono |
+| primo utente | i sette del seed | creato da `GESTIONALE_AMMINISTRATOREINIZIALE_*`, solo su database vuoto |
+| Swagger | aperto | spento |
+| cookie di sessione | normale | `Secure`: **pretende HTTPS** |
+
+Tre cose che `compose.prod.yml` **non** fa, e che restano da decidere:
+
+- **HTTPS.** Senza, il cookie `Secure` impedisce l'accesso in modo silenzioso:
+  il login risponde 200 e ogni richiesta successiva è anonima. O si mette un
+  certificato, o si toglie quella riga sapendo che il cookie viaggia in chiaro.
+- **I backup.** Il volume `dati-mysql` vive sul server e basta. Un `mysqldump`
+  schedulato su un disco diverso va messo **prima** del primo dato vero, e il
+  ripristino va provato una volta.
+- **L'avvio automatico.** `restart: unless-stopped` riavvia i container, non
+  Docker: su Windows con Docker Desktop serve una sessione utente aperta,
+  quindi dopo un riavvio del server l'applicazione resta giù finché qualcuno
+  non fa il login.
 
 ---
 
@@ -289,9 +326,11 @@ cd frontend && npm run lint      # oxlint
 
 Flyway applica le migrazioni all'avvio del backend.
 
-- `db/migration/` — **versionate** (`V1`…`V8`), applicate una volta sola in
-  ordine. Una migrazione già applicata **non si modifica**: il checksum non
-  combacerebbe più e Flyway rifiuterebbe di partire. Si aggiunge una `V9`.
+- `db/migration/` — **versionate**, applicate una volta sola e in ordine. Una
+  migrazione già applicata **non si modifica**: il checksum non combacerebbe
+  più e Flyway rifiuterebbe di partire. Si aggiunge la successiva. Quante
+  sono lo dice la cartella, e non questa riga: c'era scritto «`V1`…`V8`»
+  mentre di migrazioni ce n'erano già il doppio.
 - `db/dev/` — **ripetibile** (`R__dati_sviluppo.sql`), rieseguita ogni volta che
   il file cambia.
 
@@ -310,7 +349,15 @@ sapere prima di scrivere una migrazione:
 
 > ⚠️ La cartella `db/dev/` contiene i dati di prova e viene caricata perché
 > `application.properties` la elenca in `spring.flyway.locations`. **In
-> produzione va lasciata fuori.**
+> produzione va lasciata fuori**, e il profilo `prod` la lascia fuori: riscrive
+> `spring.flyway.locations` con le sole migrazioni versionate.
+>
+> La conseguenza da conoscere è che un database di produzione nasce **senza
+> nessun utente** — le migrazioni seminano ruoli, permessi e impostazioni, non
+> persone — e il gestionale non ha registrazione pubblica. Il primo
+> amministratore lo crea `AmministratoreIniziale` leggendo
+> `GESTIONALE_AMMINISTRATOREINIZIALE_EMAIL` e `…_PASSWORD`, e solo se la
+> tabella `utente` è vuota. Vedi `.env.example`.
 
 Per ripartire da un database pulito:
 
@@ -336,8 +383,21 @@ docker compose up -d db
 - **L'autenticazione sta nel cookie di sessione** `JSESSIONID`, `HttpOnly` e
   `SameSite=Strict`. Nessun token, nessun segreto di firma da gestire. I token
   CSRF sono disattivati *di proposito*: la difesa è `SameSite=Strict`.
-  In produzione, dietro HTTPS, va aggiunto
-  `server.servlet.session.cookie.secure=true`.
+  Il profilo `prod` aggiunge `server.servlet.session.cookie.secure=true`, che
+  **pretende HTTPS**: servendo l'applicazione in chiaro, il login risponde 200
+  e ogni richiesta successiva è anonima, senza nessun errore che lo spieghi.
+- **Il fuso orario è `Europe/Rome`, dichiarato nelle immagini.** Non è una
+  cortesia: senza, la JVM in container parte in UTC mentre MySQL sta su
+  `Europe/Rome`, e nelle stesse tabelle finiscono due orologi a un'ora di
+  distanza — `creato_il` lo scrive il database, `avviata_il` lo scrive
+  l'applicazione. In un gestionale di ore lavorate la differenza si somma nei
+  consuntivi.
+- **La sessione scade dopo 30 minuti di inattività**, e il frontend se ne
+  accorge: ogni 401 che non venga da `/login` o da `/io` riporta alla
+  schermata di accesso con la spiegazione (`api/http.ts`).
+- **Chi dimentica la password** non ha un «password dimenticata» — non c'è
+  infrastruttura email. Gliene assegna una nuova chi ha
+  `UTENTI_RESET_PASSWORD`, dall'elenco utenti, e gliela comunica a voce.
 - **`open-in-view` è disattivato.** Le relazioni lazy non si possono leggere
   fuori dalla transazione: i repository usano `JOIN FETCH` espliciti, e gli
   elenchi caricano i totali con query raggruppate invece di una per riga.

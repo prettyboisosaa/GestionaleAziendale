@@ -1,12 +1,17 @@
 package com.anitia.backend.utente;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.anitia.backend.autenticazione.RichiestaResetPassword;
+import com.anitia.backend.autenticazione.ServizioPassword;
 import com.anitia.backend.sicurezza.ConfigurazioneSicurezza;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -56,6 +61,15 @@ class UtentiControllerTest {
     /** Il controller lo richiede: le sue rotte hanno un test a parte. */
     @MockitoBean
     private ServizioPermessiUtente servizioPermessi;
+
+    /**
+     * Simulato e non vero: qui si prova <strong>chi puo' chiamare</strong> la
+     * rotta, non che cosa scriva nel database. Le regole di
+     * {@code ServizioPassword.azzera} — la password debole, il rifiuto di
+     * azzerare la propria — sono sue e si provano dove sta lui.
+     */
+    @MockitoBean
+    private ServizioPassword password;
 
     /**
      * Una sessione con un utente collegato e i permessi indicati.
@@ -119,6 +133,61 @@ class UtentiControllerTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].email").value("mario.rossi@gestionale.local"))
                 .andExpect(jsonPath("$[0].ruoli[0]").value("Dipendente"));
+    }
+
+    // --- azzeramento della password -----------------------------------------
+    //
+    // La rotta esiste perche' prima non c'era nessuna strada per chi
+    // dimenticava la propria password: il gestionale non manda email, e
+    // l'unico rimedio era una UPDATE a mano sul database di produzione.
+
+    private static final String PASSWORD_NUOVA = "{\"password\":\"Password2!\"}";
+
+    @Test
+    void azzeramentoPasswordSenzaSessioneRisponde401() throws Exception {
+        mockMvc.perform(put(UTENTI + "/4/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(PASSWORD_NUOVA))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * Il permesso e' suo, e questo test e' la ragione per cui la {@code V22}
+     * lo tiene separato: chi crea le utenze dei nuovi assunti non deve per
+     * questo poter entrare nei panni di chiunque gia' lavora.
+     */
+    @Test
+    void azzeramentoPasswordConUtentiCreaRisponde403() throws Exception {
+        mockMvc.perform(put(UTENTI + "/4/password")
+                        .session(sessioneCon("UTENTI_CREA", "RUOLI_ASSEGNA", "UTENTI_VISUALIZZA"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(PASSWORD_NUOVA))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void azzeramentoPasswordConIlPermessoRisponde204() throws Exception {
+        mockMvc.perform(put(UTENTI + "/4/password")
+                        .session(sessioneCon("UTENTI_RESET_PASSWORD"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(PASSWORD_NUOVA))
+                .andExpect(status().isNoContent());
+
+        // Che il servizio sia stato chiamato con l'id del percorso e con
+        // l'email di chi e' collegato: quest'ultima e' cio' che gli permette
+        // di rifiutare l'azzeramento della propria password, e passarla
+        // sbagliata non si vedrebbe da nessuna altra parte.
+        then(password).should().azzera(eq(4L), any(RichiestaResetPassword.class), eq(EMAIL));
+    }
+
+    /** Il corpo vuoto non arriva al servizio: lo ferma {@code @NotBlank}. */
+    @Test
+    void azzeramentoPasswordSenzaPasswordRisponde400() throws Exception {
+        mockMvc.perform(put(UTENTI + "/4/password")
+                        .session(sessioneCon("UTENTI_RESET_PASSWORD"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     // --- creazione ----------------------------------------------------------

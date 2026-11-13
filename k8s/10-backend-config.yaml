@@ -55,3 +55,19 @@ type: Opaque
 stringData:
   DB_USERNAME: "CAMBIAMI"
   DB_PASSWORD: "CAMBIAMI"
+
+  # ⚠️ IL PRIMO UTENTE. Senza queste due righe, al primo avvio su un database
+  # vuoto il gestionale parte benissimo e NESSUNO PUO' ENTRARE: il profilo
+  # prod esclude db/dev, quindi le migrazioni seminano ruoli, permessi e
+  # impostazioni ma nessun utente, e non c'e' registrazione pubblica.
+  #
+  # Le legge AmministratoreIniziale, che crea l'utente SOLO se la tabella
+  # utente e' vuota: dal secondo avvio in poi sono inerti, e lasciarle qui non
+  # ricrea niente. La password deve rispettare le regole di tutti (almeno 8
+  # caratteri, una cifra, un carattere non alfanumerico); se non le rispetta
+  # l'utente non viene creato e il log dice perche'.
+  #
+  # Dopo il primo accesso: cambiare la password dall'applicazione, poi
+  # svuotare questa riga e rifare il rollout.
+  GESTIONALE_AMMINISTRATOREINIZIALE_EMAIL: "CAMBIAMI@esempio.it"
+  GESTIONALE_AMMINISTRATOREINIZIALE_PASSWORD: "CAMBIAMI"

@@ -50,15 +50,18 @@ class AutenticazioneController {
     private final AuthenticationManager gestoreAutenticazione;
     private final SecurityContextRepository contestoSicurezza;
     private final ServizioPassword password;
+    private final LimiteTentativiAccesso limiteTentativi;
     private final SecurityContextHolderStrategy strategiaContesto =
             SecurityContextHolder.getContextHolderStrategy();
 
     AutenticazioneController(AuthenticationManager gestoreAutenticazione,
                              SecurityContextRepository contestoSicurezza,
-                             ServizioPassword password) {
+                             ServizioPassword password,
+                             LimiteTentativiAccesso limiteTentativi) {
         this.gestoreAutenticazione = gestoreAutenticazione;
         this.contestoSicurezza = contestoSicurezza;
         this.password = password;
+        this.limiteTentativi = limiteTentativi;
     }
 
     @PostMapping("/login")
@@ -66,17 +69,35 @@ class AutenticazioneController {
                          HttpServletRequest richiesta,
                          HttpServletResponse risposta) {
 
+        // Il controllo sta PRIMA di authenticate, che e' l'unico posto in cui
+        // serva: e' li' che si consuma il bcrypt, ed e' quello il lavoro che
+        // chi tira a indovinare vuole farci fare.
+        if (limiteTentativi.bloccato(credenziali.email())) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "TROPPI_TENTATIVI: Troppi tentativi di accesso. Riprova fra "
+                            + limiteTentativi.minutiDiAttesa(credenziali.email())
+                            + " minuti.");
+        }
+
         Authentication autenticazione;
         try {
             autenticazione = gestoreAutenticazione.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(
                             credenziali.email(), credenziali.password()));
         } catch (AuthenticationException eccezione) {
+            limiteTentativi.sbagliato(credenziali.email());
             // Lo stesso messaggio per password sbagliata ed email
             // inesistente: dalla risposta non si deve capire quali indirizzi
             // sono registrati.
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, CREDENZIALI_RIFIUTATE);
         }
+
+        // Le credenziali erano giuste: il conto riparte da zero, anche se
+        // l'utenza risultasse chiusa due righe piu' sotto. Chi ha scritto la
+        // password vera non e' chi stava tirando a indovinare, e lasciargli
+        // addosso i tentativi di prima lo bloccherebbe al prossimo accesso
+        // per colpa di qualcun altro.
+        limiteTentativi.riuscito(credenziali.email());
 
         // Le credenziali sono giuste: solo adesso si guarda se l'utenza e'
         // aperta, e si puo' dire perche' l'accesso non passa. L'ordine e' la

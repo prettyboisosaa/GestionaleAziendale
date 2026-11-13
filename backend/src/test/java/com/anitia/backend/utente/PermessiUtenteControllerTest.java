@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.anitia.backend.autenticazione.ServizioPassword;
 import com.anitia.backend.sicurezza.ConfigurazioneSicurezza;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -63,6 +64,10 @@ class PermessiUtenteControllerTest {
     /** Il controller lo richiede: le sue rotte hanno un test a parte. */
     @MockitoBean
     private ServizioUtenti servizioUtenti;
+
+    /** Idem, per l'azzeramento della password. */
+    @MockitoBean
+    private ServizioPassword password;
 
     /**
      * Una sessione con i permessi indicati. Istanza nuova a ogni chiamata del

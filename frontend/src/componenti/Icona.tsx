@@ -22,6 +22,9 @@ export type NomeIcona =
   | 'report'
   | 'menu'
   | 'chiudi'
+  | 'avvia'
+  | 'pausa'
+  | 'spunta'
 
 export default function Icona({ nome }: { nome: NomeIcona }) {
   return (
@@ -113,5 +116,23 @@ function tratti(nome: NomeIcona) {
       return <path d="M4 7h16M4 12h16M4 17h16" />
     case 'chiudi':
       return <path d="M6 6l12 12M18 6L6 18" />
+    // Il triangolo del play: avvia il timer. Pieno e non contornato — e' il
+    // solo simbolo di questa serie che sia un gesto e non una cosa, e un
+    // triangolo di soli tratti a venti pixel si legge come una freccia.
+    case 'avvia':
+      return <path d="M9 6.5v11l9-5.5z" fill="currentColor" stroke="none" />
+    // Le due barre della pausa, pieni per lo stesso motivo del play.
+    case 'pausa':
+      return (
+        <path
+          d="M9.5 6h1.8v12H9.5zM12.7 6h1.8v12h-1.8z"
+          fill="currentColor"
+          stroke="none"
+        />
+      )
+    // La spunta: completa. Un tratto solo, come la spunta che si fa a penna
+    // su una lista di cose da fare.
+    case 'spunta':
+      return <path d="M5 12.5l4.5 4.5L19 7.5" />
   }
 }

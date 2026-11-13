@@ -1,4 +1,4 @@
-import { chiama, chiedi, messaggioErrore, patchJson, postJson } from '../api/http'
+import { chiama, chiedi, messaggioErrore, patchJson, postJson, putJson } from '../api/http'
 
 export type RigaUtente = {
   id: number
@@ -57,6 +57,26 @@ export function creaUtente(dati: NuovoUtente): Promise<RigaUtente> {
  */
 export function cambiaAttivazione(id: number, attivo: boolean): Promise<RigaUtente> {
   return chiedi<RigaUtente>(`/api/utenti/${id}`, patchJson({ attivo }))
+}
+
+/**
+ * Assegna una password nuova a un'altra persona, senza conoscere la sua.
+ *
+ * È l'unico modo di rimettere in piedi l'accesso di chi ha dimenticato la
+ * propria: il gestionale non manda email, quindi non esiste un «password
+ * dimenticata» che arrivi nella casella di nessuno. Chi la assegna la
+ * consegna a voce, e chi la riceve la cambia da «Profilo».
+ *
+ * Il server **non la comunica a nessuno** e risponde 204 senza corpo, quindi
+ * non si usa `chiedi`. Rifiuta con `RESET_DI_SE_STESSI` chi prova a usarlo
+ * sulla propria utenza, e con `WEAK_PASSWORD` una password che non rispetta
+ * le regole.
+ */
+export async function azzeraPassword(id: number, password: string): Promise<void> {
+  const risposta = await chiama(`/api/utenti/${id}/password`, putJson({ password }))
+  if (!risposta.ok) {
+    throw new Error(await messaggioErrore(risposta))
+  }
 }
 
 /** Tutto il catalogo, con l'origine di ciascun permesso per questa persona. */

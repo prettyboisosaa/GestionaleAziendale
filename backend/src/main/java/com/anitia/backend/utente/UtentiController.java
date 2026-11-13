@@ -1,5 +1,7 @@
 package com.anitia.backend.utente;
 
+import com.anitia.backend.autenticazione.RichiestaResetPassword;
+import com.anitia.backend.autenticazione.ServizioPassword;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -30,10 +32,13 @@ class UtentiController {
 
     private final ServizioUtenti servizio;
     private final ServizioPermessiUtente servizioPermessi;
+    private final ServizioPassword password;
 
-    UtentiController(ServizioUtenti servizio, ServizioPermessiUtente servizioPermessi) {
+    UtentiController(ServizioUtenti servizio, ServizioPermessiUtente servizioPermessi,
+                     ServizioPassword password) {
         this.servizio = servizio;
         this.servizioPermessi = servizioPermessi;
+        this.password = password;
     }
 
     @GetMapping
@@ -69,6 +74,28 @@ class UtentiController {
                                         @Valid @RequestBody RichiestaAttivazione richiesta,
                                         Authentication autenticazione) {
         return servizio.cambiaAttivazione(id, richiesta.attivo(), autenticazione.getName());
+    }
+
+    /**
+     * Azzera la password di questa persona e basta: non la comunica a
+     * nessuno, perché il gestionale non manda email. Chi la assegna la
+     * consegna a voce, e chi la riceve la cambia da «Profilo».
+     *
+     * <p>Sta qui, fra le rotte di amministrazione, e non accanto al cambio
+     * password in {@code /api/autenticazione}: quella è una cosa che ciascuno
+     * fa per sé, questa è una cosa che si fa a qualcun altro. La regola e il
+     * perché del permesso separato stanno in {@code ServizioPassword.azzera}.
+     *
+     * <p>Risponde <strong>204</strong>: non c'è niente da restituire, e men
+     * che meno la password.
+     */
+    @PutMapping("/{id}/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAuthority('UTENTI_RESET_PASSWORD')")
+    public void azzeraPassword(@PathVariable Long id,
+                               @Valid @RequestBody RichiestaResetPassword richiesta,
+                               Authentication autenticazione) {
+        password.azzera(id, richiesta, autenticazione.getName());
     }
 
     /**
