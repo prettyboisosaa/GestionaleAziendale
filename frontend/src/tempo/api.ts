@@ -111,6 +111,45 @@ export const TINTA_ATTIVITA: Record<TipoAttivita, string | null> = {
 }
 
 /**
+ * Il colore vero di un tipo, per chi deve tingere qualcosa che non è un
+ * blocco del calendario — la pastiglia nella tendina di scelta.
+ *
+ * Restituisce il **riferimento alla variabile**, non il valore: `index.css`
+ * resta l'unico posto in cui quei colori sono scritti, e questa funzione non
+ * diventa una seconda copia della tavolozza da tenere allineata.
+ *
+ * `null` per `LAVORO_TASK` per la stessa ragione di `TINTA_ATTIVITA`: quei
+ * blocchi prendono il colore del loro lavoro, che qui non si conosce ancora —
+ * la task la si sceglie nel campo dopo.
+ */
+export function coloreAttivita(tipo: TipoAttivita): string | undefined {
+  const classe = TINTA_ATTIVITA[tipo]
+  return classe === null ? undefined : `var(--${classe})`
+}
+
+/**
+ * La riga sotto il nome, nella tendina di scelta.
+ *
+ * Non è decorazione: questo campo esiste perché metà del tempo di chi lavora
+ * **non sta su una task**, e la differenza fra «Manutenzione cliente» e
+ * «Supporto» decide se quelle ore finiscono su un lavoro o no. Chi compila il
+ * modulo non ha un glossario accanto, e senza queste righe sceglie per
+ * assonanza — che è il modo in cui un consuntivo si riempie di «Altro».
+ */
+export const DESCRIZIONE_ATTIVITA: Record<TipoAttivita, string> = {
+  LAVORO_TASK: 'Ore su una task assegnata: consumano il monte ore',
+  MANUTENZIONE_CLIENTE: 'Su un lavoro già consegnato, fuori dal suo budget',
+  MANUTENZIONE_INTERNA: 'Macchine, reti e strumenti dell’azienda',
+  SUPPORTO: 'Assistenza a un collega o a un cliente',
+  SOPRALLUOGO: 'Visita in cantiere o dal cliente',
+  RIUNIONE: 'Riunioni, call, appuntamenti',
+  FORMAZIONE: 'Corsi seguiti o tenuti',
+  AMMINISTRAZIONE: 'Pratiche, rapportini, gestione interna',
+  TRASFERTA: 'Tempo di viaggio',
+  ALTRO: 'Quando nessuna delle altre descrive quelle ore',
+}
+
+/**
  * I tipi che **pretendono** la task, e quelli che pretendono il lavoro.
  *
  * Le due regole le fa valere il server (`TipoAttivita.richiedeTask()` e

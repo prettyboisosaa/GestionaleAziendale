@@ -6,6 +6,7 @@ import type { CandidatoResponsabile } from './api'
 import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
+import SelettoreData from '../componenti/SelettoreData'
 
 /**
  * La creazione di un lavoro, in tre passi numerati e con il riepilogo a
@@ -171,28 +172,28 @@ export default function PaginaNuovoLavoro({ utente }: { utente: UtenteCorrente }
             <div className="riga-campi">
               <div className="campo">
                 <label htmlFor="dataInizio">Inizio</label>
-                <input
+                <SelettoreData
                   id="dataInizio"
-                  className="campo-grande"
-                  type="date"
-                  required
-                  value={dataInizio}
-                  onChange={(evento) => setDataInizio(evento.target.value)}
-                  disabled={inCorso}
+                  obbligatorio
+                  valore={dataInizio}
+                  onCambia={setDataInizio}
+                  disabilitato={inCorso}
                 />
               </div>
 
               <div className="campo">
                 <label htmlFor="dataFinePrevista">Fine prevista</label>
-                <input
+                {/* `min` sull'inizio: una fine prevista prima dell'inizio è
+                    l'errore che si fa scegliendo le due date in ordine
+                    inverso, e qui i giorni impossibili sono spenti nella
+                    griglia invece di essere scelti e poi rifiutati. */}
+                <SelettoreData
                   id="dataFinePrevista"
-                  className="campo-grande"
-                  type="date"
-                  required
+                  obbligatorio
                   min={dataInizio === '' ? undefined : dataInizio}
-                  value={dataFinePrevista}
-                  onChange={(evento) => setDataFinePrevista(evento.target.value)}
-                  disabled={inCorso}
+                  valore={dataFinePrevista}
+                  onCambia={setDataFinePrevista}
+                  disabilitato={inCorso}
                 />
               </div>
 

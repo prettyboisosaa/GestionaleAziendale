@@ -12,6 +12,7 @@ import PaginaUtenti from './utente/PaginaUtenti'
 import PaginaProfilo from './utente/PaginaProfilo'
 import ConfermaUscita from './componenti/ConfermaUscita'
 import Sidebar from './componenti/Sidebar'
+import ContenitoreNotifiche from './componenti/Notifiche'
 import { useSchermoStretto } from './componenti/schermo'
 import PaginaNuovoUtente from './utente/PaginaNuovoUtente'
 import PaginaPermessiUtente from './utente/PaginaPermessiUtente'
@@ -192,6 +193,11 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      {/* Le notifiche rapide avvolgono tutto: l'esito di un'azione deve
+          poterlo annunciare qualunque pagina, e il contenitore che le disegna
+          sta fuori dalle rotte perché una pastiglia non deve sparire quando
+          si cambia schermata. */}
+      <ContenitoreNotifiche>
       {/* La navigazione è una barra laterale comune a tutta l'app, non più
           una riga di voci in testata: da chiusa è una colonna di icone, da
           aperta **spinge** il contenuto, che si stringe per farle posto. Da
@@ -297,6 +303,7 @@ export default function App() {
           <Route path="*" element={<Navigate to={iniziale} replace />} />
         </Routes>
       </div>
+      </ContenitoreNotifiche>
     </BrowserRouter>
   )
 }

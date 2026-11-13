@@ -1,18 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ATTIVITA,
   ATTIVITA_INIZIALE,
+  DESCRIZIONE_ATTIVITA,
   ETICHETTA_ATTIVITA,
   RICHIEDE_LAVORO,
   RICHIEDE_TASK,
   annulla,
+  coloreAttivita,
   correggi,
   durata,
+  istanteLocale,
   registraAttivita,
 } from './api'
 import type { RigaSessione, SituazioneTempo, TipoAttivita } from './api'
 import { testo } from '../api/http'
+import Finestra, { BottoneChiudi, BottoneDesisti } from '../componenti/Finestra'
+import ConfermaAzione from '../componenti/ConfermaAzione'
+import Icona from '../componenti/Icona'
+import SelettoreData from '../componenti/SelettoreData'
 
 /**
  * Una task su cui chi guarda può registrare tempo.
@@ -95,8 +102,6 @@ export default function PannelloSessione({
   onChiudi: () => void
   onFatto: (situazione: SituazioneTempo) => void
 }) {
-  const riferimento = useRef<HTMLDialogElement>(null)
-
   const sessione = apertura.tipo === 'correggi' ? apertura.sessione : null
 
   /**
@@ -139,6 +144,20 @@ export default function PannelloSessione({
   const [tipo, setTipo] = useState<TipoAttivita>(
     () => sessione?.tipoAttivita ?? ATTIVITA_INIZIALE,
   )
+
+  /**
+   * L'ultimo giorno che il selettore lascia scegliere: oggi.
+   *
+   * In uno stato con inizializzatore pigro, e non calcolato mentre si
+   * disegna: `new Date()` in mezzo al JSX darebbe un valore diverso a ogni
+   * ridisegno senza che niente sia cambiato. Letto una volta all'apertura del
+   * pannello, che è la finestra di tempo in cui quel valore conta — e se
+   * qualcuno lo tenesse aperto oltre la mezzanotte, il server rifiuterebbe
+   * comunque le ore di domani.
+   */
+  const [ultimoGiornoScrivibile] = useState(() =>
+    istanteLocale(new Date()).slice(0, 10),
+  )
   /**
    * La task scelta, scrivendo. Non c'è un valore iniziale sensato da
    * indovinare: preselezionare la prima dell'elenco farebbe scrivere ore sulla
@@ -154,6 +173,8 @@ export default function PannelloSessione({
   const [descrizione, setDescrizione] = useState(() => sessione?.descrizione ?? '')
   const [errore, setErrore] = useState<string | null>(null)
   const [inAttesa, setInAttesa] = useState(false)
+  /** Vero mentre la conferma d'annullamento è aperta sopra il pannello. */
+  const [chiedoAnnullamento, setChiedoAnnullamento] = useState(false)
 
   /** Una sessione che sta scorrendo non ha una fine da correggere. */
   const scorre = sessione !== null && sessione.chiusaIl === null
@@ -183,12 +204,6 @@ export default function PannelloSessione({
   const tipiOfferti = ATTIVITA.filter(
     (uno) => !(sessione !== null && !conTask && RICHIEDE_TASK.includes(uno)),
   )
-
-  // showModal() e non l'attributo `open`: solo il primo mette il dialogo nel
-  // top layer, con lo sfondo e la messa a fuoco intrappolata.
-  useEffect(() => {
-    riferimento.current?.showModal()
-  }, [])
 
   async function agisci(azione: () => Promise<SituazioneTempo>) {
     setInAttesa(true)
@@ -281,17 +296,45 @@ export default function PannelloSessione({
   }
 
   return (
-    <dialog className="pannello" ref={riferimento} onCancel={onChiudi}>
-      <form className="modulo" onSubmit={salva}>
-        <div className="testata">
+    <Finestra
+      onChiudi={onChiudi}
+      // Mentre la richiesta è in volo non si chiude da fuori: l'operazione
+      // potrebbe essere già arrivata al server.
+      chiudibileDaFuori={!inAttesa}
+      className="finestra-modulo"
+      etichetta={titolo(sessione)}
+    >
+      <>
+      <form className="modulo-finestra" onSubmit={salva}>
+        {/* L'occhiello sopra il titolo: dice **da dove** si è arrivati e in che
+            stato è ciò che si sta guardando. Su una registrazione già salvata
+            è l'unica cosa che distingue a colpo d'occhio una correzione da una
+            scrittura nuova — i campi sono gli stessi, e senza l'occhiello la
+            differenza la si capisce solo leggendo il titolo. */}
+        <p className="finestra-occhiello">
+          {sessione === null
+            ? 'Calendario · nuova registrazione'
+            : 'Calendario · evento salvato'}
+        </p>
+
+        <div className="finestra-testata">
           <h2>{titolo(sessione)}</h2>
-          {sessione !== null && (
-            <span className="nota">
-              {sessione.codiceLavoro ?? ETICHETTA_ATTIVITA[sessione.tipoAttivita]}
-              {!scorre && ` · ${durata(sessione.minuti)}`}
-            </span>
-          )}
+
+          {/* Il pulsante tondo in alto a destra. Non sostituisce «Annulla» in
+              fondo: chiudere e desistere sono lo stesso esito, ma chi ha
+              scorso il modulo fino in fondo non deve risalire per uscirne, e
+              chi lo apre per sbaglio non deve scendere. */}
+          <BottoneChiudi disabilitato={inAttesa}>
+            <Icona nome="chiudi" />
+          </BottoneChiudi>
         </div>
+
+        {sessione !== null && (
+          <p className="finestra-sottotitolo">
+            {sessione.codiceLavoro ?? ETICHETTA_ATTIVITA[sessione.tipoAttivita]}
+            {!scorre && ` · ${durata(sessione.minuti)}`}
+          </p>
+        )}
 
         {sessione?.origine === 'AUTOMATICA' && (
           <p className="sommario">
@@ -308,40 +351,54 @@ export default function PannelloSessione({
           </p>
         )}
 
-        {/* L'attività sta per prima perché decide che forma ha il resto del
-            modulo: quale tendina compare, e che cosa è obbligatorio. */}
-        <div className="campo">
-          <label htmlFor="attivita-sessione">Attività</label>
-          <select
-            id="attivita-sessione"
-            value={tipo}
-            onChange={(evento) => setTipo(evento.target.value as TipoAttivita)}
-            disabled={scorre}
-          >
-            {tipiOfferti.map((uno) => (
-              <option key={uno} value={uno}>
-                {ETICHETTA_ATTIVITA[uno]}
-              </option>
-            ))}
-          </select>
-          {conTask && (
+        {/* --- «Attività»: che cos'era quel tempo ---------------------------
+
+            Nella tavola questo è un campo solo, in cima. Qui dentro è uno di
+            tre, perché il gestionale distingue cose che la tavola non doveva
+            distinguere — ma **lo slot è uno**, e chi compila vede sempre un
+            campo solo al primo posto:
+
+              · scrivendo lavoro su task → la task, da scegliere;
+              · correggendo una sessione con task → la task, in sola lettura,
+                perché da qui non si sposta;
+              · negli altri casi → il lavoro citato, facoltativo o no.
+
+            Resta per primo perché decide la forma del resto del modulo. */}
+        {conTask && sessione !== null && (
+          <div className="campo">
+            <label htmlFor="attivita-sessione">Attività</label>
+            {/* Un campo spento e non un testo nudo: occupa lo stesso posto e
+                la stessa forma del campo che si vedrebbe scrivendo, così il
+                modulo non cambia struttura fra le due modalità. La nota qui
+                sotto dice perché non si tocca. */}
+            <input
+              id="attivita-sessione"
+              type="text"
+              value={sessione.task ?? ETICHETTA_ATTIVITA[sessione.tipoAttivita]}
+              readOnly
+              disabled
+            />
             <p className="nota">
               La task non si cambia da qui: se hai lavorato ad altro, annulla
               questa registrazione e riscrivila.
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
         {scegliLaTask && (
           <div className="campo">
-            <label htmlFor="task-sessione">Task</label>
+            <label htmlFor="attivita-sessione">Attività</label>
+            {/* Resta un `<select>` nativo: le voci sono titoli di task, cioè
+                nomi, e per i nomi il controllo del sistema è migliore di
+                qualunque cosa si possa riscrivere — porta la tastiera con sé
+                e sul telefono apre la ruota a cui la gente è abituata. */}
             <select
-              id="task-sessione"
+              id="attivita-sessione"
               value={scelta}
               onChange={(evento) => setScelta(evento.target.value)}
               required
             >
-              <option value="">Scegli…</option>
+              <option value="">Scegli la task…</option>
               {task.map((una) => (
                 <option key={una.taskId} value={una.taskId}>
                   {una.titolo} · {una.codiceLavoro}
@@ -351,7 +408,7 @@ export default function PannelloSessione({
             {task.length === 0 && (
               <p className="nota">
                 Non hai task aperte a cui sei assegnato. Se quelle ore non erano
-                lavoro su una task, scegli l’attività che le descrive.
+                lavoro su una task, scegli qui sotto il tipo che le descrive.
               </p>
             )}
           </div>
@@ -359,9 +416,9 @@ export default function PannelloSessione({
 
         {scegliIlLavoro && !scorre && (
           <div className="campo">
-            <label htmlFor="lavoro-sessione">Lavoro</label>
+            <label htmlFor="attivita-sessione">Attività</label>
             <select
-              id="lavoro-sessione"
+              id="attivita-sessione"
               value={sceltaLavoro}
               onChange={(evento) => setSceltaLavoro(evento.target.value)}
               required={vuoleLavoro}
@@ -369,8 +426,8 @@ export default function PannelloSessione({
               {/* L'opzione vuota c'è dove il lavoro è facoltativo: una
                   riunione può non riguardarne nessuno, e costringere a
                   scegliere farebbe citare un lavoro a caso. */}
-              {!vuoleLavoro && <option value="">Nessuno</option>}
-              {vuoleLavoro && <option value="">Scegli…</option>}
+              {!vuoleLavoro && <option value="">Nessun lavoro collegato</option>}
+              {vuoleLavoro && <option value="">Scegli il lavoro…</option>}
               {lavori.map((uno) => (
                 <option key={uno.id} value={uno.id}>
                   {uno.codice} · {uno.nome}
@@ -388,6 +445,54 @@ export default function PannelloSessione({
           </div>
         )}
 
+        {/* --- «Tipo di attività»: le pastiglie ------------------------------
+
+            Pastiglie e non più una tendina, come nella tavola. Il guadagno è
+            che **i tipi si vedono tutti insieme**: in una tendina chiusa si
+            legge solo quello scelto, e chi non sa che esiste «Sopralluogo»
+            continua a registrare «Altro» — che è il modo in cui un consuntivo
+            diventa illeggibile.
+
+            Quello che la tendina sapeva fare e qui andava ritrovato:
+            · **il colore**, che resta, come punto dentro ogni pastiglia: è la
+              tinta con cui quelle ore compariranno nella griglia;
+            · **la descrizione**, che non può stare in dieci pastiglie senza
+              farne dieci paragrafi: compare sotto, e riguarda quella scelta.
+              Si legge nel momento in cui serve, cioè dopo aver scelto. */}
+        <fieldset className="campo gruppo-pastiglie" disabled={scorre}>
+          <legend>Tipo di attività</legend>
+
+          <div className="pastiglie-tipo">
+            {tipiOfferti.map((uno) => {
+              const colore = coloreAttivita(uno)
+              return (
+                <button
+                  key={uno}
+                  type="button"
+                  // `aria-pressed` e non `aria-checked`: sono pulsanti che
+                  // restano premuti, ed è il ruolo che un lettore di schermo
+                  // annuncia correttamente senza che servano i ruoli di un
+                  // gruppo radio riscritto a mano.
+                  aria-pressed={tipo === uno}
+                  className={`pastiglia-tipo${tipo === uno ? ' pastiglia-tipo-scelta' : ''}`}
+                  onClick={() => setTipo(uno)}
+                >
+                  {colore !== undefined && (
+                    <span
+                      className="pastiglia-punto"
+                      style={{ backgroundColor: colore }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  {ETICHETTA_ATTIVITA[uno]}
+                </button>
+              )
+            })}
+          </div>
+
+          <p className="nota">{DESCRIZIONE_ATTIVITA[tipo]}</p>
+        </fieldset>
+
         {scorre ? (
           <p className="sommario">
             La stai lavorando adesso. Mettila in pausa dalla lista delle task
@@ -395,19 +500,32 @@ export default function PannelloSessione({
           </p>
         ) : (
           <>
-            <div className="campo">
-              <label htmlFor="giorno-sessione">Giorno</label>
-              <input
-                id="giorno-sessione"
-                type="date"
-                value={giorno}
-                onChange={(evento) => setGiorno(evento.target.value)}
-                required
-              />
-            </div>
-
-            <div className="campo-in-riga">
+            {/* Giorno, dalle e alle su una riga sola, come nella tavola: sono
+                tre pezzi della stessa frase — «il 12 novembre dalle 9:30 alle
+                11» — e messi uno sotto l'altro si leggevano come tre domande
+                separate. */}
+            <div className="campi-riga">
               <div className="campo">
+                <label htmlFor="giorno-sessione">Giorno</label>
+                {/* Il `SelettoreData` al posto dell'`<input type="date">`: il
+                    giorno si sceglie quasi sempre **guardando la settimana** —
+                    «quel martedì in cui ero dal cliente» — e il campo nativo lo
+                    fa digitare a cifre.
+
+                    Niente date future: si registra solo tempo già passato, ed è
+                    la stessa regola che il server fa valere. Dirla qui vuol
+                    dire che i giorni di domani sono spenti nella griglia,
+                    invece di essere scelti e poi rifiutati. */}
+                <SelettoreData
+                  id="giorno-sessione"
+                  valore={giorno}
+                  onCambia={setGiorno}
+                  max={ultimoGiornoScrivibile}
+                  obbligatorio
+                />
+              </div>
+
+              <div className="campo campo-ora">
                 <label htmlFor="inizio-sessione">Dalle</label>
                 <input
                   id="inizio-sessione"
@@ -418,7 +536,7 @@ export default function PannelloSessione({
                 />
               </div>
 
-              <div className="campo">
+              <div className="campo campo-ora">
                 <label htmlFor="fine-sessione">Alle</label>
                 <input
                   id="fine-sessione"
@@ -432,17 +550,18 @@ export default function PannelloSessione({
 
             {/* Mai obbligatoria, nemmeno senza task: un campo che si deve
                 riempire per forza si riempie con qualunque cosa, e una riga
-                di testo inventata è peggio di nessuna riga. Il limite è
-                quello della colonna, dichiarato invece di far troncare. */}
+                di testo inventata è peggio di nessuna riga. */}
             <div className="campo">
-              <label htmlFor="descrizione-sessione">Cosa hai fatto</label>
+              <label htmlFor="descrizione-sessione">
+                Descrizione <span className="etichetta-tenue">(facoltativa)</span>
+              </label>
               <textarea
                 id="descrizione-sessione"
                 value={descrizione}
                 onChange={(evento) => setDescrizione(evento.target.value)}
                 maxLength={500}
                 rows={3}
-                placeholder="Facoltativo"
+                placeholder="Dettagli utili per chi legge il consuntivo"
               />
             </div>
           </>
@@ -454,33 +573,66 @@ export default function PannelloSessione({
           </p>
         )}
 
-        <div className="azioni">
-          {!scorre && (
-            <button type="submit" disabled={inAttesa}>
-              {inAttesa ? 'Salvo…' : 'Salva'}
-            </button>
-          )}
-
-          {/* Annullare non cancella: la riga resta, fuori dai conti. Vale
-              anche su una sessione che sta scorrendo — un timer avviato per
-              sbaglio si toglie così. Scrivendo non c'è niente da annullare. */}
+        {/* Il piede della tavola: «Annulla» di contorno e il principale a
+            destra. L'annullamento della registrazione **non sta qui in mezzo**
+            — sta a sinistra, staccato, e non assomiglia agli altri due: è
+            l'unica azione del modulo che porta via qualcosa, e messa in fila
+            con «Salva» si preme per inerzia. */}
+        <div className="azioni-modulo">
           {sessione !== null && (
             <button
               type="button"
-              className="secondario"
+              className="azione-tenue-distruttiva"
               disabled={inAttesa}
-              onClick={() => void agisci(() => annulla(sessione.id))}
+              onClick={() => setChiedoAnnullamento(true)}
             >
               Annulla registrazione
             </button>
           )}
 
-          <button type="button" className="secondario" onClick={onChiudi}>
-            Chiudi
-          </button>
+          <BottoneDesisti disabilitato={inAttesa} />
+
+          {!scorre && (
+            <button type="submit" className="accento" disabled={inAttesa}>
+              {inAttesa ? 'Salvo…' : sessione === null ? 'Registra' : 'Salva modifiche'}
+            </button>
+          )}
         </div>
       </form>
-    </dialog>
+
+      {/* La conferma, sopra il pannello. Un `<dialog>` dentro un altro
+          funziona: il top layer li impila, e il secondo copre il primo senza
+          che serva niente di speciale.
+
+          Esiste perché annullare una registrazione **porta via del tempo
+          misurato**, e dalla griglia la stessa azione passa già da una
+          conferma: offrirla senza da qui vorrebbe dire che la stessa cosa è
+          pericolosa o no a seconda di dove la si preme. */}
+      {chiedoAnnullamento && sessione !== null && (
+        <ConfermaAzione
+          icona="cestino"
+          variante="distruttiva"
+          titolo="Annullare questa registrazione?"
+          descrizione={
+            <>
+              <strong>{durata(sessione.minuti)}</strong> escono dai conti
+              {sessione.codiceLavoro !== null ? ` di ${sessione.codiceLavoro}` : ''}.
+              La riga non viene cancellata — resta nello storico, marcata come
+              annullata — ma quelle ore non contano più da nessuna parte.
+            </>
+          }
+          etichettaConferma="Annulla la registrazione"
+          etichettaAnnulla="Lascia stare"
+          inCorso={inAttesa}
+          onConferma={() => {
+            setChiedoAnnullamento(false)
+            void agisci(() => annulla(sessione.id))
+          }}
+          onChiudi={() => setChiedoAnnullamento(false)}
+        />
+      )}
+      </>
+    </Finestra>
   )
 }
 

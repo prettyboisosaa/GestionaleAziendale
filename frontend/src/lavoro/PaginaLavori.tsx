@@ -6,11 +6,27 @@ import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
 import { Pillola } from '../componenti/Stato'
+import ConfermaAzione from '../componenti/ConfermaAzione'
+import { useNotifiche } from '../componenti/Notifiche'
 import { chiusoLavoro, ETICHETTA_LAVORO, tinta } from '../stato/stati'
 
+/**
+ * L'azione in attesa di conferma.
+ *
+ * Porta con sé codice e nome del lavoro, e non il solo `id`: la finestra di
+ * conferma deve poter **nominare** ciò che sta per toccare. «Cancellare?» non
+ * dice niente a chi ha premuto per sbaglio sulla scheda accanto a quella che
+ * voleva; «Cancellare GEST-04?» sì. Cercarli nell'elenco al momento di
+ * disegnare la finestra funzionerebbe quasi sempre — ma non subito dopo una
+ * ricarica, quando la riga potrebbe non esserci più.
+ */
 type Azione = {
   id: number
   tipo: 'annulla' | 'elimina'
+  codice: string
+  nome: string
+  /** Vero se il lavoro ha delle task: cambia quello che la conferma promette. */
+  conTask: boolean
 }
 
 /**
@@ -68,6 +84,7 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
   const [azione, setAzione] = useState<Azione | null>(null)
   const [inCorso, setInCorso] = useState(false)
   const [filtro, setFiltro] = useState<Filtro>('TUTTI')
+  const notifiche = useNotifiche()
 
   // Due permessi, due portate. `LAVORI_MODIFICA_TUTTI` annulla e cancella
   // qualunque lavoro; `LAVORI_MODIFICA_PROPRI` annulla solo quelli di cui si è
@@ -125,10 +142,24 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
       }
       // Ricarica dopo l'azione: lo stato è cambiato, o la riga non c'è più.
       setRighe(await elencoLavori(true))
+
+      notifiche.successo(
+        scelta.tipo === 'annulla'
+          ? `${scelta.codice} annullato.`
+          : `${scelta.codice} cancellato.`,
+      )
     } catch (motivo) {
       // Il caso tipico è il 409 su una bozza che ha delle task: il messaggio
       // arriva dal server e spiega di annullare invece di cancellare.
-      setErrore(testo(motivo))
+      //
+      // In una pastiglia e non più in cima alla pagina: l'elenco dei lavori è
+      // una griglia che scorre, e chi preme su una scheda in fondo non vedeva
+      // mai il messaggio che spiegava perché non era successo niente. Con
+      // «Riprova» accanto, perché il 409 può dipendere da una task chiusa nel
+      // frattempo da qualcun altro.
+      notifiche.errore(testo(motivo), {
+        azione: { etichetta: 'Riprova', onPremi: () => void esegui(scelta) },
+      })
     } finally {
       setAzione(null)
       setInCorso(false)
@@ -228,16 +259,58 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
             <CardLavoro
               key={riga.id}
               riga={riga}
-              azione={azione !== null && azione.id === riga.id ? azione : null}
               inCorso={inCorso}
               puoAnnullare={puoAnnullare(riga)}
               puoEliminare={puoModificareTutti}
               onChiedi={setAzione}
-              onEsegui={(scelta) => void esegui(scelta)}
-              onDesisti={() => setAzione(null)}
             />
           ))}
         </div>
+      )}
+
+      {/* La conferma vive qui e non nella scheda: una sola finestra per la
+          pagina, qualunque riga l'abbia chiesta.
+
+          Le due varianti dicono cose diverse perché **sono** cose diverse, ed
+          è la distinzione su cui questo gestionale è costruito: annullare
+          lascia tutto dov'è e cambia uno stato, cancellare porta via la riga.
+          Solo la seconda è `distruttiva`. Se il corallo comparisse anche su un
+          annullamento, il giorno che compare su una cancellazione vera non
+          direbbe più niente. */}
+      {azione !== null && (
+        <ConfermaAzione
+          icona={azione.tipo === 'annulla' ? 'chiudi' : 'cestino'}
+          variante={azione.tipo === 'annulla' ? 'normale' : 'distruttiva'}
+          titolo={
+            azione.tipo === 'annulla'
+              ? `Annullare ${azione.codice}?`
+              : `Cancellare ${azione.codice}?`
+          }
+          descrizione={
+            azione.tipo === 'annulla' ? (
+              <>
+                «{azione.nome}» passa fra gli annullati e smette di comparire
+                fra i lavori aperti. <strong>Le ore già registrate restano</strong>,
+                e la scheda resta consultabile: niente va perso.
+              </>
+            ) : (
+              <>
+                «{azione.nome}» sparisce dall'elenco e non si può recuperare.
+                {azione.conTask
+                  ? ' Questo lavoro ha delle task: quasi certamente il server rifiuterà, e la cosa giusta è annullarlo invece di cancellarlo.'
+                  : ' È una bozza senza task, quindi non porta via nessuna ora registrata.'}
+              </>
+            )
+          }
+          etichettaConferma={azione.tipo === 'annulla' ? 'Annulla il lavoro' : 'Cancella'}
+          // «Annulla» come etichetta del pulsante che desiste, accanto a un'azione
+          // che si chiama anch'essa «annulla», sarebbe una domanda invece che una
+          // risposta: qui chi desiste «lascia stare».
+          etichettaAnnulla="Lascia stare"
+          inCorso={inCorso}
+          onConferma={() => void esegui(azione)}
+          onChiudi={() => setAzione(null)}
+        />
       )}
     </main>
   )
@@ -262,23 +335,17 @@ export default function PaginaLavori({ utente }: { utente: UtenteCorrente }) {
  */
 function CardLavoro({
   riga,
-  azione,
   inCorso,
   puoAnnullare,
   puoEliminare,
   onChiedi,
-  onEsegui,
-  onDesisti,
 }: {
   riga: RigaLavoro
-  /** L'azione in attesa di conferma su *questo* lavoro, se c'è. */
-  azione: Azione | null
+  /** Vero mentre un'azione è in volo: i pulsanti di tutte le schede si spengono. */
   inCorso: boolean
   puoAnnullare: boolean
   puoEliminare: boolean
   onChiedi: (azione: Azione) => void
-  onEsegui: (azione: Azione) => void
-  onDesisti: () => void
 }) {
   // Un lavoro completato non si annulla, e uno già annullato nemmeno: il
   // server rifiuta entrambi, e offrire il pulsante sarebbe una promessa falsa.
@@ -362,49 +429,54 @@ function CardLavoro({
         </div>
       </div>
 
-      {(annullabile || eliminabile || azione !== null) && (
+      {/* I due pulsanti restano sempre quelli che sono: la domanda non si apre
+          più **dentro** la scheda.
+
+          Prima «Annullare? Sì / No» sostituiva le azioni al loro posto, e due
+          cose non andavano. La scheda cambiava altezza, quindi la griglia si
+          riassestava sotto il dito proprio mentre si stava per premere; e un
+          «Sì» grande come un «No», a mezzo centimetro l'uno dall'altro, è la
+          disposizione che fa cancellare un lavoro per sbaglio. La finestra
+          della tavola 05 chiede la stessa cosa fermando tutto il resto, e
+          mette la conferma dalla parte opposta rispetto al pulsante che la ha
+          aperta. */}
+      {(annullabile || eliminabile) && (
         <div className="card-lavoro-azioni">
-          {azione !== null ? (
-            <span className="conferma">
-              {azione.tipo === 'annulla' ? 'Annullare?' : 'Cancellare?'}
-              <button
-                type="button"
-                className="minuscolo"
-                onClick={() => onEsegui(azione)}
-                disabled={inCorso}
-              >
-                Sì
-              </button>
-              <button
-                type="button"
-                className="minuscolo"
-                onClick={onDesisti}
-                disabled={inCorso}
-              >
-                No
-              </button>
-            </span>
-          ) : (
-            <>
-              {annullabile && (
-                <button
-                  type="button"
-                  className="minuscolo"
-                  onClick={() => onChiedi({ id: riga.id, tipo: 'annulla' })}
-                >
-                  Annulla
-                </button>
-              )}
-              {eliminabile && (
-                <button
-                  type="button"
-                  className="minuscolo"
-                  onClick={() => onChiedi({ id: riga.id, tipo: 'elimina' })}
-                >
-                  Elimina
-                </button>
-              )}
-            </>
+          {annullabile && (
+            <button
+              type="button"
+              className="minuscolo"
+              disabled={inCorso}
+              onClick={() =>
+                onChiedi({
+                  id: riga.id,
+                  tipo: 'annulla',
+                  codice: riga.codice,
+                  nome: riga.nome,
+                  conTask: riga.taskTotali > 0,
+                })
+              }
+            >
+              Annulla
+            </button>
+          )}
+          {eliminabile && (
+            <button
+              type="button"
+              className="minuscolo"
+              disabled={inCorso}
+              onClick={() =>
+                onChiedi({
+                  id: riga.id,
+                  tipo: 'elimina',
+                  codice: riga.codice,
+                  nome: riga.nome,
+                  conTask: riga.taskTotali > 0,
+                })
+              }
+            >
+              Elimina
+            </button>
           )}
         </div>
       )}

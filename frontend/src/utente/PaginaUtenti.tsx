@@ -8,6 +8,8 @@ import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
 import ModaleResetPassword from './ModaleResetPassword'
+import ConfermaAzione from '../componenti/ConfermaAzione'
+import { useNotifiche } from '../componenti/Notifiche'
 
 /**
  * Il filtro dell'elenco. «Invitati» esiste nel design system e resta qui con
@@ -64,11 +66,22 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
   const [filtro, setFiltro] = useState<Filtro>('TUTTI')
   const [ruoloScelto, setRuoloScelto] = useState('')
   const [scelti, setScelti] = useState<number[]>([])
+  const notifiche = useNotifiche()
 
   /** La persona di cui si sta assegnando una password nuova, se c'è. */
   const [resetDi, setResetDi] = useState<RigaUtente | null>(null)
   /** La conferma dopo un reset riuscito: resta finché non si fa altro. */
   const [conferma, setConferma] = useState<string | null>(null)
+  /**
+   * La persona di cui si sta per cambiare lo stato, in attesa di conferma.
+   *
+   * Prima il cambio partiva al primo clic. Su una riga di tabella, accanto ad
+   * altri pulsanti, un clic di troppo toglieva l'accesso a una persona — e
+   * **subito**: i permessi si rileggono dal database a ogni richiesta, quindi
+   * chi stava lavorando si trovava fuori alla schermata successiva, senza che
+   * nessuno dei due capisse perché.
+   */
+  const [daCambiare, setDaCambiare] = useState<RigaUtente | null>(null)
 
   const puoAssegnare = ha(utente, 'RUOLI_ASSEGNA')
   const puoDisattivare = ha(utente, 'UTENTI_DISATTIVA')
@@ -119,10 +132,22 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
           ? null
           : attuali.map((una) => (una.id === aggiornato.id ? aggiornato : una)),
       )
+      setDaCambiare(null)
+
+      notifiche.successo(
+        aggiornato.attivo
+          ? `${aggiornato.nome} ${aggiornato.cognome} può di nuovo accedere.`
+          : `${aggiornato.nome} ${aggiornato.cognome} è stata disattivata.`,
+      )
     } catch (motivo) {
       // Il caso tipico è il 409 su se stessi: il messaggio arriva dal server
       // e dice di chiedere a un altro amministratore.
-      setErrore(testo(motivo))
+      //
+      // In una pastiglia e non in cima alla pagina: l'elenco degli utenti
+      // scorre, e chi preme su una riga in fondo non vedrebbe mai il
+      // messaggio che spiega perché non è successo niente.
+      setDaCambiare(null)
+      notifiche.errore(testo(motivo))
     } finally {
       setInCorso(null)
     }
@@ -370,7 +395,7 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
                                   ? `Disattiva ${riga.nome} ${riga.cognome}`
                                   : `Riattiva ${riga.nome} ${riga.cognome}`
                               }
-                              onChange={() => void cambia(riga)}
+                              onChange={() => setDaCambiare(riga)}
                             />
                             <span className="interruttore-vasca" aria-hidden="true" />
                           </label>
@@ -430,6 +455,44 @@ export default function PaginaUtenti({ utente }: { utente: UtenteCorrente }) {
             setResetDi(null)
             setConferma(messaggio)
           }}
+        />
+      )}
+
+      {/* La variante `normale` e non `distruttiva`, benché l'effetto sia
+          immediato: disattivare si disfa riattivando, e la riga della persona
+          resta con tutto il suo storico. Il corallo in questo gestionale è
+          riservato a ciò che non torna indietro — la cancellazione di una
+          bozza, le ore di una sessione che escono dai conti — e usarlo qui
+          glielo toglierebbe là. */}
+      {daCambiare !== null && (
+        <ConfermaAzione
+          icona={daCambiare.attivo ? 'esci' : 'spunta-cerchio'}
+          titolo={
+            daCambiare.attivo
+              ? `Disattivare ${daCambiare.nome} ${daCambiare.cognome}?`
+              : `Riattivare ${daCambiare.nome} ${daCambiare.cognome}?`
+          }
+          descrizione={
+            daCambiare.attivo ? (
+              <>
+                Perde <strong>tutti i permessi all'istante</strong>: i permessi
+                si rileggono a ogni richiesta, quindi se sta lavorando adesso
+                si troverà fuori alla schermata successiva. La riga resta
+                nell'elenco, con il suo storico, e si riattiva da qui.
+              </>
+            ) : (
+              <>
+                Torna ad avere i permessi del suo ruolo e può accedere di
+                nuovo. La password è quella di prima: se non la ricorda, gliene
+                va assegnata una nuova.
+              </>
+            )
+          }
+          etichettaConferma={daCambiare.attivo ? 'Disattiva' : 'Riattiva'}
+          etichettaAnnulla="Lascia stare"
+          inCorso={inCorso === daCambiare.id}
+          onConferma={() => void cambia(daCambiare)}
+          onChiudi={() => setDaCambiare(null)}
         />
       )}
     </main>

@@ -29,6 +29,8 @@ import { testo } from '../api/http'
 import type { UtenteCorrente } from '../autenticazione/api'
 import { ha } from '../autenticazione/permessi'
 import { Pillola } from '../componenti/Stato'
+import SelettoreData from '../componenti/SelettoreData'
+import Tendina from '../componenti/Tendina'
 import {
   apertaTask,
   ETICHETTA_LAVORO,
@@ -830,25 +832,23 @@ export default function PaginaLavoro({
                 </div>
                 <div className="campo">
                   <label htmlFor="inizio">Inizio</label>
-                  <input
+                  <SelettoreData
                     id="inizio"
-                    type="date"
-                    required
-                    value={dataInizio}
-                    onChange={(evento) => setDataInizio(evento.target.value)}
-                    disabled={inCorso}
+                    obbligatorio
+                    valore={dataInizio}
+                    onCambia={setDataInizio}
+                    disabilitato={inCorso}
                   />
                 </div>
                 <div className="campo">
                   <label htmlFor="scadenza">Scadenza</label>
-                  <input
+                  <SelettoreData
                     id="scadenza"
-                    type="date"
-                    required
+                    obbligatorio
                     min={dataInizio === '' ? undefined : dataInizio}
-                    value={scadenza}
-                    onChange={(evento) => setScadenza(evento.target.value)}
-                    disabled={inCorso}
+                    valore={scadenza}
+                    onCambia={setScadenza}
+                    disabilitato={inCorso}
                   />
                 </div>
                 {/* Fra la scadenza e la stima, così il form si legge come una
@@ -858,18 +858,28 @@ export default function PaginaLavoro({
                     l'enum non ha. */}
                 <div className="campo">
                   <label htmlFor="urgenza">Urgenza</label>
-                  <select
+                  {/* Una `Tendina` e non un `<select>`: fra «Alta» e
+                      «Urgente» la differenza la dice il **colore** prima
+                      della parola — è lo stesso colore della pillola che
+                      comparirà nell'elenco delle task — e sceglierla da un
+                      elenco di parole significa scoprirlo dopo aver salvato.
+
+                      I primi due livelli restano nell'argento, ed è voluto:
+                      la maggior parte delle task è «media», e una colonna in
+                      cui ogni riga accende un colore diventa rumore invece
+                      che segnale. Qui quella scala si vede tutta insieme, che
+                      è il momento in cui serve capirla. */}
+                  <Tendina
                     id="urgenza"
-                    value={urgenza}
-                    onChange={(evento) => setUrgenza(evento.target.value as UrgenzaTask)}
-                    disabled={inCorso}
-                  >
-                    {URGENZE.map((una) => (
-                      <option key={una} value={una}>
-                        {ETICHETTA_URGENZA[una]}
-                      </option>
-                    ))}
-                  </select>
+                    voci={URGENZE.map((una) => ({
+                      valore: una,
+                      nome: ETICHETTA_URGENZA[una],
+                      colore: `var(--${TINTA_URGENZA[una]})`,
+                    }))}
+                    valore={urgenza}
+                    onCambia={setUrgenza}
+                    disabilitata={inCorso}
+                  />
                 </div>
                 <div className="campo">
                   <label htmlFor="stima">Stima in ore</label>

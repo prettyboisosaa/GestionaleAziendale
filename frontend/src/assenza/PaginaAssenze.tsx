@@ -9,6 +9,7 @@ import {
 import type { RigaAssenza, StatoAssenza } from './api'
 import CalendarioAssenze from './CalendarioAssenze'
 import { testo } from '../api/http'
+import { useNotifiche } from '../componenti/Notifiche'
 import Pannello from '../componenti/Pannello'
 import { Pillola } from '../componenti/Stato'
 
@@ -55,6 +56,7 @@ type Decisione =
 export default function PaginaAssenze() {
   const [righe, setRighe] = useState<RigaAssenza[] | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
+  const notifiche = useNotifiche()
   const [filtro, setFiltro] = useState<StatoAssenza | ''>('')
   /** Chi si sta guardando nello storico. Vuoto = tutti. */
   const [chi, setChi] = useState('')
@@ -105,8 +107,19 @@ export default function PaginaAssenze() {
           : attuali.map((una) => (una.id === aggiornata.id ? aggiornata : una)),
       )
       setDecisione(null)
+
+      // La riga decisa esce da sé dalla coda e ricompare nello storico, più
+      // in basso: chi ha appena premuto vede sparire una riga e nient'altro.
+      // La pastiglia è ciò che conferma che la decisione è arrivata, e dice
+      // **di chi** era la richiesta — in una coda di dieci righe che si
+      // riassestano, quello è il dato che si perde di vista.
+      notifiche.successo(
+        aggiornata.stato === 'APPROVATA'
+          ? `Approvata: ${aggiornata.richiedente ?? 'la richiesta'}`
+          : `Rifiutata: ${aggiornata.richiedente ?? 'la richiesta'}`,
+      )
     } catch (motivo) {
-      setErrore(testo(motivo))
+      notifiche.errore(testo(motivo))
     } finally {
       setInCorso(null)
     }

@@ -1,19 +1,29 @@
-import { useEffect, useRef } from 'react'
-import type { MouseEvent } from 'react'
+import ConfermaAzione from './ConfermaAzione'
 
 /**
- * «Sei sicuro di voler uscire?»
+ * «Vuoi uscire?»
  *
- * Un `<dialog>` nativo, come `PannelloSessione`: in questo gestionale non c'è
- * nessuna libreria di componenti, e `showModal()` dà da sé la messa a fuoco
- * intrappolata, lo sfondo e la chiusura con Esc — tre cose che un `<div>`
- * sovrapposto andrebbe a riscrivere peggio.
+ * Il contenuto; la forma è {@link ConfermaAzione}, che è la finestra della
+ * tavola 05 — pastiglia con l'icona, la domanda, una riga che dice cosa
+ * succede davvero, e i due pulsanti con il principale a destra.
  *
- * Sta in un componente suo e non dentro `Intestazione` perché la conferma
+ * <p>Sta in un componente suo e non dentro `Intestazione` perché la conferma
  * deve valere per **ogni** punto da cui si esce. Oggi il pulsante è uno solo,
- * nella barra in alto, ma l'uscita vive in `App`, che è l'unico posto che
- * possiede la sessione: mettendo la modale lì, un secondo pulsante aggiunto
+ * nella barra laterale, ma l'uscita vive in `App`, che è l'unico posto che
+ * possiede la sessione: mettendo la finestra lì, un secondo pulsante aggiunto
  * domani passa dalla conferma senza doversene ricordare.
+ *
+ * <p><strong>Non c'è «esci da tutti i dispositivi»</strong>, benché la tavola
+ * del design system mostri una casella in questo punto. Il gestionale non sa
+ * fare quella cosa: le sessioni vivono nella memoria del processo e non
+ * esiste un elenco di quelle aperte altrove da poter chiudere. Una casella
+ * che non fa niente è peggio della sua assenza — chi la segna crede di aver
+ * chiuso una sessione che resta aperta. La casella tornerà il giorno che
+ * esisterà un archivio delle sessioni.
+ *
+ * <p>La variante è quella normale e non `distruttiva`: uscire non porta via
+ * niente, e tingere di corallo un'azione reversibile toglie peso al corallo
+ * il giorno che compare su una cancellazione vera.
  */
 export default function ConfermaUscita({
   onAnnulla,
@@ -22,62 +32,25 @@ export default function ConfermaUscita({
   onAnnulla: () => void
   onEsci: () => void
 }) {
-  const riferimento = useRef<HTMLDialogElement>(null)
-
-  // showModal() e non l'attributo `open`: solo il primo mette il dialogo nel
-  // top layer, con lo sfondo e la messa a fuoco intrappolata.
-  useEffect(() => {
-    riferimento.current?.showModal()
-  }, [])
-
-  /**
-   * Un clic fuori chiude senza fare niente.
-   *
-   * L'evento arriva sul `<dialog>` stesso quando si colpisce lo sfondo,
-   * perché quello è il suo `::backdrop` e non un elemento a parte: se il
-   * bersaglio è il dialogo e non qualcosa dentro di lui, il clic è caduto
-   * fuori dal riquadro.
-   */
-  function fuori(evento: MouseEvent<HTMLDialogElement>) {
-    if (evento.target === riferimento.current) {
-      onAnnulla()
-    }
-  }
-
   return (
-    <dialog
-      // Nell'angolo in alto a destra, non in mezzo: nasce dal pulsante
-      // «Esci» della testata e compare accanto al punto in cui si è premuto,
-      // invece di coprire la pagina al centro per una domanda da un clic.
-      className="pannello pannello-angolo"
-      ref={riferimento}
-      // onCancel è Esc: il browser lo manda da sé, e senza questo il dialogo
-      // si chiuderebbe lasciando lo stato che dice che è aperto.
-      onCancel={onAnnulla}
-      onClick={fuori}
-    >
-      <div className="modulo">
-        <div className="testata">
-          <h2>Sei sicuro di voler uscire?</h2>
-        </div>
-
-        <p className="sommario">
+    <ConfermaAzione
+      icona="esci"
+      titolo="Vuoi uscire?"
+      descrizione={
+        <>
           La sessione si chiude e tornerai alla schermata di accesso. Il tempo
-          già registrato resta dov'è; una task avviata continua a scorrere.
-        </p>
-
-        <div className="azioni">
-          {/* «Annulla» è il primo e tiene la messa a fuoco iniziale: la
-              conferma si apre per far fermare un attimo, non per far premere
-              Invio sul pulsante che esce. */}
-          <button type="button" autoFocus onClick={onAnnulla}>
-            Annulla
-          </button>
-          <button type="button" className="secondario" onClick={onEsci}>
-            Esci
-          </button>
-        </div>
-      </div>
-    </dialog>
+          già registrato resta dov'è; <strong>una task avviata continua a
+          scorrere</strong>.
+        </>
+      }
+      etichettaAnnulla="Resta"
+      etichettaConferma="Esci"
+      onConferma={onEsci}
+      onChiudi={onAnnulla}
+      // Nell'angolo in alto a destra: nasce dal pulsante «Esci» e compare
+      // accanto al punto in cui si è premuto, invece di coprire la pagina al
+      // centro per una domanda da un clic.
+      angolo
+    />
   )
 }

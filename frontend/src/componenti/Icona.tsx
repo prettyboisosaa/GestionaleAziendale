@@ -25,6 +25,24 @@ export type NomeIcona =
   | 'avvia'
   | 'pausa'
   | 'spunta'
+  | 'attesa'
+  // --- 05 · finestre -------------------------------------------------------
+  // Le icone che vivono dentro modali, tendine e notifiche. Stanno qui e non
+  // in un file a parte per la ragione di sempre: sono tratti su griglia 24
+  // con `currentColor`, e un secondo componente identico a questo si
+  // sarebbe scostato dal primo al terzo ritocco.
+  | 'cestino'
+  | 'esci'
+  | 'calendario'
+  | 'luogo'
+  | 'matita'
+  | 'freccia-giu'
+  | 'freccia-sinistra'
+  | 'freccia-destra'
+  | 'attenzione'
+  | 'informazione'
+  | 'errore'
+  | 'spunta-cerchio'
 
 export default function Icona({ nome }: { nome: NomeIcona }) {
   return (
@@ -134,5 +152,108 @@ function tratti(nome: NomeIcona) {
     // su una lista di cose da fare.
     case 'spunta':
       return <path d="M5 12.5l4.5 4.5L19 7.5" />
+    // L'orologio nudo: una richiesta che aspetta una risposta. È quello di
+    // «ore» senza la matita — lì il tempo si corregge, qui si aspetta.
+    case 'attesa':
+      return (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 7.5V12l3 1.8" />
+        </>
+      )
+
+    // --- 05 · finestre -----------------------------------------------------
+
+    // Il cestino: l'azione che porta via qualcosa per sempre. Compare solo
+    // dove la cancellazione è davvero definitiva — nel gestionale è una sola
+    // (un lavoro in bozza), perché tutto il resto si annulla e resta.
+    case 'cestino':
+      return (
+        <>
+          <path d="M4 7h16" />
+          <path d="M9.5 7V5.5A1.5 1.5 0 0 1 11 4h2a1.5 1.5 0 0 1 1.5 1.5V7" />
+          <path d="M6.5 7l.8 11.6A1.5 1.5 0 0 0 8.8 20h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7" />
+          <path d="M10.5 11v5.5M13.5 11v5.5" />
+        </>
+      )
+    // La porta con la freccia: uscire. La freccia punta fuori, non dentro.
+    case 'esci':
+      return (
+        <>
+          <path d="M14 4.5H6.5A1.5 1.5 0 0 0 5 6v12a1.5 1.5 0 0 0 1.5 1.5H14" />
+          <path d="M18.5 12H10" />
+          <path d="M14.5 8.2L18.5 12l-4 3.8" />
+        </>
+      )
+    // Il calendario: una data da scegliere, o il giorno di un evento.
+    case 'calendario':
+      return (
+        <>
+          <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+          <path d="M3.5 9.5h17" />
+          <path d="M8 3.5V6M16 3.5V6" />
+        </>
+      )
+    // Il segnaposto: dove si tiene una cosa.
+    case 'luogo':
+      return (
+        <>
+          <path d="M12 21s6.5-5.4 6.5-10.2A6.5 6.5 0 0 0 5.5 10.8C5.5 15.6 12 21 12 21z" />
+          <circle cx="12" cy="10.5" r="2.3" />
+        </>
+      )
+    // La matita: modificare quello che si sta guardando.
+    case 'matita':
+      return (
+        <>
+          <path d="M4.5 19.5l.6-3.4L15.4 5.8a2 2 0 0 1 2.8 2.8L7.9 18.9z" />
+          <path d="M14 7.2l2.8 2.8" />
+        </>
+      )
+    // Il gallone: una tendina da aprire. Verso il basso da chiusa; la stessa
+    // icona ruotata di mezzo giro quando è aperta, in CSS, così non ci sono
+    // due disegni da tenere allineati.
+    case 'freccia-giu':
+      return <path d="M7 10l5 5 5-5" />
+    case 'freccia-sinistra':
+      return <path d="M14 6l-6 6 6 6" />
+    case 'freccia-destra':
+      return <path d="M10 6l6 6-6 6" />
+
+    // I tre segnali delle notifiche, più la spunta. Sono cerchi e non
+    // triangoli o quadrati: nella tavola delle finestre i quattro toast hanno
+    // la stessa pastiglia tonda, e ciò che cambia è il colore e il segno
+    // dentro — così la forma non compete con il colore nel dire di che si
+    // tratta.
+    case 'attenzione':
+      return (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 7.8v4.8" />
+          <path d="M12 16.1v.1" strokeWidth="2.2" />
+        </>
+      )
+    case 'informazione':
+      return (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 11.2v5" />
+          <path d="M12 7.9v.1" strokeWidth="2.2" />
+        </>
+      )
+    case 'errore':
+      return (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6" />
+        </>
+      )
+    case 'spunta-cerchio':
+      return (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M8.3 12.3l2.6 2.6 4.8-5.4" />
+        </>
+      )
   }
 }

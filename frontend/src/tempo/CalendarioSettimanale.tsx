@@ -17,6 +17,8 @@ import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import {
   ETICHETTA_ATTIVITA,
   TINTA_ATTIVITA,
+  annulla as annullaTempo,
+  coloreAttivita,
   correggi,
   durata,
   istanteLocale,
@@ -33,6 +35,9 @@ import {
   fascia,
 } from './orario'
 import { testo } from '../api/http'
+import AnteprimaEvento from '../componenti/AnteprimaEvento'
+import ConfermaAzione from '../componenti/ConfermaAzione'
+import { useNotifiche } from '../componenti/Notifiche'
 import { tintaLavoro } from '../stato/stati'
 
 /**
@@ -114,12 +119,28 @@ export default function CalendarioSettimanale({
   /** Perché il pannello è aperto, se è aperto. */
   const [apertura, setApertura] = useState<Apertura | null>(null)
   /**
+   * Il blocco di cui si sta guardando l'anteprima, con il rettangolo da cui
+   * la scheda nasce.
+   *
+   * Il rettangolo si prende **al momento del clic** e non si aggiorna: se la
+   * griglia scorre, l'anteprima resta dov'era invece di inseguire il blocco.
+   * È la scelta giusta per una scheda che si chiude al primo clic fuori —
+   * inseguire vorrebbe dire misurare a ogni fotogramma per una finestra che
+   * vive due secondi.
+   */
+  const [anteprima, setAnteprima] = useState<
+    { sessione: RigaSessione; dove: DOMRect } | null
+  >(null)
+  /** La sessione che si sta per annullare, in attesa di conferma. */
+  const [daAnnullare, setDaAnnullare] = useState<RigaSessione | null>(null)
+  /**
    * Adesso, e serve solo a dare un'altezza alla sessione aperta. Sta in stato
    * e non si legge durante il disegno: un `new Date()` nel corpo darebbe un
    * risultato diverso a ogni ridisegno senza che il dato sia cambiato. È lo
    * stesso schema della barra del timer in testata.
    */
   const [adesso, setAdesso] = useState(() => Date.now())
+  const notifiche = useNotifiche()
 
   /** Vero se una sessione di questa settimana sta ancora scorrendo. */
   const scorre = (settimana?.sessioni ?? []).some(
@@ -175,12 +196,52 @@ export default function CalendarioSettimanale({
    * `origine` e `confermata` servono al pannello e non sono cose che si
    * leggono da un rettangolo.
    */
+  /**
+   * Un clic su un blocco apre **l'anteprima**, non più il modulo di
+   * correzione.
+   *
+   * Prima ci si trovava davanti i campi editabili, e per uscirne bisognava
+   * annullare una modifica che non si stava facendo. Ma un clic su un blocco
+   * quasi sempre non vuol dire «voglio cambiarlo»: vuol dire «che cos'è
+   * questo?» — su una griglia fitta di rettangoli colorati, è la domanda
+   * normale. La scheda risponde, e offre la modifica come una delle azioni.
+   */
   function bloccoCliccato(arg: EventClickArg) {
     const trovata = settimana?.sessioni.find(
       (sessione) => String(sessione.id) === arg.event.id,
     )
     if (trovata !== undefined) {
-      setApertura({ tipo: 'correggi', sessione: trovata })
+      setAnteprima({ sessione: trovata, dove: arg.el.getBoundingClientRect() })
+    }
+  }
+
+  /**
+   * Annulla la sessione che la conferma ha approvato.
+   *
+   * Una sessione annullata **non sparisce**: esce dai conti e la riga resta,
+   * come tutto il resto in questo gestionale. Per questo la conferma qui
+   * sotto non promette una cancellazione, che sarebbe falsa.
+   */
+  async function annullaSessione(sessione: RigaSessione) {
+    try {
+      // `annulla` restituisce la situazione aggiornata del tempo, che è ciò
+      // che `onScritto` si aspetta: la barra del timer in testata deve
+      // accorgersene subito, senza rileggere niente.
+      const situazione = await annullaTempo(sessione.id)
+      setDaAnnullare(null)
+      if (giorno !== null) await carica(giorno)
+      onScritto(situazione)
+      notifiche.successo(
+        `Sessione del ${breve(sessione.avviataIl.slice(0, 10))} annullata · ${durata(sessione.minuti)}`,
+      )
+    } catch (motivo) {
+      setDaAnnullare(null)
+      notifiche.errore(testo(motivo), {
+        azione: {
+          etichetta: 'Riprova',
+          onPremi: () => void annullaSessione(sessione),
+        },
+      })
     }
   }
 
@@ -472,6 +533,102 @@ export default function CalendarioSettimanale({
           lavori={lavori}
           onChiudi={() => setApertura(null)}
           onFatto={onScritto}
+        />
+      )}
+
+      {/* L'anteprima del blocco cliccato. Non compare se nel frattempo si è
+          aperto il pannello di correzione: sarebbe la stessa sessione
+          raccontata due volte, una sopra l'altra. */}
+      {anteprima !== null && apertura === null && (
+        <AnteprimaEvento
+          ancora={anteprima.dove}
+          stato={{
+            testo: ETICHETTA_ATTIVITA[anteprima.sessione.tipoAttivita],
+            // Il colore del tipo, e per il lavoro su task quello non c'è:
+            // lì il blocco prende la tinta del **suo lavoro**, che è il colpo
+            // d'occhio che la griglia esiste per dare. L'accento fa da
+            // segnaposto senza mentire su quale lavoro sia.
+            colore:
+              coloreAttivita(anteprima.sessione.tipoAttivita) ?? 'var(--accento)',
+          }}
+          titolo={
+            anteprima.sessione.task ??
+            ETICHETTA_ATTIVITA[anteprima.sessione.tipoAttivita]
+          }
+          righe={[
+            {
+              icona: 'calendario',
+              testo: breve(anteprima.sessione.avviataIl.slice(0, 10)),
+            },
+            {
+              icona: 'attesa',
+              testo:
+                anteprima.sessione.chiusaIl === null
+                  ? 'In corso adesso'
+                  : `${anteprima.sessione.avviataIl.slice(11, 16)} – ${anteprima.sessione.chiusaIl.slice(11, 16)} · ${durata(anteprima.sessione.minuti)}`,
+            },
+            ...(anteprima.sessione.codiceLavoro !== null
+              ? [
+                  {
+                    icona: 'lavori' as const,
+                    testo: anteprima.sessione.codiceLavoro,
+                  },
+                ]
+              : []),
+            ...(anteprima.sessione.descrizione !== null
+              ? [{ icona: 'matita' as const, testo: anteprima.sessione.descrizione }]
+              : []),
+          ]}
+          // Una sessione che scorre non si corregge e non si annulla da qui:
+          // va prima messa in pausa, ed è la stessa regola che il pannello fa
+          // valere. Offrire le azioni per poi rifiutarle sarebbe peggio che
+          // non offrirle.
+          onModifica={
+            anteprima.sessione.chiusaIl === null
+              ? undefined
+              : () => {
+                  setApertura({ tipo: 'correggi', sessione: anteprima.sessione })
+                  setAnteprima(null)
+                }
+          }
+          onElimina={
+            anteprima.sessione.chiusaIl === null
+              ? undefined
+              : () => {
+                  setDaAnnullare(anteprima.sessione)
+                  setAnteprima(null)
+                }
+          }
+          etichettaElimina="Annulla la sessione"
+          onChiudi={() => setAnteprima(null)}
+        />
+      )}
+
+      {/* `distruttiva` benché la riga resti: quello che si perde davvero è il
+          **tempo registrato**, che esce dai conti del lavoro e che nessuno
+          potrà ricostruire a memoria la settimana dopo. La descrizione dice
+          però la verità su cosa succede alla riga, perché «elimina» qui
+          sarebbe una parola sbagliata. */}
+      {daAnnullare !== null && (
+        <ConfermaAzione
+          icona="cestino"
+          variante="distruttiva"
+          titolo="Annullare questa sessione?"
+          descrizione={
+            <>
+              <strong>{durata(daAnnullare.minuti)}</strong> del{' '}
+              {breve(daAnnullare.avviataIl.slice(0, 10))} escono dai conti
+              {daAnnullare.codiceLavoro !== null
+                ? ` di ${daAnnullare.codiceLavoro}`
+                : ''}
+              . La riga non viene cancellata — resta nello storico, marcata
+              come annullata — ma quelle ore non contano più da nessuna parte.
+            </>
+          }
+          etichettaConferma="Annulla la sessione"
+          etichettaAnnulla="Lascia stare"
+          onConferma={() => void annullaSessione(daAnnullare)}
+          onChiudi={() => setDaAnnullare(null)}
         />
       )}
     </>

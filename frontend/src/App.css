@@ -2906,14 +2906,6 @@ button.minuscolo:disabled {
   margin-top: 0;
 }
 
-.card-lavoro-azioni .conferma {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: var(--scala-piccola);
-  color: var(--inchiostro-tenue);
-}
-
 /* --- il dettaglio di un lavoro: i cinque riquadri ------------------------- */
 
 /* Cinque in riga su uno schermo largo, e si avvolgono prima di stringersi
@@ -5497,4 +5489,1662 @@ textarea.campo-grande {
 .campo-periodo {
   display: grid;
   gap: 0.375rem;
+}
+
+
+/* --- «Le mie richieste»: lo storico e le richieste in attesa -------------- */
+
+/* La schermata del foglio «Le mie ferie · storico e richieste in attesa»:
+   occhiello e titolo in alto a sinistra, l'azione piena a destra, e sotto due
+   schede — quelle che aspettano una risposta, e quelle che l'hanno avuta.
+
+   Il foglio la disegna a 1326px su 1440: non e' la larghezza massima delle
+   altre pagine, perche' qui le colonne sono quattro e allargarle oltre
+   vorrebbe dire far attraversare mezzo schermo per arrivare dall'esito al
+   nome della richiesta. */
+.pagina-mie-assenze {
+  max-width: 83rem;
+}
+
+.pagina-mie-assenze .occhiello {
+  margin-top: 0;
+}
+
+/* Allineata al centro e non alla base: a destra c'e' un pulsante alto 44px e
+   a sinistra un titolo di 34 — sulla base il pulsante galleggerebbe sopra la
+   riga del testo. */
+.testata-mie-assenze {
+  align-items: center;
+  margin-top: 0.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.testata-mie-assenze h1 {
+  font-size: 2.125rem;
+  line-height: 1.15;
+}
+
+/* Le due schede della pagina. Non usano `.pannello-blocco` perche' quello
+   divide testata e corpo con un filetto: qui il titolo e il contenuto stanno
+   nella stessa superficie, e lo spazio basta a separarli. Il raggio e' quello
+   del foglio, 24px: sono le due superfici piu' grandi della schermata. */
+.scheda-assenze {
+  padding: 1.5rem;
+  background-color: var(--superficie);
+  border-radius: var(--raggio-foglio);
+  box-shadow: var(--ombra-carta);
+}
+
+/* Anche dopo il banner d'errore, che ha il suo margine sopra ma non sotto:
+   senza questa riga la scheda gli si appoggerebbe addosso. */
+.scheda-assenze + .scheda-assenze,
+.errore + .scheda-assenze {
+  margin-top: 1.5rem;
+}
+
+.scheda-assenze-testata {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.scheda-assenze-testata h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: var(--tracciatura-base);
+  line-height: 1.3;
+}
+
+/* Il contatore a destra del titolo: dice quante sono senza aggiungere un
+   badge colorato accanto a una scheda che e' gia' tutta d'ambra. */
+.scheda-assenze-conto {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* --- le richieste in attesa ----------------------------------------------- */
+
+.righe-attesa {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+/* La riga d'ambra: e' l'unica superficie colorata per intero di tutta
+   l'interfaccia, ed e' voluto. Una richiesta in attesa non e' uno stato fra
+   gli altri da leggere in una colonna — e' la cosa su cui c'e' ancora
+   qualcosa da fare, e la scheda esiste per farla vedere da lontano. Resta
+   dentro il 10% di accento della regola di Fluida perche' le righe in attesa
+   sono poche: lo storico, che e' lungo, e' bianco. */
+.riga-attesa {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  flex-wrap: wrap;
+  min-height: 4.75rem;
+  padding: 0.875rem 1.25rem;
+  background-color: var(--attenzione-velo);
+  border-radius: 1rem;
+}
+
+/* Il quadrato bianco con l'orologio: il bianco si stacca dall'ambra senza
+   introdurre un terzo colore, ed e' lo stesso raggio di un controllo. */
+.riga-attesa-icona {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background-color: var(--superficie);
+  color: var(--attenzione);
+}
+
+.riga-attesa-corpo {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 14rem;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.riga-attesa-titolo {
+  font-weight: 700;
+}
+
+/* La riga sotto non e' argento come le altre note: su un fondo d'ambra il
+   grigio si spegne. E' l'ambra piena, lo stesso colore dell'icona. */
+.riga-attesa-nota {
+  font-size: var(--scala-piccola);
+  color: var(--attenzione);
+}
+
+.riga-attesa-azioni {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/* Il pulsante dentro la riga d'ambra: bianco con il contorno e il testo nel
+   colore della riga. Un verde profondo qui sarebbe l'azione principale della
+   pagina, e l'azione principale e' chiedere, non ritirare. */
+.riga-attesa-azioni button {
+  height: 2.375rem;
+  padding: 0 1.125rem;
+  border: 1px solid color-mix(in srgb, var(--attenzione) 30%, transparent);
+  border-radius: 0.75rem;
+  background-color: var(--superficie);
+  color: var(--attenzione);
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    border-color var(--transizione);
+}
+
+.riga-attesa-azioni button:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--attenzione) 8%, var(--superficie));
+  border-color: var(--attenzione);
+}
+
+.riga-attesa-azioni button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* La domanda prima del ritiro, dentro la riga stessa: ritirare e' definitivo,
+   e la risposta si da' dove si e' premuto. */
+.riga-attesa-conferma {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+  color: var(--attenzione);
+}
+
+/* --- i segmenti del filtro dello storico ---------------------------------- */
+
+/* Una pista d'argento con dentro le scelte: quella scelta e' una pastiglia
+   bianca sollevata. Non sono i `.chip` delle altre schermate — quelli stanno
+   sopra un fondo di carta e si distinguono con l'ombra; qui il fondo e' gia'
+   bianco, e l'ombra da sola non direbbe niente. La pista fa il lavoro al
+   posto loro.
+
+   Il numero accanto al nome dice quante righe ci sono dietro un filtro prima
+   di premerlo, come nei chip. */
+.segmenti {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background-color: var(--argento-200);
+  border-radius: var(--raggio-pillola);
+}
+
+.segmento {
+  height: 2.125rem;
+  padding: 0 0.9375rem;
+  border: none;
+  border-radius: var(--raggio-pillola);
+  background-color: transparent;
+  color: var(--argento-900);
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    color var(--transizione);
+}
+
+.segmento:hover:not(.segmento-scelto) {
+  color: var(--inchiostro);
+}
+
+.segmento-scelto {
+  background-color: var(--superficie);
+  color: var(--inchiostro);
+  font-weight: 700;
+  box-shadow: var(--ombra-carta);
+}
+
+/* --- lo storico ----------------------------------------------------------- */
+
+/* Nessun filetto fra le righe, e nessuno sotto le intestazioni: ogni riga e'
+   un blocco di due righe di testo alto settantasei pixel, e lo spazio basta
+   gia' a dire dove finisce una e comincia l'altra. Tre separatori in una
+   tabella di tre righe sarebbero piu' linee che dati. */
+.tabella-storico {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--scala-base);
+}
+
+.tabella-storico th {
+  padding: 0 0.875rem 0.75rem;
+  text-align: left;
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+  color: var(--inchiostro-tenue);
+  white-space: nowrap;
+}
+
+.tabella-storico td {
+  padding: 0.9375rem 0.875rem;
+  vertical-align: middle;
+}
+
+/* La prima e l'ultima colonna arrivano al bordo del testo della scheda: il
+   respiro laterale lo porta gia' il padding della scheda, e sommarne un
+   secondo scalerebbe la tabella rispetto al titolo che le sta sopra. */
+.tabella-storico th:first-child,
+.tabella-storico td:first-child {
+  padding-left: 0;
+}
+
+.tabella-storico th:last-child,
+.tabella-storico td:last-child {
+  padding-right: 0;
+}
+
+/* I giorni e l'esito si leggono dal bordo destro: incolonnati a destra, due
+   numeri di lunghezza diversa restano confrontabili. */
+.tabella-storico .colonna-destra {
+  text-align: right;
+}
+
+.tabella-storico .colonna-giorni {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cella-richiesta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.cella-richiesta-titolo {
+  font-weight: 700;
+}
+
+.cella-richiesta-nota {
+  font-size: var(--scala-piccola);
+  color: var(--inchiostro-tenue);
+}
+
+/* Sotto i 56rem la tabella dello storico non ci sta: quattro colonne su un
+   telefono diventano quattro parole a capo per riga. Diventa un elenco di
+   blocchi — la richiesta con la sua nota, e sotto periodo, giorni ed esito su
+   una riga sola — e le intestazioni spariscono, perche' ogni valore sta
+   accanto a quello che lo spiega. */
+@media (max-width: 56rem) {
+  .scheda-assenze {
+    padding: 1.25rem 1rem;
+  }
+
+  .tabella-storico thead {
+    display: none;
+  }
+
+  .tabella-storico,
+  .tabella-storico tbody,
+  .tabella-storico td {
+    display: block;
+    width: auto;
+  }
+
+  /* La riga diventa una fascia: la richiesta occupa tutta la larghezza, e
+     periodo, giorni ed esito le stanno sotto su una riga sola — sono tre
+     valori brevi, e tre righe per tre parole allungherebbero ogni blocco di
+     mezzo schermo. */
+  .tabella-storico tr {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.75rem 0;
+  }
+
+  .tabella-storico tr + tr {
+    border-top: 1px solid var(--riga-tenue);
+  }
+
+  .tabella-storico td {
+    padding: 0;
+    font-size: var(--scala-piccola);
+    color: var(--inchiostro-tenue);
+  }
+
+  .tabella-storico td:first-child {
+    flex-basis: 100%;
+    font-size: var(--scala-base);
+    color: var(--inchiostro);
+  }
+
+  /* Niente piu' incolonnamento a destra: in una riga che scorre da sinistra
+     l'esito finisce dove finisce il testo che lo precede. */
+  .tabella-storico .colonna-destra {
+    text-align: left;
+  }
+
+  /* L'esito all'estremo opposto dei valori: e' la risposta, e la si cerca in
+     fondo alla riga come nella tabella. */
+  .tabella-storico .colonna-esito {
+    margin-left: auto;
+  }
+}
+
+/* =========================================================================
+   05 · FINESTRE — modali, tendine, menu
+
+   La tavola 05 del design system, tradotta in regole: raggio 24, ombra lg,
+   apertura con un leggero rimbalzo di 220 ms, il pulsante principale sempre
+   a destra e le azioni distruttive in corallo scuro.
+
+   ⚠️ Tutto quello che si apre qui sotto si CHIUDE con un'animazione, e non
+   e' una rifinitura: l'apertura si anima da se', ma se chi possiede lo stato
+   smonta il componente, l'uscita non gira affatto. Il rimbalzo all'andata e
+   il taglio netto al ritorno sono la cosa che fa sembrare «non finita»
+   un'interfaccia per il resto curata. Per questo i componenti aspettano
+   `animationend` prima di sparire, e qui c'e' una coppia di keyframes per
+   ciascuna direzione invece di una sola.
+   ========================================================================= */
+
+@keyframes finestra-entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* L'uscita non e' l'entrata al contrario: e' piu' corta e senza rimbalzo.
+   Un foglio che se ne va rimbalzando chiede attenzione proprio mentre la
+   sta restituendo alla pagina. */
+@keyframes finestra-esce {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.975);
+  }
+}
+
+@keyframes velo-entra {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes velo-esce {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* --- il foglio ------------------------------------------------------------ */
+
+.finestra {
+  width: min(27rem, calc(100vw - 2rem));
+  /* ⚠️ Come in `.pannello`: e' questo `margin: auto` a centrare il dialogo.
+     Il browser lo mette da se' su un `<dialog>` modale, ma il reset
+     `* { margin: 0 }` di `index.css` glielo porta via, e il riquadro
+     finirebbe nell'angolo in alto a sinistra. */
+  margin: auto;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-foglio);
+  padding: 1.75rem;
+  background-color: var(--superficie);
+  color: var(--inchiostro);
+  box-shadow: var(--ombra-foglio);
+  animation: finestra-entra var(--transizione-finestra) both;
+}
+
+.finestra::backdrop {
+  background-color: rgb(var(--inchiostro-rgb) / 30%);
+  animation: velo-entra 220ms both;
+}
+
+.finestra-esce {
+  animation: finestra-esce 150ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.finestra-esce::backdrop {
+  animation: velo-esce 150ms both;
+}
+
+/* Nell'angolo in alto a destra invece che in mezzo: per le conferme che
+   nascono da un pulsante della testata. I quattro margini espliciti e non
+   `inset`, come in `.pannello-angolo`: su un dialogo del top layer la
+   posizione la decide il margine. */
+.finestra-angolo {
+  margin: 4rem 1rem auto auto;
+}
+
+/* --- la conferma ---------------------------------------------------------- */
+
+.conferma-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* La pastiglia tonda con l'icona. Il velo del colore di segnale, non un
+   grigio: e' il modo di tingere una superficie che questa palette ha. */
+.conferma-segno {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--azione-velo);
+  color: var(--azione);
+}
+
+.conferma-distruttiva .conferma-segno {
+  background-color: var(--corallo-50);
+  color: var(--corallo-700);
+}
+
+.conferma-corpo h2 {
+  font-size: var(--scala-media);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-titolo);
+}
+
+.conferma-descrizione {
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-base);
+  line-height: 1.5;
+}
+
+.conferma-opzione {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 0.5rem;
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  cursor: pointer;
+}
+
+.conferma-opzione input {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--azione);
+  cursor: pointer;
+}
+
+/* I due pulsanti in fondo: il principale a destra, come prescrive la tavola.
+   `margin-left: auto` sul primo li spinge entrambi a destra tenendo l'ordine
+   di lettura — che e' anche l'ordine in cui ci arriva la tastiera. */
+.finestra .azioni {
+  display: flex;
+  gap: 0.625rem;
+  margin-top: 1.25rem;
+}
+
+.finestra .azioni button:first-child {
+  margin-left: auto;
+}
+
+.finestra .azioni button {
+  height: var(--altezza-controllo);
+  padding: 0 1.25rem;
+  border: none;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--azione);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    transform var(--transizione);
+}
+
+.finestra .azioni button:hover:not(:disabled) {
+  background-color: var(--azione-premuta);
+}
+
+/* Il pulsante si abbassa di un pelo mentre lo si tiene premuto: e' il
+   riscontro che dice «ho sentito» prima che la richiesta parta. */
+.finestra .azioni button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.finestra .azioni button.secondario {
+  background-color: var(--superficie);
+  border: 1px solid var(--riga);
+  color: var(--inchiostro);
+}
+
+.finestra .azioni button.secondario:hover:not(:disabled) {
+  background-color: var(--carta);
+  border-color: var(--inchiostro-tenue);
+}
+
+/* L'azione che porta via qualcosa. Corallo scuro e non il rosso dell'errore:
+   non e' andato storto niente, e' una cosa che si sta per fare. */
+.finestra .azioni button.distruttiva {
+  background-color: var(--corallo-700);
+}
+
+.finestra .azioni button.distruttiva:hover:not(:disabled) {
+  background-color: var(--corallo-900);
+}
+
+.finestra .azioni button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* --- le notifiche rapide -------------------------------------------------- */
+
+/* In basso a destra, impilate, l'ultima arrivata in fondo. `position: fixed`
+   e non dentro il flusso: devono stare dove chi guarda sta guardando — cioe'
+   sempre nello stesso posto — e non in cima a una pagina che e' scrollata a
+   meta'. Era quello il difetto dei vecchi `.avviso`: la conferma di una cosa
+   fatta in fondo a una tabella lunga nasceva fuori dallo schermo. */
+.notifiche {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: min(24rem, calc(100vw - 2.5rem));
+  /* Il contenitore non intercetta i clic: e' trasparente e largo quanto una
+     colonna, e senza questo mangerebbe i clic sugli elementi sotto di lui
+     anche quando non c'e' nessuna notifica. Le pastiglie se li riprendono. */
+  pointer-events: none;
+}
+
+@keyframes notifica-entra {
+  from {
+    opacity: 0;
+    transform: translateX(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Uscendo si stringe in altezza oltre a sparire: senza, le pastiglie sotto
+   salterebbero su di scatto quando una se ne va. */
+@keyframes notifica-esce {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 7rem;
+    margin-bottom: 0;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(16px);
+    max-height: 0;
+    margin-bottom: -0.625rem;
+  }
+}
+
+.notifica {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-foglio);
+  pointer-events: auto;
+  animation: notifica-entra var(--transizione-finestra) both;
+}
+
+.notifica-esce {
+  animation: notifica-esce 180ms cubic-bezier(0.4, 0, 1, 1) both;
+  overflow: hidden;
+}
+
+/* Il riuscito e' l'unico in inchiostro pieno, come nella tavola: e' la
+   pastiglia che compare piu' spesso, e un fondo scuro la distingue da quelle
+   che segnalano qualcosa senza doversi urlare addosso. */
+.notifica-successo {
+  background-color: var(--inchiostro);
+  color: #fff;
+}
+
+.notifica-segno {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  border-radius: 50%;
+}
+
+.notifica-successo .notifica-segno {
+  background-color: var(--accento);
+  color: var(--inchiostro);
+}
+
+.notifica-attenzione .notifica-segno {
+  background-color: var(--attenzione-velo);
+  color: var(--attenzione);
+}
+
+.notifica-informazione .notifica-segno {
+  background-color: var(--informazione-velo);
+  color: var(--informazione);
+}
+
+.notifica-errore {
+  background-color: var(--errore-velo);
+}
+
+.notifica-errore .notifica-segno {
+  background-color: var(--errore);
+  color: #fff;
+}
+
+.notifica-testo {
+  flex: 1 1 auto;
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* L'azione: «Annulla» su una cosa appena fatta, «Riprova» su una fallita. */
+.notifica-azione {
+  flex: none;
+  height: 1.875rem;
+  padding: 0 0.75rem;
+  border: none;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--azione-velo);
+  color: inherit;
+  font: inherit;
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color var(--transizione);
+}
+
+.notifica-successo .notifica-azione {
+  background-color: var(--accento);
+  color: var(--inchiostro);
+}
+
+.notifica-errore .notifica-azione {
+  background-color: var(--superficie);
+  color: var(--errore);
+}
+
+.notifica-azione:hover {
+  filter: brightness(0.94);
+}
+
+.notifica-chiudi {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity var(--transizione);
+}
+
+.notifica-chiudi:hover {
+  opacity: 1;
+}
+
+.notifica-chiudi .icona {
+  width: 14px;
+  height: 14px;
+}
+
+/* Da schermo stretto le pastiglie prendono tutta la larghezza e vanno in
+   basso: la' non c'e' una colonna dove stare senza coprire il contenuto. */
+@media (max-width: 40rem) {
+  .notifiche {
+    right: 0.75rem;
+    left: 0.75rem;
+    bottom: 0.75rem;
+    width: auto;
+  }
+}
+
+/* --- la tendina di selezione ---------------------------------------------- */
+
+/* ⚠️ Si usa SOLO dove la scelta ha bisogno di mostrare qualcosa che un
+   `<select>` nativo non sa mostrare: il colore della voce e la riga che
+   spiega che cos'e'. Dove le voci sono nomi e basta, il nativo resta
+   migliore — lo disegna il sistema, funziona con la tastiera senza che
+   nessuno ci pensi, e sul telefono apre la ruota a cui la gente e' abituata.
+   Questa tendina quelle tre cose se le deve riscrivere a mano. */
+.tendina {
+  position: relative;
+  width: 100%;
+}
+
+.tendina-stretta {
+  width: auto;
+  display: inline-block;
+}
+
+.tendina-scelta {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  height: var(--altezza-controllo);
+  padding: 0 0.875rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--campo-fondo);
+  color: var(--inchiostro);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--transizione),
+    box-shadow var(--transizione),
+    background-color var(--transizione);
+}
+
+.tendina-scelta:hover:not(:disabled) {
+  border-color: var(--inchiostro-tenue);
+}
+
+/* Da aperta prende lo stesso anello di un campo a fuoco: e' lo stato «sto
+   scrivendo qui», e una tendina aperta e' quello. */
+.tendina-scelta-aperta,
+.tendina-scelta:focus-visible {
+  outline: none;
+  border-color: var(--teal-500);
+  background-color: var(--superficie);
+  box-shadow: 0 0 0 3px var(--accento-velo);
+}
+
+.tendina-scelta:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tendina-nome {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tendina-pastiglia {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.5rem;
+}
+
+/* Il gallone ruota invece di essere due disegni diversi: una sola icona da
+   tenere allineata, e la rotazione si vede come un'apertura. */
+.tendina-gallone {
+  flex: none;
+  display: inline-flex;
+  color: var(--inchiostro-tenue);
+  transition: transform var(--transizione);
+}
+
+.tendina-scelta-aperta .tendina-gallone {
+  transform: rotate(180deg);
+}
+
+@keyframes tendina-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tendina-esce {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(-4px) scale(0.99); }
+}
+
+.tendina-voci {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  right: 0;
+  max-height: 17rem;
+  overflow-y: auto;
+  padding: 0.375rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-foglio);
+  /* L'origine in alto: il pannello cresce dal campo che lo ha aperto, non
+     dal proprio centro. */
+  transform-origin: top center;
+  animation: tendina-entra var(--transizione-finestra) both;
+}
+
+.tendina-voci-esce {
+  animation: tendina-esce 130ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.tendina-voce {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: var(--raggio-controllo);
+  cursor: pointer;
+  transition: background-color var(--transizione);
+}
+
+/* Una sola evidenziazione, quella della tastiera: il mouse muove la stessa
+   voce puntata passandoci sopra. Due evidenziazioni diverse — una per il
+   mouse e una per le frecce — in un elenco si leggono come due selezioni. */
+.tendina-voce-puntata {
+  background-color: var(--carta);
+}
+
+.tendina-voce-scelta {
+  background-color: var(--accento-velo);
+}
+
+.tendina-voce-spenta {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tendina-etichette {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tendina-voce-nome {
+  font-weight: 700;
+  font-size: var(--scala-piccola);
+}
+
+.tendina-voce-descrizione {
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+  line-height: 1.3;
+}
+
+.tendina-spunta {
+  flex: none;
+  display: inline-flex;
+  color: var(--teal-500);
+}
+
+.tendina-spunta .icona {
+  width: 16px;
+  height: 16px;
+}
+
+/* --- il selettore data ---------------------------------------------------- */
+
+.selettore-data {
+  position: relative;
+  width: 100%;
+}
+
+.campo-data {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  height: var(--altezza-controllo);
+  padding: 0 0.875rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--campo-fondo);
+  color: var(--inchiostro);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--transizione),
+    box-shadow var(--transizione),
+    background-color var(--transizione);
+}
+
+.campo-data:hover:not(:disabled) {
+  border-color: var(--inchiostro-tenue);
+}
+
+/* Da aperto il campo porta l'anello d'accento della tavola: e' il riquadro
+   evidenziato che si vede nel riquadro «tendina data». */
+.campo-data-aperto,
+.campo-data:focus-visible {
+  outline: none;
+  border-color: var(--teal-500);
+  background-color: var(--superficie);
+  box-shadow: 0 0 0 3px var(--accento-velo);
+}
+
+.campo-data:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.campo-data-segno {
+  display: inline-flex;
+  color: var(--inchiostro-tenue);
+}
+
+.campo-data-vuota {
+  color: var(--inchiostro-tenue);
+  font-weight: 600;
+}
+
+.mese {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.375rem);
+  left: 0;
+  width: 19rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.875rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-carta);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-foglio);
+  transform-origin: top left;
+  animation: tendina-entra var(--transizione-finestra) both;
+}
+
+.mese-esce {
+  animation: tendina-esce 130ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.mese-testata {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.mese-testata strong {
+  font-size: var(--scala-base);
+  font-weight: 800;
+}
+
+.mese-frecce {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.mese-frecce button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--carta);
+  color: var(--inchiostro);
+  cursor: pointer;
+  transition: background-color var(--transizione);
+}
+
+.mese-frecce button:hover {
+  background-color: var(--azione-velo-fermo);
+}
+
+.mese-frecce .icona {
+  width: 16px;
+  height: 16px;
+}
+
+.mese-iniziali,
+.mese-giorni {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.125rem;
+}
+
+.mese-iniziali {
+  margin-bottom: 0.25rem;
+}
+
+.mese-iniziali span {
+  text-align: center;
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+}
+
+.giorno {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  color: var(--inchiostro);
+  font: inherit;
+  font-size: var(--scala-piccola);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    color var(--transizione);
+}
+
+.giorno:hover:not(:disabled) {
+  background-color: var(--carta);
+}
+
+/* I giorni della coda del mese precedente e della testa del successivo: ci
+   sono perche' la griglia non abbia buchi, non perche' si guardino. */
+.giorno-altro-mese {
+  color: var(--argento-500);
+}
+
+/* Oggi e' un contorno, il giorno scelto e' un pieno: due segni diversi
+   perche' spesso sono due giorni diversi e devono convivere nella stessa
+   griglia senza che si confondano. */
+.giorno-oggi {
+  border-color: var(--accento);
+}
+
+.giorno-scelto,
+.giorno-scelto:hover {
+  background-color: var(--azione);
+  color: #fff;
+}
+
+/* Dove sta la tastiera. Non e' la selezione: e' il dito che si muove prima
+   di premere. */
+.giorno-puntato:not(.giorno-scelto) {
+  background-color: var(--accento-velo);
+}
+
+.giorno:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* --- l'anteprima di un evento --------------------------------------------- */
+
+/* `position: fixed` e le coordinate le calcola il componente: nasce ancorata
+   al blocco che si e' cliccato, non al centro dello schermo. E' la
+   differenza che la rende utile — la settimana attorno resta leggibile, e si
+   capisce di quale blocco si sta parlando. */
+.anteprima {
+  position: fixed;
+  z-index: 50;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-foglio);
+  background-color: var(--superficie);
+  box-shadow: var(--ombra-foglio);
+  animation: finestra-entra var(--transizione-finestra) both;
+}
+
+.anteprima-esce {
+  animation: finestra-esce 150ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.anteprima-testata {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.625rem;
+}
+
+.anteprima-stato {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.1875rem 0.625rem;
+  border-radius: var(--raggio-pillola);
+  background-color: var(--carta);
+  font-size: var(--scala-etichetta);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-etichetta);
+  text-transform: uppercase;
+}
+
+.anteprima-pallino {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+.anteprima-azioni {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.anteprima-azioni button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--carta);
+  color: var(--inchiostro);
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    color var(--transizione);
+}
+
+.anteprima-azioni button:hover {
+  background-color: var(--azione-velo-fermo);
+}
+
+/* L'azione che porta via qualcosa: il velo di corallo gia' da ferma, cosi'
+   si distingue dalle altre due prima di passarci sopra. */
+.anteprima-distruttiva {
+  background-color: var(--corallo-50) !important;
+  color: var(--corallo-700) !important;
+}
+
+.anteprima-distruttiva:hover {
+  background-color: var(--corallo-100) !important;
+}
+
+.anteprima-azioni .icona {
+  width: 16px;
+  height: 16px;
+}
+
+.anteprima-titolo {
+  margin-bottom: 0.75rem;
+  font-size: var(--scala-media);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-titolo);
+}
+
+.anteprima-righe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.anteprima-righe li {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-size: var(--scala-piccola);
+}
+
+.anteprima-segno {
+  display: inline-flex;
+  flex: none;
+  color: var(--inchiostro-tenue);
+}
+
+.anteprima-segno .icona {
+  width: 16px;
+  height: 16px;
+}
+
+.anteprima-piede {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.875rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--riga-tenue);
+  font-size: var(--scala-piccola);
+}
+
+/* --- chi ha chiesto meno movimento ---------------------------------------- */
+
+/* ⚠️ Non `animation: none`, e la differenza non e' di stile.
+   Questi componenti aspettano `animationend` prima di smontarsi: con le
+   animazioni spente del tutto quell'evento non arriverebbe MAI, e una
+   finestra chiusa resterebbe aperta per sempre. I componenti leggono da se'
+   `prefers-reduced-motion` e in quel caso saltano l'attesa — ma se qualcuno
+   domani aggiunge una finestra dimenticandosene, questa regola la lascia
+   funzionare: l'animazione c'e' ancora, dura un istante e non si muove.
+
+   Le transizioni, che non hanno questo problema, si spengono davvero. */
+@media (prefers-reduced-motion: reduce) {
+  .finestra,
+  .finestra-esce,
+  .finestra::backdrop,
+  .finestra-esce::backdrop,
+  .notifica,
+  .notifica-esce,
+  .tendina-voci,
+  .tendina-voci-esce,
+  .mese,
+  .mese-esce,
+  .anteprima,
+  .anteprima-esce {
+    animation-duration: 1ms !important;
+  }
+
+  .finestra,
+  .notifica,
+  .tendina-voci,
+  .mese,
+  .anteprima {
+    transform: none !important;
+  }
+
+  .tendina-gallone,
+  .finestra .azioni button {
+    transition: none;
+  }
+}
+
+/* --- la finestra-modulo: «Modifica evento» -------------------------------- */
+
+/* Il pannello di una registrazione, nella forma della tavola «Modifica
+   evento · attivita' e tipo». Piu' largo della finestra di conferma: li'
+   c'e' una domanda, qui un modulo con una riga di tre campi. */
+.finestra-modulo {
+  width: min(31rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+}
+
+.modulo-finestra {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* L'occhiello: da dove si arriva e in che stato e' cio' che si guarda.
+   Maiuscoletto spaziato come ogni altra etichetta di sezione del sistema,
+   ma in inchiostro tenue — e' un'informazione di servizio, non un titolo. */
+.finestra-occhiello {
+  margin-bottom: -0.75rem;
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+}
+
+.finestra-testata {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.finestra-testata h2 {
+  flex: 1 1 auto;
+  font-size: var(--scala-sezione);
+  font-weight: 800;
+  letter-spacing: var(--tracciatura-titolo);
+  line-height: 1.15;
+}
+
+/* Il tondo in alto a destra. Non sostituisce «Annulla» in fondo: chi ha
+   scorso il modulo non deve risalire per uscirne, e chi lo apre per sbaglio
+   non deve scendere. */
+.finestra-chiudi {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--carta);
+  color: var(--inchiostro);
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    transform var(--transizione);
+}
+
+.finestra-chiudi:hover:not(:disabled) {
+  background-color: var(--azione-velo-fermo);
+}
+
+.finestra-chiudi:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.finestra-chiudi:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.finestra-sottotitolo {
+  margin-top: -0.75rem;
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+}
+
+/* I campi, piu' morbidi di quelli di pagina: raggio di controllo pieno,
+   fondo velato, nessun bordo duro. E' la differenza che si vede fra il
+   pannello di prima e la tavola. */
+.modulo-finestra .campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.modulo-finestra label,
+.modulo-finestra legend {
+  color: var(--inchiostro);
+  font-size: var(--scala-piccola);
+  font-weight: 800;
+}
+
+.etichetta-tenue {
+  color: var(--inchiostro-tenue);
+  font-weight: 600;
+}
+
+.modulo-finestra input[type='text'],
+.modulo-finestra input[type='time'],
+.modulo-finestra select,
+.modulo-finestra textarea {
+  width: 100%;
+  min-height: var(--altezza-controllo);
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--campo-fondo);
+  color: var(--inchiostro);
+  font: inherit;
+  transition:
+    border-color var(--transizione),
+    box-shadow var(--transizione),
+    background-color var(--transizione);
+}
+
+.modulo-finestra textarea {
+  min-height: 5.5rem;
+  resize: vertical;
+}
+
+.modulo-finestra input:focus-visible,
+.modulo-finestra select:focus-visible,
+.modulo-finestra textarea:focus-visible {
+  outline: none;
+  border-color: var(--teal-500);
+  background-color: var(--superficie);
+  box-shadow: 0 0 0 3px var(--accento-velo);
+}
+
+.modulo-finestra input:disabled,
+.modulo-finestra select:disabled,
+.modulo-finestra textarea:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.modulo-finestra .nota {
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+  line-height: 1.35;
+}
+
+/* Giorno, dalle e alle su una riga: sono tre pezzi della stessa frase. Il
+   giorno prende lo spazio che resta perche' il suo testo e' per esteso, le
+   due ore stanno in una misura fissa. */
+.campi-riga {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem 7rem;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+/* Sotto una certa larghezza la riga si spezza, ma le due ore restano
+   affiancate: separarle vorrebbe dire leggere «dalle» e «alle» come due
+   domande invece che come un intervallo. */
+@media (max-width: 30rem) {
+  .campi-riga {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .campi-riga .campo:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+/* --- le pastiglie del tipo di attivita' ----------------------------------- */
+
+/* Un `<fieldset>` e non un `<div>`: dieci pulsanti che valgono una scelta
+   sola sono un gruppo, e la `<legend>` e' la loro etichetta comune. Serve
+   anche a `disabled`, che su un fieldset spegne tutto cio' che contiene con
+   una riga invece che con dieci. */
+.gruppo-pastiglie {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.gruppo-pastiglie legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+}
+
+.pastiglie-tipo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* La pastiglia: contorno da ferma, inchiostro pieno da scelta. Il contrasto
+   fra le due e' netto di proposito — in un gruppo di dieci, una scelta
+   segnata appena costringe a cercarla. */
+.pastiglia-tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  height: var(--altezza-controllo-piccolo);
+  padding: 0 0.875rem;
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio-pillola);
+  background-color: var(--superficie);
+  color: var(--inchiostro);
+  font: inherit;
+  font-size: var(--scala-piccola);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    border-color var(--transizione),
+    color var(--transizione),
+    transform var(--transizione);
+}
+
+.pastiglia-tipo:hover:not(:disabled) {
+  border-color: var(--inchiostro-tenue);
+  background-color: var(--carta);
+}
+
+/* Si abbassa di un pelo mentre la si preme: su un gruppo di pastiglie e'
+   il riscontro che dice quale si sta scegliendo prima che il colore cambi. */
+.pastiglia-tipo:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.pastiglia-tipo-scelta,
+.pastiglia-tipo-scelta:hover:not(:disabled) {
+  background-color: var(--azione);
+  border-color: var(--azione);
+  color: #fff;
+}
+
+.pastiglia-tipo:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Il punto del colore: la tinta con cui quelle ore compariranno nella
+   griglia della settimana. E' cio' che la tendina mostrava e che qui non
+   andava perso — sceglierlo da un elenco di sole parole vuol dire scoprire
+   il colore dopo aver salvato.
+
+   Sulla pastiglia scelta prende un anello chiaro: su fondo inchiostro, le
+   tinte scure della tavolozza sparirebbero. */
+.pastiglia-punto {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+}
+
+.pastiglia-tipo-scelta .pastiglia-punto {
+  box-shadow: 0 0 0 1.5px rgb(255 255 255 / 55%);
+}
+
+/* --- il piede del modulo -------------------------------------------------- */
+
+/* «Annulla» di contorno e il principale a destra, come prescrive la tavola.
+   L'annullamento della registrazione sta a sinistra e **non assomiglia agli
+   altri due**: e' l'unica azione del modulo che porta via qualcosa, e messa
+   in fila con «Salva» si preme per inerzia. */
+.azioni-modulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.625rem;
+  margin-top: 0.5rem;
+}
+
+.azioni-modulo .secondario {
+  margin-left: auto;
+}
+
+/* Quando l'azione distruttiva non c'e' — scrivendo una registrazione nuova
+   non c'e' niente da annullare — il `margin-left: auto` del contorno spinge
+   comunque la coppia a destra. */
+.azioni-modulo button {
+  height: var(--altezza-controllo);
+  padding: 0 1.25rem;
+  border: none;
+  border-radius: var(--raggio-controllo);
+  background-color: var(--azione);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    box-shadow var(--transizione),
+    transform var(--transizione);
+}
+
+.azioni-modulo button.secondario {
+  background-color: var(--superficie);
+  border: 1px solid var(--riga);
+  color: var(--inchiostro);
+}
+
+.azioni-modulo button.secondario:hover:not(:disabled) {
+  background-color: var(--carta);
+  border-color: var(--inchiostro-tenue);
+}
+
+/* ⚠️ Il principale di QUESTA finestra e' in acqua, non in inchiostro.
+   E' quello che mostra la tavola «Modifica evento», e si discosta dalla
+   regola generale del sistema — in `index.css`: «il pulsante principale e'
+   scuro e pieno, e l'acqua resta all'accento». Le due tavole del design
+   system dicono due cose diverse, e qui si segue quella della schermata.
+   Vale la pena saperlo: il giorno che si vuole una regola sola, e' questa
+   riga da cambiare. */
+.azioni-modulo button.accento {
+  background-color: var(--accento);
+  color: var(--inchiostro);
+  box-shadow: 0 6px 18px -6px rgb(52 224 193 / 65%);
+}
+
+.azioni-modulo button.accento:hover:not(:disabled) {
+  background-color: var(--accento-premuto);
+}
+
+.azioni-modulo button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.azioni-modulo button:disabled {
+  opacity: 0.55;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* L'azione che porta via del tempo misurato: nessun fondo, corallo scuro,
+   e sta per conto suo all'estrema sinistra. Si trova quando la si cerca e
+   non si preme per sbaglio quando si cerca «Salva». */
+.azioni-modulo button.azione-tenue-distruttiva {
+  padding: 0 0.5rem;
+  background: none;
+  border: none;
+  color: var(--corallo-700);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.azioni-modulo button.azione-tenue-distruttiva:hover:not(:disabled) {
+  background-color: var(--corallo-50);
+}
+
+@media (max-width: 30rem) {
+  /* Da schermo stretto le tre azioni vanno a capo: l'annullamento resta
+     staccato, sopra, perche' non deve mai finire accanto a «Salva». */
+  .azioni-modulo .secondario {
+    margin-left: 0;
+  }
+
+  .azioni-modulo button.azione-tenue-distruttiva {
+    order: 3;
+    width: 100%;
+    text-align: left;
+  }
 }

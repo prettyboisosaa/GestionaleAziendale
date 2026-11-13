@@ -9,14 +9,53 @@ import {
   ritiraAssenza,
   TINTA_STATO,
 } from './api'
-import type { MotivoPermesso, NuovaAssenza, RigaAssenza, TipoAssenza } from './api'
+import type {
+  MotivoPermesso,
+  NuovaAssenza,
+  RigaAssenza,
+  StatoAssenza,
+  TipoAssenza,
+} from './api'
 import { testo } from '../api/http'
-import Pannello from '../componenti/Pannello'
+import Icona from '../componenti/Icona'
 import { Pillola } from '../componenti/Stato'
+import SelettoreData from '../componenti/SelettoreData'
 
-/** Da «2027-01-01» a «01/01/2027». */
-function data(iso: string): string {
-  return new Date(iso).toLocaleDateString('it-IT')
+const MESI = [
+  'gen',
+  'feb',
+  'mar',
+  'apr',
+  'mag',
+  'giu',
+  'lug',
+  'ago',
+  'set',
+  'ott',
+  'nov',
+  'dic',
+]
+
+/**
+ * Da «2027-12-22» a «22 dic»: la data come la scrive il foglio del design.
+ *
+ * **L'anno compare solo quando non è quello corrente.** Uno storico è fatto di
+ * richieste di anni diversi, e «3 nov» senza anno in mezzo a due righe del
+ * 2024 sarebbe una data che non si sa leggere. Nell'anno in corso invece
+ * l'anno è rumore: è lo stesso su ogni riga.
+ *
+ * La stringa si taglia invece di passare da `Date`: un ISO di sola data viene
+ * letto come mezzanotte UTC, e a ovest di Greenwich `toLocaleDateString`
+ * restituirebbe il giorno prima.
+ */
+function dataBreve(iso: string): string {
+  const anno = iso.slice(0, 4)
+  const giorno = Number(iso.slice(8, 10))
+  const mese = MESI[Number(iso.slice(5, 7)) - 1]
+  if (anno === String(new Date().getFullYear())) {
+    return `${giorno} ${mese}`
+  }
+  return `${giorno} ${mese} ${anno}`
 }
 
 /** Da «09:30:00» a «09:30»: i secondi non servono a nessuno. */
@@ -27,13 +66,55 @@ function ora(iso: string): string {
 /** Il periodo in una riga: date, oppure data più fascia oraria. */
 function periodo(riga: RigaAssenza): string {
   if (riga.oraInizio !== null && riga.oraFine !== null) {
-    return `${data(riga.dataInizio)}, ${ora(riga.oraInizio)}–${ora(riga.oraFine)}`
+    return `${dataBreve(riga.dataInizio)}, ${ora(riga.oraInizio)}–${ora(riga.oraFine)}`
   }
   if (riga.dataInizio === riga.dataFine) {
-    return data(riga.dataInizio)
+    return dataBreve(riga.dataInizio)
   }
-  return `${data(riga.dataInizio)} – ${data(riga.dataFine)}`
+  return `${dataBreve(riga.dataInizio)} – ${dataBreve(riga.dataFine)}`
 }
+
+/**
+ * La riga sotto il nome della richiesta, nello storico: il motivo, le note di
+ * chi l'ha chiesta e la nota di chi ha deciso, separate da un punto medio.
+ *
+ * Tutte e tre in una riga sola e non in tre colonne: sono testo libero, e una
+ * colonna «nota» larga quanto serve al caso peggiore lascerebbe vuoto metà
+ * dell'elenco. Quella dell'esito porta davanti lo stato — «rifiutata: …» —
+ * perché altrimenti non si distinguerebbe da quello che ha scritto chi
+ * chiedeva.
+ */
+function nota(riga: RigaAssenza): string | null {
+  const pezzi: string[] = []
+  if (riga.motivoEtichetta !== null) {
+    pezzi.push(riga.motivoEtichetta)
+  }
+  if (riga.note !== null && riga.note.trim() !== '') {
+    pezzi.push(riga.note.trim())
+  }
+  if (riga.notaEsito !== null && riga.notaEsito.trim() !== '') {
+    pezzi.push(`${riga.statoEtichetta.toLowerCase()}: ${riga.notaEsito.trim()}`)
+  }
+  return pezzi.length === 0 ? null : pezzi.join(' · ')
+}
+
+/**
+ * I segmenti del filtro dello storico.
+ *
+ * «Ritirate» non sta nel foglio del design, e compare solo quando ce n'è
+ * almeno una: una richiesta ritirata è una che si è disfatta da sé, e nella
+ * maggior parte degli storici non ne esiste nemmeno una. Il segmento in più
+ * sarebbe un filtro che non filtra niente — ma nasconderlo a chi invece ne ha
+ * vorrebbe dire righe raggiungibili solo da «Tutte».
+ */
+type Filtro = 'TUTTE' | 'APPROVATA' | 'RIFIUTATA' | 'RITIRATA'
+
+const SEGMENTI: { valore: Filtro; nome: string }[] = [
+  { valore: 'TUTTE', nome: 'Tutte' },
+  { valore: 'APPROVATA', nome: 'Approvate' },
+  { valore: 'RIFIUTATA', nome: 'Rifiutate' },
+  { valore: 'RITIRATA', nome: 'Ritirate' },
+]
 
 /** Oggi in formato ISO, per il minimo dei campi data: non si chiede il passato. */
 function oggi(): string {
@@ -159,6 +240,8 @@ export default function PaginaMieAssenze() {
   const [inRitiro, setInRitiro] = useState<number | null>(null)
   /** La richiesta per cui si sta chiedendo conferma del ritiro. */
   const [daRitirare, setDaRitirare] = useState<number | null>(null)
+  /** Quale segmento dello storico è premuto. */
+  const [filtro, setFiltro] = useState<Filtro>('TUTTE')
 
   useEffect(() => {
     let annullato = false
@@ -298,6 +381,20 @@ export default function PaginaMieAssenze() {
   const decise = tutte.filter((una) => una.stato !== 'IN_ATTESA')
   const carico = righe === null && errore === null
 
+  /** Quante righe c'è dietro ciascun segmento, da scrivere accanto al nome. */
+  function quante(valore: Filtro): number {
+    if (valore === 'TUTTE') {
+      return decise.length
+    }
+    return decise.filter((una) => una.stato === (valore as StatoAssenza)).length
+  }
+
+  const segmenti = SEGMENTI.filter(
+    (uno) => uno.valore !== 'RITIRATA' || quante('RITIRATA') > 0,
+  )
+  const storico =
+    filtro === 'TUTTE' ? decise : decise.filter((una) => una.stato === filtro)
+
   if (modulo.aperto) {
     return (
       <main className="pagina-larga pagina-richiesta">
@@ -359,24 +456,27 @@ export default function PaginaMieAssenze() {
               <div className="riga-richiesta">
                 <div className="campo">
                   <label htmlFor="dataInizio">Dal</label>
-                  <input
+                  {/* Il mese aperto davanti, e non un campo a cifre: chiedere
+                      le ferie è il gesto in cui si guarda **dove cadono i fine
+                      settimana** prima di decidere. Il campo nativo lo fa
+                      digitare, e per vedere il calendario bisogna aprirlo. */}
+                  <SelettoreData
                     id="dataInizio"
-                    type="date"
-                    required
+                    obbligatorio
                     min={oggi()}
-                    value={campi.dataInizio}
-                    disabled={inInvio}
-                    onChange={(evento) =>
+                    valore={campi.dataInizio}
+                    disabilitato={inInvio}
+                    onCambia={(scelta) =>
                       setCampi({
                         ...campi,
-                        dataInizio: evento.target.value,
+                        dataInizio: scelta,
                         // Spostando l'inizio oltre la fine, la fine si
                         // sposta con lui: `min` impedisce di scriverne una
                         // precedente, ma non di renderla tale cambiando
                         // l'altro campo dopo.
                         dataFine:
-                          campi.dataFine !== '' && campi.dataFine < evento.target.value
-                            ? evento.target.value
+                          campi.dataFine !== '' && campi.dataFine < scelta
+                            ? scelta
                             : campi.dataFine,
                       })
                     }
@@ -384,14 +484,13 @@ export default function PaginaMieAssenze() {
                 </div>
                 <div className="campo">
                   <label htmlFor="dataFine">Al</label>
-                  <input
+                  <SelettoreData
                     id="dataFine"
-                    type="date"
-                    required
+                    obbligatorio
                     min={campi.dataInizio === '' ? oggi() : campi.dataInizio}
-                    value={campi.dataFine}
-                    disabled={inInvio}
-                    onChange={(evento) => setCampi({ ...campi, dataFine: evento.target.value })}
+                    valore={campi.dataFine}
+                    disabilitato={inInvio}
+                    onCambia={(scelta) => setCampi({ ...campi, dataFine: scelta })}
                   />
                 </div>
               </div>
@@ -406,14 +505,13 @@ export default function PaginaMieAssenze() {
           ) : (
             <div className="campo">
               <label htmlFor="dataInizio">Giorno</label>
-              <input
+              <SelettoreData
                 id="dataInizio"
-                type="date"
-                required
+                obbligatorio
                 min={oggi()}
-                value={campi.dataInizio}
-                disabled={inInvio}
-                onChange={(evento) => setCampi({ ...campi, dataInizio: evento.target.value })}
+                valore={campi.dataInizio}
+                disabilitato={inInvio}
+                onCambia={(scelta) => setCampi({ ...campi, dataInizio: scelta })}
               />
               <p className="campo-aiuto">Scegli il giorno richiesto</p>
             </div>
@@ -500,11 +598,16 @@ export default function PaginaMieAssenze() {
   }
 
   return (
-    <main className="pagina-larga pagina-modulo">
-      <div className="testata">
-        <h1>Assenze</h1>
-        <button type="button" className="azione" onClick={apri}>
-          Nuova richiesta
+    <main className="pagina-larga pagina-mie-assenze">
+      {/* Occhiello e titolo a sinistra, l'azione piena a destra: è la testata
+          del foglio «Le mie ferie». Il titolo dice di chi sono le richieste —
+          «Assenze» diceva di che cosa parla la sezione, che è già scritto
+          nell'occhiello e nella barra laterale. */}
+      <p className="occhiello">Ferie e permessi</p>
+      <div className="testata testata-mie-assenze">
+        <h1>Le mie richieste</h1>
+        <button type="button" className="azione-piena" onClick={apri}>
+          Richiedi ferie o permesso
         </button>
       </div>
 
@@ -514,123 +617,165 @@ export default function PaginaMieAssenze() {
         </p>
       )}
 
-      <Pannello
-        titolo="In attesa"
-        sottotitolo="le puoi ancora correggere o ritirare"
-        azioni={
-          inAttesa.length > 0 ? (
-            <Pillola tinta="attesa">{String(inAttesa.length)}</Pillola>
-          ) : undefined
-        }
-        carico={carico}
-        vuoto={!carico && inAttesa.length === 0 ? 'Nessuna richiesta in sospeso.' : null}
-      >
-        <ul className="righe-assenza">
-          {inAttesa.map((riga) => (
-            <li key={riga.id} className="riga-assenza">
-              <span className="riga-assenza-corpo">
-                <span className="riga-assenza-titolo">
-                  {riga.tipoEtichetta}
-                  {riga.motivoEtichetta !== null && (
-                    <span className="nota"> · {riga.motivoEtichetta}</span>
-                  )}
-                </span>
-                <span className="nota">
-                  {periodo(riga)} · {riga.riepilogo}
-                </span>
+      {/* La scheda d'attesa esiste solo quando c'è qualcosa che aspetta. Un
+          riquadro che dice «niente in sospeso» è una riga di interfaccia per
+          dire che non c'è interfaccia da mostrare: senza richieste aperte la
+          pagina è lo storico, e basta. */}
+      {(carico || inAttesa.length > 0) && (
+        <section className="scheda-assenze">
+          <div className="scheda-assenze-testata">
+            <h2>In attesa di approvazione</h2>
+            {inAttesa.length > 0 && (
+              <span className="scheda-assenze-conto">
+                {inAttesa.length} in attesa
               </span>
+            )}
+          </div>
 
-              <span className="riga-assenza-azioni">
-                {daRitirare === riga.id ? (
-                  // Ritirare è definitivo e non si disfa: prima partiva al
-                  // primo clic, senza nemmeno una domanda.
-                  <span className="conferma">
-                    Ritirare?
-                    <button
-                      type="button"
-                      className="minuscolo"
-                      disabled={inRitiro !== null}
-                      onClick={() => void ritira(riga.id)}
-                    >
-                      Sì
-                    </button>
-                    <button
-                      type="button"
-                      className="minuscolo"
-                      disabled={inRitiro !== null}
-                      onClick={() => setDaRitirare(null)}
-                    >
-                      No
-                    </button>
+          {carico ? (
+            <p className="sommario" role="status">
+              Carico…
+            </p>
+          ) : (
+            <ul className="righe-attesa">
+              {inAttesa.map((riga) => (
+                <li key={riga.id} className="riga-attesa">
+                  <span className="riga-attesa-icona">
+                    <Icona nome="attesa" />
                   </span>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="minuscolo"
-                      onClick={() => apriModifica(riga)}
-                      disabled={inRitiro !== null}
-                    >
-                      Modifica
-                    </button>
-                    <button
-                      type="button"
-                      className="minuscolo"
-                      onClick={() => setDaRitirare(riga.id)}
-                      disabled={inRitiro !== null}
-                    >
-                      Ritira
-                    </button>
-                  </>
-                )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Pannello>
 
-      <Pannello
-        titolo="Storico"
-        sottotitolo="richieste già decise o ritirate"
-        carico={carico}
-        vuoto={
-          !carico && decise.length === 0 ? 'Non hai ancora richieste chiuse.' : null
-        }
-      >
-        <div className="scheda-tabella scheda-tabella-nuda">
-          <table className="tabella">
+                  <span className="riga-attesa-corpo">
+                    <span className="riga-attesa-titolo">
+                      {riga.tipoEtichetta} · {periodo(riga)}
+                    </span>
+                    <span className="riga-attesa-nota">
+                      {riga.riepilogo !== null && `${riga.riepilogo} · `}
+                      inviata il {dataBreve(riga.creataIl)}
+                    </span>
+                  </span>
+
+                  <span className="riga-attesa-azioni">
+                    {daRitirare === riga.id ? (
+                      // Ritirare è definitivo e non si disfa: prima partiva al
+                      // primo clic, senza nemmeno una domanda.
+                      <span className="riga-attesa-conferma">
+                        Ritirare?
+                        <button
+                          type="button"
+                          disabled={inRitiro !== null}
+                          onClick={() => void ritira(riga.id)}
+                        >
+                          Sì
+                        </button>
+                        <button
+                          type="button"
+                          disabled={inRitiro !== null}
+                          onClick={() => setDaRitirare(null)}
+                        >
+                          No
+                        </button>
+                      </span>
+                    ) : (
+                      <>
+                        {/* «Modifica» non sta nel foglio del design, che
+                            disegna il solo «Ritira». Resta perché correggere
+                            una data senza disfare la richiesta è l'unica cosa
+                            che si può ancora fare da qui, e toglierla
+                            vorrebbe dire ritirare e riscrivere da capo. */}
+                        <button
+                          type="button"
+                          onClick={() => apriModifica(riga)}
+                          disabled={inRitiro !== null}
+                        >
+                          Modifica
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDaRitirare(riga.id)}
+                          disabled={inRitiro !== null}
+                        >
+                          Ritira
+                        </button>
+                      </>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      <section className="scheda-assenze">
+        <div className="scheda-assenze-testata">
+          <h2>Storico</h2>
+          {decise.length > 0 && (
+            <div className="segmenti" role="group" aria-label="Filtra lo storico">
+              {segmenti.map((uno) => (
+                <button
+                  key={uno.valore}
+                  type="button"
+                  className={
+                    filtro === uno.valore ? 'segmento segmento-scelto' : 'segmento'
+                  }
+                  aria-pressed={filtro === uno.valore}
+                  onClick={() => setFiltro(uno.valore)}
+                >
+                  {uno.nome} · {quante(uno.valore)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {carico ? (
+          <p className="sommario" role="status">
+            Carico…
+          </p>
+        ) : storico.length === 0 ? (
+          <p className="sommario">
+            {decise.length === 0
+              ? 'Non hai ancora richieste chiuse.'
+              : 'Nessuna richiesta con questo esito.'}
+          </p>
+        ) : (
+          <table className="tabella-storico">
             <thead>
               <tr>
-                <th>Tipologia</th>
-                <th>Quando</th>
-                <th>Durata</th>
-                <th>Stato</th>
-                <th>Esito</th>
+                <th>Richiesta</th>
+                <th>Periodo</th>
+                <th className="colonna-destra">Giorni</th>
+                <th className="colonna-destra">Esito</th>
               </tr>
             </thead>
             <tbody>
-              {decise.map((riga) => (
+              {storico.map((riga) => (
                 <tr key={riga.id}>
                   <td>
-                    {riga.tipoEtichetta}
-                    {riga.motivoEtichetta !== null && (
-                      <span className="nota"> · {riga.motivoEtichetta}</span>
-                    )}
+                    <span className="cella-richiesta">
+                      <span className="cella-richiesta-titolo">
+                        {riga.tipoEtichetta}
+                      </span>
+                      {nota(riga) !== null && (
+                        <span className="cella-richiesta-nota">{nota(riga)}</span>
+                      )}
+                    </span>
                   </td>
                   <td>{periodo(riga)}</td>
-                  <td>{riga.riepilogo}</td>
-                  <td>
+                  <td className="colonna-destra colonna-giorni">
+                    {riga.riepilogo ?? '—'}
+                  </td>
+                  <td className="colonna-destra colonna-esito">
                     <Pillola tinta={TINTA_STATO[riga.stato]}>
                       {ETICHETTA_STATO[riga.stato]}
                     </Pillola>
                   </td>
-                  <td>{riga.notaEsito ?? '—'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      </Pannello>
+        )}
+      </section>
     </main>
   )
 }
