@@ -1307,8 +1307,11 @@ button.minuscolo:disabled {
 .scheda-settimana {
   /* Righe piu' chiare delle altre schermate: su una griglia di sette giorni
      per quattordici ore sono quasi duecento linee, e al contrasto normale
-     diventano un reticolo che compete con i blocchi. */
-  --fc-border-color: #ececf1;
+     diventano un reticolo che compete con i blocchi. Restano pero' un grigio
+     neutro leggibile: al grigio precedente (#ececf1) la delimitazione fra
+     un'ora e l'altra si perdeva sul bianco del foglio, e la griglia non
+     diceva piu' dove finisse una fascia. */
+  --fc-border-color: #c2c2ce;
   --fc-page-bg-color: #fff;
 
   /* Le ore fuori dall'orario di lavoro — prima delle 9, dopo le 18, il
@@ -1344,6 +1347,13 @@ button.minuscolo:disabled {
    aprirlo. */
 .scheda-settimana .fc-timegrid-slot {
   height: 1.75rem;
+}
+
+/* Le mezz'ore restano piu' tenui delle ore piene: con la riga dell'ora portata
+   a un grigio leggibile, due linee dello stesso peso ogni ora
+   raddoppierebbero il reticolo invece di delimitarlo. */
+.scheda-settimana .fc-timegrid-slot-minor {
+  border-top-color: #dedee6;
 }
 
 /* Via il bordo sotto l'intestazione dei giorni: in questo stile le colonne si
