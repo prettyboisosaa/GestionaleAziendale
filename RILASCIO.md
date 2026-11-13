@@ -428,11 +428,85 @@ Non sono dettagli: sono decisioni ancora aperte.
 | `Access denied for user 'gestionale'` | Un `$` nella password dentro il `.env` (vedi passo 2). Oppure hai cambiato `DB_PASSWORD` dopo il primo avvio: MySQL la fissa quando inizializza il volume e non la rilegge più. |
 | Il login risponde 200 ma ogni pagina richiede di nuovo l'accesso | `COOKIE_SECURE` non è `"false"` e non c'è HTTPS. Controlla con `docker compose -f compose.prod.yml exec backend env \| grep COOKIE`. |
 | Il backend resta `unhealthy` | `docker compose -f compose.prod.yml logs backend`. Se parla di `Validate failed` è lo schema divergente (passo 6); se muore senza un errore chiaro durante il build, è la RAM (passo 0). |
-| `Bind for 0.0.0.0:80 failed: port is already allocated` | Qualcosa occupa la 80 (passo 0). |
+| `Bind for 0.0.0.0:80 failed: port is already allocated` | Qualcosa occupa la 80 (passo 0). **Risolvila subito**: se la lasci lì, il sintomo si trasforma in quello della riga qui sotto e non assomiglia più a un problema di porte. |
+| Frontend in `Restarting` con `nginx: [emerg] host not found in upstream "backend"`, **mentre il backend è `healthy`** | Non è il backend. Vedi «Il frontend che accusa il backend» qui sotto. |
 | `Public Key Retrieval is not allowed` | Qualcuno ha aggiunto `useSSL=false` al `DB_URL`. Va tolto: MySQL 8.4 autentica con `caching_sha2_password` e senza TLS pretenderebbe anche `allowPublicKeyRetrieval=true`. Lasciando decidere al driver si ottiene `sslMode=PREFERRED`, che funziona. |
 | Dopo un reboot del server non risponde niente | `systemctl is-enabled docker` (passo 0). |
 
-Un comando che vale la pena conoscere prima di averne bisogno:
+### Il frontend che accusa il backend
+
+Vale una sezione a sé perché è costato un'ora, e perché nessuno dei tre
+indizi punta nella direzione giusta.
+
+Il sintomo: il frontend cicla in `Restarting` e il log dice
+`host not found in upstream "backend"`, ma `docker compose ps` mostra il
+backend `healthy`. Sembra un problema di rete fra i container, o di nginx.
+
+Non è nessuno dei due. **Il container del frontend non ha nessuna rete**, e
+quindi non può risolvere il nome `backend`. È il resto di un `up` fallito
+prima: quando `docker compose up` si schianta su
+`Bind for 0.0.0.0:80 failed`, il container è **già stato creato** e la
+procedura si interrompe al passo «set up container networking». Rimane un
+guscio senza rete, e `restart: unless-stopped` lo riavvia all'infinito invece
+di ricrearlo. L'errore vero — il conflitto di porta — è passato una volta
+sola, molto prima.
+
+Come riconoscerlo in trenta secondi:
+
+```bash
+docker inspect gestionale-frontend-1 \
+  --format 'creato: {{.Created}}  riavvii: {{.RestartCount}}'
+docker inspect gestionale-frontend-1 \
+  --format 'reti: {{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}'
+```
+
+Se `reti:` è **vuoto**, è questo. Lo conferma anche la data di creazione, che
+risalirà al tentativo fallito e non all'ultimo `up`.
+
+Il rimedio, e qui sta la seconda trappola: **`up -d --build` non basta.** Con
+il build in cache l'immagine non cambia, compose non ha ragione di rifare il
+container, scrive `Started` e sembra aver funzionato — mentre ha solo
+riavviato lo stesso guscio. Serve dirglielo:
+
+```bash
+docker compose -f compose.prod.yml up -d --force-recreate frontend
+```
+
+Oppure ripartire pulito da tutti e tre, che il volume non lo tocca:
+
+```bash
+docker compose -f compose.prod.yml down
+docker compose -f compose.prod.yml up -d
+```
+
+**E la terza: non guardare lo stato, guarda la porta.**
+
+```bash
+docker compose -f compose.prod.yml ps
+```
+
+Il frontend deve dire `0.0.0.0:80->80/tcp`. Se dice soltanto `80/tcp` è di
+nuovo il container rotto: `80/tcp` è la `EXPOSE` del Dockerfile, una
+dichiarazione d'intenti, non una porta pubblicata sull'host. Un container può
+stare `Up` e perfino `healthy` per qualche secondo senza essere raggiungibile
+da nessuno.
+
+La prova che il giro funziona davvero non è nessuna di queste colonne, sono
+due richieste:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost/
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  http://localhost/api/autenticazione/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"nessuno@esempio.it","password":"sbagliata"}'
+```
+
+`200` e `401`. Il `401` vale più del `200`: dice che nginx ha inoltrato al
+backend, che il backend ha interrogato il database e che ha risposto di no.
+Tutta la catena, con una password sbagliata di proposito.
+
+### Due comandi da conoscere prima di averne bisogno
 
 ```bash
 docker compose -f compose.prod.yml down          # ferma tutto, i dati restano
