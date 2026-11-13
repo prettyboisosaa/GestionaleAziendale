@@ -1307,8 +1307,11 @@ button.minuscolo:disabled {
 .scheda-settimana {
   /* Righe piu' chiare delle altre schermate: su una griglia di sette giorni
      per quattordici ore sono quasi duecento linee, e al contrasto normale
-     diventano un reticolo che compete con i blocchi. */
-  --fc-border-color: #ececf1;
+     diventano un reticolo che compete con i blocchi. Restano pero' un grigio
+     neutro leggibile: al grigio precedente (#ececf1) la delimitazione fra
+     un'ora e l'altra si perdeva sul bianco del foglio, e la griglia non
+     diceva piu' dove finisse una fascia. */
+  --fc-border-color: #c2c2ce;
   --fc-page-bg-color: #fff;
 
   /* Le ore fuori dall'orario di lavoro — prima delle 9, dopo le 18, il
@@ -1344,6 +1347,13 @@ button.minuscolo:disabled {
    aprirlo. */
 .scheda-settimana .fc-timegrid-slot {
   height: 1.75rem;
+}
+
+/* Le mezz'ore restano piu' tenui delle ore piene: con la riga dell'ora portata
+   a un grigio leggibile, due linee dello stesso peso ogni ora
+   raddoppierebbero il reticolo invece di delimitarlo. */
+.scheda-settimana .fc-timegrid-slot-minor {
+  border-top-color: #dedee6;
 }
 
 /* Via il bordo sotto l'intestazione dei giorni: in questo stile le colonne si
@@ -5268,4 +5278,223 @@ textarea.campo-grande {
   border-color: var(--stato-completato);
   background-color: var(--successo-velo);
   color: var(--stato-completato);
+}
+
+/* --- richiedi ferie o permesso -------------------------------------------- */
+
+/* La schermata «Richiedi ferie o permesso» del design system: occhiello,
+   titolo, una scheda sola.
+
+   E' piu' stretta di `--pagina-modulo` perche' il foglio del design la
+   disegna a 620px su 1440: un modulo di tre campi largo novecento pixel
+   diventa una riga di etichette sospese nel vuoto, con il campo che continua
+   per mezzo schermo oltre la parola che lo nomina. I 620 del foglio piu' il
+   respiro laterale di `.pagina-larga` fanno i 41.75rem qui sotto. */
+.pagina-richiesta {
+  max-width: 41.75rem;
+}
+
+.pagina-richiesta .occhiello {
+  margin-top: 0;
+}
+
+.testata-richiesta {
+  margin-top: 0.25rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Il titolo sta fra la scala di sezione e quella piena: e' il titolo di una
+   schermata che non ha altro sotto di se', e la scheda che segue e' stretta —
+   quaranta pixel la sovrasterebbero. */
+.testata-richiesta h1 {
+  font-size: 2.125rem;
+  line-height: 1.15;
+}
+
+.scheda-richiesta {
+  display: grid;
+  gap: 1.5rem;
+  padding: 1.75rem;
+  background-color: var(--superficie);
+  border-radius: var(--raggio-carta);
+  box-shadow: var(--ombra-carta);
+}
+
+/* La riga di aiuto sotto un campo: dice cosa ci va scritto, in argento e in
+   corpo piccolo. Non e' un errore e non deve sembrarlo. */
+.campo-aiuto {
+  color: var(--inchiostro-tenue);
+  font-size: var(--scala-piccola);
+}
+
+/* «(facoltative)» accanto a «Note»: stessa riga, peso normale, argento. Il
+   grassetto dell'etichetta resta alla parola che nomina il campo. */
+.etichetta-tenue {
+  color: var(--inchiostro-tenue);
+  font-weight: 400;
+}
+
+/* L'interruttore a due posizioni del tipo.
+
+   E' una pista d'argento con dentro due meta': quella scelta e' una pastiglia
+   piena di verde profondo. Non sono due pulsanti radio con il pallino — con
+   due sole possibilita', e una sempre vera, il pallino dice meno della
+   posizione. I radio ci sono comunque, nascosti sotto: senza, la scelta non
+   avrebbe nome per chi naviga da tastiera o con un lettore di schermo. */
+.scelta-tipo {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background-color: var(--argento-100);
+  border: 1px solid var(--riga-tenue);
+  border-radius: var(--raggio-carta);
+}
+
+.scelta-tipo-voce {
+  flex: 1 1 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--altezza-controllo);
+  border-radius: var(--raggio-controllo);
+  font-size: var(--scala-base);
+  font-weight: 700;
+  color: var(--inchiostro);
+  cursor: pointer;
+  transition:
+    background-color var(--transizione),
+    color var(--transizione);
+}
+
+/* Il radio vero sta sotto la pastiglia: invisibile, ma presente — e quindi
+   raggiungibile da tastiera, che e' tutto il punto di tenerlo. */
+.scelta-tipo-voce input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: inherit;
+}
+
+.scelta-tipo-voce:not(.attiva):hover {
+  background-color: var(--azione-velo);
+}
+
+.scelta-tipo-voce.attiva {
+  background-color: var(--azione);
+  color: #fff;
+  box-shadow: var(--ombra-premuto);
+}
+
+/* Il contorno da tastiera lo porta la pastiglia, non il radio nascosto: su un
+   elemento trasparente e sovrapposto non si vedrebbe. */
+.scelta-tipo-voce:focus-within {
+  outline: 2px solid var(--accento-premuto);
+  outline-offset: 2px;
+}
+
+.scelta-tipo-voce:has(input:disabled) {
+  cursor: default;
+}
+
+.scelta-tipo-voce:not(.attiva):has(input:disabled) {
+  color: var(--inchiostro-tenue);
+}
+
+.scelta-tipo-voce:not(.attiva):has(input:disabled):hover {
+  background-color: transparent;
+}
+
+/* Due campi che stanno su una riga: le ore di una fascia, che si leggono
+   insieme o non si leggono. */
+.riga-richiesta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.riga-richiesta .campo {
+  flex: 1 1 10rem;
+}
+
+.scheda-richiesta .campo input,
+.scheda-richiesta .campo textarea {
+  width: 100%;
+}
+
+/* I due capi della scheda: si desiste a sinistra, si invia a destra. La
+   distanza fra i due pulsanti e' il modo piu' semplice di non far premere
+   l'uno per l'altro. */
+.azioni-richiesta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+}
+
+.azioni-richiesta button {
+  height: var(--altezza-controllo);
+  padding: 0 1.5rem;
+  border: 1px solid var(--azione);
+  border-radius: var(--raggio-controllo);
+  background-color: var(--azione);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--ombra-premuto);
+  transition:
+    background-color var(--transizione),
+    transform var(--transizione);
+}
+
+.azioni-richiesta button:hover:not(:disabled) {
+  background-color: var(--azione-premuta);
+  border-color: var(--azione-premuta);
+}
+
+.azioni-richiesta button:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/* L'invio spento non e' il pulsante pieno reso trasparente: e' argento su
+   argento. Un verde profondo al 55% resta scuro abbastanza da sembrare
+   premibile, e chi lo preme non capisce perche' non succede niente. */
+.azioni-richiesta button:disabled {
+  background-color: var(--argento-200);
+  border-color: var(--argento-200);
+  color: var(--argento-500);
+  box-shadow: none;
+  cursor: default;
+}
+
+.azioni-richiesta button.secondario {
+  background-color: var(--superficie);
+  border-color: var(--riga);
+  color: var(--inchiostro);
+  box-shadow: none;
+}
+
+.azioni-richiesta button.secondario:hover:not(:disabled) {
+  background-color: var(--carta);
+  border-color: var(--inchiostro-tenue);
+}
+
+.azioni-richiesta button.secondario:disabled {
+  background-color: var(--superficie);
+  border-color: var(--riga-tenue);
+  color: var(--argento-500);
+}
+
+/* Il periodo: due date su una riga e una sola riga d'aiuto sotto, perche'
+   l'aiuto parla di tutte e due. Senza questo involucro la riga d'aiuto
+   starebbe dentro uno dei due campi, e si leggerebbe come se riguardasse
+   solo quello. */
+.campo-periodo {
+  display: grid;
+  gap: 0.375rem;
 }

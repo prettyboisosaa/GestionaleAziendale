@@ -1,10 +1,32 @@
 name: ci
 
+# Su quali rami gira, e perche' questi.
+#
+# `pull_request` e' la riga che conta per il flusso di lavoro: il workflow
+# parte sul MERGE DI PROVA fra la PR e il ramo di destinazione, cioe' su cio'
+# che il ramo diventerebbe accettando la PR - non sul ramo sorgente da solo.
+# E' la differenza fra «il mio ramo builda» e «builda anche dopo averlo
+# unito», che sono due domande diverse quando intanto la destinazione e'
+# andata avanti.
+#
+# `deploy` e' la destinazione da proteggere: ci si arriva solo per PR da
+# `develop`, e il verde di questi lavori e' cio' che si guarda prima di
+# accettarla. `develop` c'e' anche lui, perche' scoprire un test rotto quando
+# si apre la PR verso deploy e' tardi: li' si vorrebbe solo confermare.
+#
+# ⚠️ Il verde del workflow NON impedisce da se' di unire una PR rossa: GitHub
+# lo consente finche' il controllo non e' dichiarato obbligatorio nelle
+# impostazioni del repository (Settings > Branches > branch protection su
+# `deploy`). Senza quel passo questa pipeline informa, non protegge.
 on:
   push:
-    branches: ["main", "master"]
+    branches: ["main", "master", "develop", "deploy"]
   pull_request:
-    branches: ["main", "master"]
+    branches: ["main", "master", "develop", "deploy"]
+
+  # Per lanciarlo a mano da Actions su un ramo qualunque, senza aprire una PR
+  # per forza.
+  workflow_dispatch:
 
 jobs:
   build:
@@ -151,6 +173,33 @@ jobs:
           name: backend-jar
           path: ./jar
 
+      # In produzione le due utenze nascono da db-init/10-utenze.sh, montato
+      # su /docker-entrypoint-initdb.d. Qui non si puo': i `services:` di
+      # GitHub Actions non accettano `volumes:`. Quindi si fa lo stesso lavoro
+      # a mano, con gli stessi GRANT - e se i due elenchi divergono, questo
+      # job se ne accorge prima del server.
+      #
+      # Non e' solo per far passare il job: e' il controllo che l'applicazione
+      # riesca davvero a partire, migrare e fare login con l'utenza
+      # applicativa ridotta ai soli privilegi DML. Senza questo, la
+      # configurazione che gira in produzione sarebbe l'unica mai provata.
+      - name: separa le utenze del database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot_ci <<'SQL'
+          REVOKE IF EXISTS ALL PRIVILEGES ON `gestionale`.* FROM 'gestionale'@'%';
+          GRANT SELECT, INSERT, UPDATE, DELETE ON `gestionale`.* TO 'gestionale'@'%';
+
+          CREATE USER IF NOT EXISTS 'gestionale_flyway'@'%' IDENTIFIED BY 'flyway_ci';
+          GRANT SELECT, INSERT, UPDATE, DELETE,
+                CREATE, DROP, ALTER, INDEX, REFERENCES,
+                CREATE VIEW, SHOW VIEW
+              ON `gestionale`.* TO 'gestionale_flyway'@'%';
+
+          FLUSH PRIVILEGES;
+          SQL
+          echo "--- privilegi dell'utenza applicativa ---"
+          mysql -h 127.0.0.1 -uroot -proot_ci -N -e "SHOW GRANTS FOR 'gestionale'@'%'"
+
       - name: avvia il backend con il profilo prod
         env:
           SPRING_PROFILES_ACTIVE: prod
@@ -161,6 +210,13 @@ jobs:
           DB_URL: jdbc:mysql://127.0.0.1:3306/gestionale
           DB_USERNAME: gestionale
           DB_PASSWORD: prova_ci
+          # L'utenza con cui gira Flyway, l'unica che puo' cambiare lo schema.
+          # In application-prod.properties non hanno valore di ripiego: se
+          # mancano, l'avvio si ferma dicendo quale - ed e' voluto, perche' un
+          # ripiego sull'utenza applicativa disattiverebbe la separazione
+          # senza dirlo.
+          FLYWAY_USERNAME: gestionale_flyway
+          FLYWAY_PASSWORD: flyway_ci
           GESTIONALE_AMMINISTRATOREINIZIALE_EMAIL: prova@ci.local
           GESTIONALE_AMMINISTRATOREINIZIALE_PASSWORD: ProvaCi1!
           # Il profilo prod lo mette a true per il cookie Secure, ma qui si
@@ -239,3 +295,185 @@ jobs:
         # scopriva al primo `npm run build` di qualcuno.
         run: npm run build
         working-directory: frontend
+
+  # ===========================================================================
+  # Lo stack di produzione vero, costruito e avviato come sul server.
+  #
+  # Gli altri lavori provano il CODICE: Maven compila ed esegue i test, npm
+  # controlla i tipi, e «profilo-produzione» fa partire il jar con il profilo
+  # prod. Nessuno di loro prova il RILASCIO, che e' un'altra cosa e si rompe
+  # per altri motivi:
+  #
+  #   * i due Dockerfile. Un `mvnw package` riuscito non dice che l'immagine
+  #     si costruisce: il build dentro il container parte da un contesto
+  #     diverso, con un'altra JDK e senza la cache locale.
+  #   * compose.prod.yml. Le variabili che passa, i `depends_on`, gli
+  #     healthcheck, il `${VAR:?}` che ferma tutto se manca una chiave del
+  #     .env: niente di questo esiste per gli altri lavori.
+  #   * db-init/10-utenze.sh, che crea le due utenze del database. Il lavoro
+  #     «profilo-produzione» rifa' quei GRANT a mano, perche' i `services:` di
+  #     Actions non accettano `volumes:` - quindi prova i privilegi, ma NON lo
+  #     script che li concede. Qui lo script gira per davvero, montato dal
+  #     compose come sul server.
+  #   * nginx del frontend e il suo proxy verso il backend: l'unica prova che
+  #     la pagina e l'API si parlino attraverso la porta pubblicata.
+  #
+  # E' il lavoro piu' lento (due immagini da costruire) e per questo gira solo
+  # dove serve: sulle PR verso `deploy`, sui push a `deploy`, e a mano. Sul
+  # ramo di sviluppo rallenterebbe ogni giro per rispondere a una domanda che
+  # si fa una volta per rilascio.
+  # ===========================================================================
+  stack-di-produzione:
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'deploy' || github.ref == 'refs/heads/deploy' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v5
+
+      # Prima di costruire qualunque cosa: la cartella che il compose monta su
+      # /docker-entrypoint-initdb.d deve esistere NEL REPOSITORY.
+      #
+      # Non e' una verifica di cortesia. Se `db-init/` non e' versionata, il
+      # checkout non la crea, Docker monta al suo posto una cartella VUOTA
+      # senza lamentarsi, le due utenze non nascono e il backend muore molto
+      # piu' tardi con «Access denied for user 'gestionale_flyway'» - un
+      # messaggio che manda a cercare la password sbagliata nel posto
+      # sbagliato. Meglio fermarsi qui, dicendo che cosa manca.
+      - name: db-init deve essere versionata
+        run: |
+          if [ ! -f db-init/10-utenze.sh ]; then
+            echo "::error::db-init/10-utenze.sh non c'e' nel repository."
+            echo "La cartella e' montata da compose.prod.yml su /docker-entrypoint-initdb.d"
+            echo "e crea le utenze del database. Se esiste solo in locale va aggiunta:"
+            echo "  git add db-init/"
+            exit 1
+          fi
+          ls -l db-init/
+
+      # Il .env che compose.prod.yml pretende accanto a se'. Valori di prova,
+      # non segreti: questo database nasce e muore dentro il runner. La
+      # password dell'amministratore rispetta le regole del gestionale
+      # (almeno 8 caratteri, una cifra, un carattere non alfanumerico):
+      # altrimenti l'utente non viene creato, il container resta sano, e il
+      # login piu' sotto fallirebbe senza che il motivo sia evidente.
+      - name: il file .env della prova
+        run: |
+          cat > .env <<'FINE'
+          DB_PASSWORD=prova_ci_db
+          MYSQL_ROOT_PASSWORD=prova_ci_root
+          FLYWAY_PASSWORD=prova_ci_flyway
+          ADMIN_EMAIL=prova@ci.local
+          ADMIN_PASSWORD=ProvaCi1!
+          FINE
+          echo "chiavi scritte, senza i valori:"
+          grep -oE '^[A-Z_]+' .env
+
+      - name: costruisci le immagini
+        run: docker compose -f compose.prod.yml build
+
+      # `--wait` aspetta che ogni servizio con un healthcheck sia *healthy*,
+      # non solo avviato: senza, il passo dopo partirebbe mentre Flyway sta
+      # ancora migrando. Il timeout e' generoso perche' al primo avvio MySQL
+      # inizializza il datadir ed esegue db-init, e il backend applica tutte
+      # le migrazioni su un database vuoto.
+      - name: avvia lo stack
+        run: docker compose -f compose.prod.yml up -d --wait --wait-timeout 300
+
+      - name: lo stato dei servizi
+        run: docker compose -f compose.prod.yml ps
+
+      # Da qui si interroga il sistema dalla porta pubblicata, come lo
+      # vedrebbe un browser sulla rete aziendale: attraverso nginx, non
+      # parlando al backend.
+      - name: la pagina si apre
+        run: |
+          stato=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/)
+          if [ "$stato" != "200" ]; then
+            echo "::error::il frontend risponde $stato"
+            exit 1
+          fi
+          echo "Il frontend risponde 200."
+
+      - name: si entra con l'amministratore iniziale
+        run: |
+          stato=$(curl -s -o risposta.json -w '%{http_code}' -c biscotti.txt \
+            -X POST http://127.0.0.1/api/autenticazione/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"prova@ci.local","password":"ProvaCi1!"}')
+          if [ "$stato" != "200" ]; then
+            echo "::error::login fallito con stato $stato"
+            cat risposta.json
+            exit 1
+          fi
+          # Il login risponde 200 anche se il cookie non torna indietro: la
+          # prova vera e' una SECONDA richiesta che si regge su quella
+          # sessione. Senza, un cookie Secure servito su HTTP passerebbe
+          # inosservato - ogni chiamata anonima, e il login verde.
+          stato=$(curl -s -o /dev/null -w '%{http_code}' -b biscotti.txt \
+            http://127.0.0.1/api/autenticazione/io)
+          if [ "$stato" != "200" ]; then
+            echo "::error::la sessione non regge: /io risponde $stato"
+            exit 1
+          fi
+          echo "Accesso riuscito, e la sessione regge la richiesta successiva."
+
+      # Tre cose che distinguono un rilascio di produzione da uno di
+      # sviluppo, e che un avvio riuscito NON garantisce: si vedono solo
+      # guardando. Il lavoro non si ferma al primo errore, cosi' un giro
+      # rosso dice quante e quali invarianti sono cadute, non solo la prima.
+      - name: le invarianti della produzione
+        run: |
+          esito=0
+
+          # 1. Nessun dato di prova. Senza il profilo prod, Flyway eseguirebbe
+          # anche db/dev: sette utenti con la stessa password in chiaro nel
+          # sorgente, uno di loro amministratore. Su un database appena nato
+          # l'unico utente deve essere quello creato da ADMIN_EMAIL.
+          utenti=$(docker compose -f compose.prod.yml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -N -e "SELECT COUNT(*) FROM gestionale.utente"' | tr -d '[:space:]')
+          if [ "$utenti" = "1" ]; then
+            echo "OK - un solo utente: i dati di sviluppo non sono entrati"
+          else
+            echo "::error::la tabella utente ha $utenti righe invece di 1: db/dev e' entrato in produzione"
+            esito=1
+          fi
+
+          # 2. La documentazione dell'API spenta: e' l'elenco di tutte le
+          # rotte, dei corpi accettati e dei codici d'errore, cioe' la mappa
+          # di come attaccare il gestionale. Si interroga il backend
+          # DALL'INTERNO, perche' da fuori nginx risponde 200 con la pagina
+          # dell'applicazione a qualunque percorso sconosciuto - e quel 200
+          # sembrerebbe un api-docs acceso.
+          stato=$(docker compose -f compose.prod.yml exec -T backend curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/v3/api-docs)
+          if [ "$stato" = "404" ]; then
+            echo "OK - /v3/api-docs spento (404)"
+          else
+            echo "::error::/v3/api-docs risponde $stato: la documentazione dell'API e' esposta"
+            esito=1
+          fi
+
+          # 3. Il database non raggiungibile da fuori. In tutto il sistema
+          # deve esserci UNA porta pubblicata, quella del frontend: una 3306
+          # esposta la offrirebbe a tutta la rete aziendale.
+          if docker compose -f compose.prod.yml ps --format '{{.Service}} {{.Ports}}' | grep -E '^db .*0\.0\.0\.0'; then
+            echo "::error::il servizio db pubblica una porta sull'host"
+            esito=1
+          else
+            echo "OK - il database non pubblica porte sull'host"
+          fi
+
+          exit $esito
+
+      # Quando qualcosa qui sopra fallisce, questo e' l'unico posto dove si
+      # legge il perche': i log restano dentro i container, e il passo
+      # successivo li porta via.
+      - name: i log dello stack
+        if: always()
+        run: docker compose -f compose.prod.yml logs --no-color --tail 200
+
+      - name: smonta tutto
+        if: always()
+        # `-v` porta via anche il volume del database. Il runner e' usa e
+        # getta, ma dipendere da quello e' il modo in cui una prova che deve
+        # partire da zero finisce per trovare i dati di un'altra corsa.
+        run: docker compose -f compose.prod.yml down -v

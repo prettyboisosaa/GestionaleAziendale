@@ -114,10 +114,10 @@ chmod 600 .env
 Il `chmod` non è cerimoniale: di default il file nasce leggibile da tutti gli
 utenti del server, e dentro ci va la password del database.
 
-Genera i due segreti del database:
+Genera i tre segreti del database:
 
 ```bash
-openssl rand -base64 24 | tr -d '/+=' ; openssl rand -base64 24 | tr -d '/+='
+for i in 1 2 3; do openssl rand -base64 24 | tr -d '/+='; done
 ```
 
 Il `tr` toglie `/`, `+` e `=` e **non è un vezzo**: `docker compose` interpreta
@@ -127,7 +127,7 @@ o vuota. L'errore che ne esce è `Access denied for user 'gestionale'`, che
 manda a cercare nel posto sbagliato per un'ora. Limitati a lettere, cifre e
 `_ - . ! %`.
 
-Poi apri il file e riempi i quattro valori:
+Poi apri il file e riempi i cinque valori:
 
 ```bash
 nano .env
@@ -136,9 +136,19 @@ nano .env
 ```ini
 DB_PASSWORD=<il primo valore generato>
 MYSQL_ROOT_PASSWORD=<il secondo>
+FLYWAY_PASSWORD=<il terzo>
 ADMIN_EMAIL=nome.cognome@azienda.it
 ADMIN_PASSWORD=<password del primo accesso>
 ```
+
+`FLYWAY_PASSWORD` è la password di una **seconda utenza del database**. Il
+gestionale ne usa due, con poteri diversi: `gestionale` può solo leggere e
+scrivere righe, `gestionale_flyway` può anche cambiare lo schema ed è usata
+solo da Flyway, una volta per avvio. Così il processo raggiungibile dalla rete
+— quello che esegue SQL costruito a partire da ciò che scrivono gli utenti —
+non ha il privilegio di cancellare le tabelle. Nascono entrambe al primo
+avvio, da `db-init/10-utenze.sh`. Nessuno la digita mai: è solo un segreto che
+compose passa ai container.
 
 `ADMIN_PASSWORD` deve rispettare le stesse regole di tutte le altre del
 gestionale: **almeno 8 caratteri, almeno una cifra, almeno un carattere non
@@ -270,7 +280,7 @@ vuota, ma lasciarle significa tenere una password valida dentro
 ricrei il volume — per rifare il collaudo, o per passare dal collaudo al
 rilascio vero — la tabella `utente` torna vuota e queste due righe tornano a
 essere l'unica porta d'ingresso: vanno rimesse **prima** di riavviare, o il
-gestionale riparte senza nessun utente e non te lo dice (§10).
+gestionale riparte senza nessun utente e non te lo dice (§9).
 
 Verifica che siano andate via:
 
@@ -305,108 +315,17 @@ non risponde.
 
 **Le migrazioni non tornano indietro.** `git checkout` del commit precedente
 rimette il codice di ieri, non lo schema di ieri: una migrazione che ha
-cancellato una colonna l'ha cancellata. Per un rollback vero serve il dump
-preso **prima** dell'aggiornamento, e quel dump è un comando:
-
-```bash
-sudo /opt/gestionale/scripts/backup.sh
-```
-
-Battilo **prima** del `git pull`, non dopo. Costa pochi secondi e si ritrova
-nella cartella dei giornalieri, pronto per `scripts/ripristina.sh` se
-l'aggiornamento va storto.
+cancellato una colonna l'ha cancellata. Un ritorno indietro vero non è una
+cosa che questo file sappia fare: la copia dei dati da cui ripartire è in
+mano all'amministratore di sistema, e un aggiornamento che porta migrazioni
+distruttive si concorda con lui **prima** del `git pull`, non dopo.
 
 ---
 
-## 7. I backup
-
-Il backup notturno del database: `scripts/backup.sh` lanciato da un timer
-systemd, con i dump in `/var/backups/gestionale`.
-
-**Il limite, dichiarato subito**: i dump stanno sullo **stesso filesystem dei
-dati**. Ti salvano da un `down -v` battuto nella cartella sbagliata, da una
-migrazione andata male e da una cancellazione per sbaglio — cioè dalle tre
-cose che succedono davvero. **Non** ti salvano dal guasto del disco né dalla
-perdita del server: lì se ne vanno insieme ai dati. È un primo passo, e il
-secondo è portarne una copia su un'altra macchina.
-
-### Installazione
-
-```bash
-cd /opt/gestionale
-sudo cp scripts/systemd/gestionale-backup.* /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now gestionale-backup.timer
-```
-
-Se il progetto non sta in `/opt/gestionale`, va cambiato `Environment=` dentro
-`gestionale-backup.service`, non lo script.
-
-Poi **la prima esecuzione a mano**, senza aspettare la notte, perché un timer
-che fallirà alle 02:30 è meglio scoprirlo adesso:
-
-```bash
-sudo /opt/gestionale/scripts/backup.sh
-ls -lh /var/backups/gestionale/giornalieri/
-cat /var/backups/gestionale/ultimo-esito.txt
-```
-
-### La prova di ripristino, che non è facoltativa
-
-Un backup mai ripristinato è una speranza, non un backup. Fallo **ora**, che
-nel database ci sono solo le utenze appena create e sbagliare non costa
-niente — non il giorno in cui serve davvero.
-
-```bash
-sudo /opt/gestionale/scripts/ripristina.sh \
-  /var/backups/gestionale/giornalieri/<il file di prima>
-```
-
-Lo script chiede conferma (si scrive `RIPRISTINA`), ferma il backend, ricrea
-il database, carica il dump e riavvia. Alla fine mostra le righe di Flyway: se
-dicono **«Successfully validated 23 migrations»** e non «Migrating schema», lo
-schema ripristinato e il codice sono d'accordo. Poi rientra dal browser e
-controlla di vedere i tuoi utenti.
-
-### Com'è fatto
-
-| | |
-|---|---|
-| Quando | ogni notte alle 02:30, con `Persistent=true`: se il server era spento, parte al boot successivo |
-| Dove | `/var/backups/gestionale/giornalieri/` e `/settimanali/`, cartella `700` di root |
-| Quante copie | gli ultimi 7 giorni, più una copia a settimana per 4 settimane |
-| Formato | `mysqldump --single-transaction` compresso con gzip; il gestionale resta su durante il dump |
-| Verifica | ogni dump è controllato prima di ruotare: non vuoto, gzip valido, finisce con `-- Dump completed`, almeno 10 tabelle, contiene `flyway_schema_history`. Se un controllo fallisce il file viene cancellato, **nessun backup vecchio viene toccato** e il servizio va in `failed` |
-
-### Controllare che funzioni
-
-È il punto debole di questo assetto: nessuno ti avvisa. Lo stato c'è, ma va
-guardato — **mettilo in agenda una volta al mese**.
-
-```bash
-systemctl list-timers gestionale-backup.timer      # quando tocchera' di nuovo
-systemctl status gestionale-backup.service         # com'e' andata l'ultima volta
-cat /var/backups/gestionale/ultimo-esito.txt       # la risposta breve
-journalctl -u gestionale-backup.service --since '7 days ago'
-du -sh /var/backups/gestionale                     # quanto spazio occupa
-```
-
-Se `ultimo-esito.txt` ha una data di una settimana fa, il backup è morto una
-settimana fa. Il passo successivo, quando vorrai toglierti il controllo
-manuale, è un *dead man's switch*: lo script chiama un URL a fine corsa e un
-servizio esterno ti manda una mail quando le chiamate smettono.
-
----
-
-## 8. Quello che questa procedura non copre
+## 7. Quello che questa procedura non copre
 
 Non sono dettagli: sono decisioni ancora aperte.
 
-- **I backup fuori dal server.** Quelli locali ci sono (§7), ma vivono sullo
-  stesso disco dei dati: un guasto hardware se li porta via insieme a quello
-  che dovevano proteggere. Una copia su un'altra macchina — `rsync` su SSH, o
-  un bucket — è il prossimo passo, e il momento giusto per farlo è prima che
-  il database diventi importante.
 - **HTTPS.** Oggi il gestionale è in HTTP e `compose.prod.yml` imposta
   `COOKIE_SECURE: "false"`, perché con `true` e senza TLS il login risponde
   200 e ogni richiesta successiva è anonima, senza nessun errore che lo
@@ -426,19 +345,21 @@ Non sono dettagli: sono decisioni ancora aperte.
 
 ---
 
-## 9. Se qualcosa non va
+## 8. Se qualcosa non va
 
 | Sintomo | Causa quasi sempre |
 |---|---|
 | `required variable DB_PASSWORD is missing a value` | Non sei in `/opt/gestionale`, oppure il `.env` non c'è. Compose cerca il `.env` nella cartella corrente. |
 | `Access denied for user 'gestionale'` | Un `$` nella password dentro il `.env` (vedi passo 2). Oppure hai cambiato `DB_PASSWORD` dopo il primo avvio: MySQL la fissa quando inizializza il volume e non la rilegge più. |
+| `Access denied for user 'gestionale_flyway'`, e il backend in crash loop | Manca l'utenza delle migrazioni, o la sua password non è più quella del `.env`. Flyway apre quella connessione a **ogni** avvio, anche solo per validare i checksum, quindi il backend non parte affatto. Succede se il volume è stato creato prima dell'introduzione delle due utenze, o se il database è stato rimpiazzato con uno che non le aveva: i comandi per crearla sono nel §9. |
+| `CREATE command denied to user 'gestionale'` nel log del backend | Hibernate sta provando a modificare lo schema, cioè `ddl-auto` non è più `validate`. L'utenza applicativa non ha i privilegi DDL **di proposito**: l'errore è la difesa che funziona, non il problema. Controlla di non avere una `SPRING_JPA_HIBERNATE_DDL_AUTO` nell'ambiente. |
 | Il login risponde 200 ma ogni pagina richiede di nuovo l'accesso | `COOKIE_SECURE` non è `"false"` e non c'è HTTPS. Controlla con `docker compose -f compose.prod.yml exec backend env \| grep COOKIE`. |
 | Il backend resta `unhealthy` | `docker compose -f compose.prod.yml logs backend`. Se parla di `Validate failed` è lo schema divergente (passo 6); se muore senza un errore chiaro durante il build, è la RAM (passo 0). |
 | `Bind for 0.0.0.0:80 failed: port is already allocated` | Qualcosa occupa la 80 (passo 0). **Risolvila subito**: se la lasci lì, il sintomo si trasforma in quello della riga qui sotto e non assomiglia più a un problema di porte. |
 | Frontend in `Restarting` con `nginx: [emerg] host not found in upstream "backend"`, **mentre il backend è `healthy`** | Non è il backend. Vedi «Il frontend che accusa il backend» qui sotto. |
 | `Public Key Retrieval is not allowed` | Qualcuno ha aggiunto `useSSL=false` al `DB_URL`. Va tolto: MySQL 8.4 autentica con `caching_sha2_password` e senza TLS pretenderebbe anche `allowPublicKeyRetrieval=true`. Lasciando decidere al driver si ottiene `sslMode=PREFERRED`, che funziona. |
 | Dopo un reboot del server non risponde niente | `systemctl is-enabled docker` (passo 0). |
-| Tutto `healthy`, la pagina di login si apre, ma **nessuna credenziale funziona** | Database vuoto e nessun utente creato. Su un volume nuovo `ADMIN_EMAIL` e `ADMIN_PASSWORD` nel `.env` sono l'unica porta d'ingresso: se le hai svuotate al passo 5 e poi hai ricreato il volume, vanno rimesse (§10). Lo conferma il log: `docker compose -f compose.prod.yml logs backend \| grep AmministratoreIniziale`. |
+| Tutto `healthy`, la pagina di login si apre, ma **nessuna credenziale funziona** | Database vuoto e nessun utente creato. Su un volume nuovo `ADMIN_EMAIL` e `ADMIN_PASSWORD` nel `.env` sono l'unica porta d'ingresso: se le hai svuotate al passo 5 e poi hai ricreato il volume, vanno rimesse (§9). Lo conferma il log: `docker compose -f compose.prod.yml logs backend \| grep AmministratoreIniziale`. |
 
 ### Il frontend che accusa il backend
 
@@ -527,7 +448,7 @@ docker compose -f compose.prod.yml down -v       # il -v distrugge il volume
 
 ---
 
-## 10. Ripartire da zero (cancella il database)
+## 9. Ripartire da zero (cancella il database)
 
 Serve in collaudo, per rifare l'intera procedura su un database vergine, e
 serve al passaggio dal collaudo al rilascio vero: un volume usato per le
@@ -536,9 +457,10 @@ portarsele in produzione senza accorgersene — perché
 `AmministratoreIniziale` agisce **solo** su tabella `utente` vuota, quindi su
 un volume già popolato non fa niente e non lo dice.
 
-**Questo cancella tutti i dati.** Sul server di produzione, con dentro il
-lavoro di qualcuno, la domanda da farsi prima è se esiste un backup e se è
-stato ripristinato almeno una volta (§7).
+**Questo cancella tutti i dati.** È una procedura da collaudo. Su un server
+di produzione, con dentro il lavoro di qualcuno, non si batte senza averne
+prima parlato con l'amministratore di sistema: la copia da cui si ripartirebbe
+è sua.
 
 ### Prima: rimettere le credenziali nel `.env`
 
@@ -557,8 +479,8 @@ nessuno.
 
 ```bash
 cd /opt/gestionale
-grep -E '^(ADMIN_EMAIL|ADMIN_PASSWORD)=' .env     # NON devono finire con '='
-nano .env                                          # rimettile, se sono vuote
+grep -E '^(ADMIN_EMAIL|ADMIN_PASSWORD|FLYWAY_PASSWORD)=' .env   # NON devono finire con '='
+nano .env                                                        # rimettile, se sono vuote
 ```
 
 La password deve rispettare le regole di sempre: almeno 8 caratteri, almeno
@@ -583,11 +505,39 @@ sei certo, chiedilo invece di indovinare:
 docker volume ls | grep dati-mysql
 ```
 
+Cancellando il volume si cancellano anche **le due utenze del database**, che
+vivono nel datadir insieme ai dati. Non è un problema: nascono di nuovo da
+`db-init/10-utenze.sh`, che l'entrypoint esegue proprio perché il datadir è
+vuoto. È il motivo per cui ricreare il volume è la strada semplice e
+aggiungere le utenze a un database esistente è quella scomoda — su un datadir
+già popolato quello script **non viene letto**, e le utenze vanno create a
+mano:
+
+```bash
+docker compose -f compose.prod.yml exec db \
+  sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot' <<'SQL'
+REVOKE IF EXISTS ALL PRIVILEGES ON `gestionale`.* FROM 'gestionale'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `gestionale`.* TO 'gestionale'@'%';
+CREATE USER IF NOT EXISTS 'gestionale_flyway'@'%' IDENTIFIED BY '<FLYWAY_PASSWORD del .env>';
+GRANT SELECT, INSERT, UPDATE, DELETE,
+      CREATE, DROP, ALTER, INDEX, REFERENCES,
+      CREATE VIEW, SHOW VIEW
+    ON `gestionale`.* TO 'gestionale_flyway'@'%';
+FLUSH PRIVILEGES;
+SQL
+```
+
 ### Infine: che sia ripartito davvero
 
-Nel log cerca **tre** cose, nell'ordine:
+Nel log del **database** cerca la riga dello script di init:
 
-1. `Successfully applied 23 migrations` — Flyway ha ricostruito lo schema;
+```
+[10-utenze] Fatto: 'gestionale' solo DML, 'gestionale_flyway' anche DDL.
+```
+
+Nel log del **backend** cerca **tre** cose, nell'ordine:
+
+1. `Successfully applied 24 migrations` — Flyway ha ricostruito lo schema;
 2. nessuna riga con `dati_sviluppo` — i dati di prova non sono entrati;
 3. `Creato l'amministratore iniziale <email>`.
 

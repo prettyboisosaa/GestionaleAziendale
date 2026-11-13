@@ -2,8 +2,8 @@
 # .gitignore proprio, che si occupa di target/, node_modules/, dist/ e delle
 # cartelle degli editor: qui non si ripetono.
 
-# Datadir di MySQL piu' eventuali backup: oltre 200 MB di dati locali, e sono
-# il database di sviluppo di questa macchina. Mai da versionare.
+# Datadir di MySQL: oltre 200 MB di dati locali, ed e' il database di sviluppo
+# di questa macchina. Mai da versionare.
 .data/
 
 # Repository Maven locale, creato dal setup Docker del backend: circa 40 MB di

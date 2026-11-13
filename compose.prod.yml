@@ -50,12 +50,9 @@
 #   "true" o cancellata - il valore predefinito nelle properties e' il sicuro.
 #   Il cookie in chiaro e' una decisione, non una svista: su una rete dove
 #   qualcuno puo' ascoltare, rubarlo vale quanto rubare la password.
-# * Non fa backup da se'. Li fa `scripts/backup.sh`, lanciato dal timer
-#   systemd in `scripts/systemd/`: vedi RILASCIO.md §7 per l'installazione e
-#   per la prova di ripristino, che non e' facoltativa. I dump finiscono pero'
-#   sullo STESSO disco del volume `dati-mysql`: coprono il `down -v` di troppo
-#   e la migrazione andata male, non il guasto hardware. Una copia su
-#   un'altra macchina resta la cosa da aggiungere.
+# * Non mette al sicuro i dati. Vivono nel volume `dati-mysql` e li' restano:
+#   copiarli altrove, e provare che si rimettano dentro, e' lavoro
+#   dell'amministratore di sistema, non di questo file.
 # * Non espone phpMyAdmin, che in sviluppo serve a guardare dentro il
 #   database e in produzione e' una porta aperta sui dati di tutti.
 # =============================================================================
@@ -77,6 +74,12 @@ services:
       MYSQL_USER: gestionale
       MYSQL_PASSWORD: ${DB_PASSWORD:?manca DB_PASSWORD nel .env}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?manca MYSQL_ROOT_PASSWORD nel .env}
+
+      # Serve a db-init/10-utenze.sh, non a MySQL: e' la password con cui
+      # nasce l'utenza delle migrazioni. Il backend la riceve a sua volta,
+      # piu' sotto, per passarla a Flyway.
+      FLYWAY_PASSWORD: ${FLYWAY_PASSWORD:?manca FLYWAY_PASSWORD nel .env}
+
       TZ: Europe/Rome
     # Nessun `ports`, al contrario del compose di sviluppo: il database e'
     # raggiungibile solo dagli altri container di questa rete. Pubblicare la
@@ -89,6 +92,17 @@ services:
       # gestisce Docker con il filesystem giusto; e un volume non si cancella
       # con un `rm -rf` della cartella del progetto.
       - dati-mysql:/var/lib/mysql
+
+      # Gli script di inizializzazione: separano l'utenza applicativa da
+      # quella delle migrazioni. In sola lettura, perche' il container non ha
+      # nessun motivo di riscriverli.
+      #
+      # ⚠️ L'entrypoint di MySQL li esegue SOLO quando il datadir e' vuoto,
+      # cioe' alla prima creazione del volume `dati-mysql`. Aggiungere o
+      # cambiare qualcosa qui non ha nessun effetto su un database che esiste
+      # gia': in quel caso le utenze si creano a mano, e la procedura sta in
+      # RILASCIO.md sezione 10.
+      - ./db-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
@@ -119,6 +133,17 @@ services:
       DB_URL: jdbc:mysql://db:3306/gestionale
       DB_USERNAME: gestionale
       DB_PASSWORD: ${DB_PASSWORD:?manca DB_PASSWORD nel .env}
+
+      # L'utenza con cui gira Flyway, diversa da quella dell'applicazione:
+      # questa puo' cambiare lo schema, l'altra no. Il nome e' fisso perche'
+      # lo decide db-init/10-utenze.sh, che crea l'utenza; la password e' la
+      # stessa che quello script ha usato, e arriva dal .env.
+      #
+      # Sono obbligatorie entrambe, con `:?`: in application-prod.properties
+      # non hanno valore di ripiego, perche' un ripiego sull'utenza
+      # applicativa disattiverebbe la separazione senza dirlo.
+      FLYWAY_USERNAME: gestionale_flyway
+      FLYWAY_PASSWORD: ${FLYWAY_PASSWORD:?manca FLYWAY_PASSWORD nel .env}
 
       # Il primo amministratore. Letti solo se la tabella utente e' vuota.
       #
