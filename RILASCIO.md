@@ -266,6 +266,12 @@ Dal secondo avvio sono inerti comunque, perché la tabella utente non è più
 vuota, ma lasciarle significa tenere una password valida dentro
 `docker inspect` e dentro `/proc/<pid>/environ` per sempre.
 
+**Ma sono inerti solo finché quel database resta in piedi.** Il giorno in cui
+ricrei il volume — per rifare il collaudo, o per passare dal collaudo al
+rilascio vero — la tabella `utente` torna vuota e queste due righe tornano a
+essere l'unica porta d'ingresso: vanno rimesse **prima** di riavviare, o il
+gestionale riparte senza nessun utente e non te lo dice (§10).
+
 Verifica che siano andate via:
 
 ```bash
@@ -432,6 +438,7 @@ Non sono dettagli: sono decisioni ancora aperte.
 | Frontend in `Restarting` con `nginx: [emerg] host not found in upstream "backend"`, **mentre il backend è `healthy`** | Non è il backend. Vedi «Il frontend che accusa il backend» qui sotto. |
 | `Public Key Retrieval is not allowed` | Qualcuno ha aggiunto `useSSL=false` al `DB_URL`. Va tolto: MySQL 8.4 autentica con `caching_sha2_password` e senza TLS pretenderebbe anche `allowPublicKeyRetrieval=true`. Lasciando decidere al driver si ottiene `sslMode=PREFERRED`, che funziona. |
 | Dopo un reboot del server non risponde niente | `systemctl is-enabled docker` (passo 0). |
+| Tutto `healthy`, la pagina di login si apre, ma **nessuna credenziale funziona** | Database vuoto e nessun utente creato. Su un volume nuovo `ADMIN_EMAIL` e `ADMIN_PASSWORD` nel `.env` sono l'unica porta d'ingresso: se le hai svuotate al passo 5 e poi hai ricreato il volume, vanno rimesse (§10). Lo conferma il log: `docker compose -f compose.prod.yml logs backend \| grep AmministratoreIniziale`. |
 
 ### Il frontend che accusa il backend
 
@@ -517,3 +524,83 @@ E uno da non battere mai sul server, perché **cancella il database**:
 ```bash
 docker compose -f compose.prod.yml down -v       # il -v distrugge il volume
 ```
+
+---
+
+## 10. Ripartire da zero (cancella il database)
+
+Serve in collaudo, per rifare l'intera procedura su un database vergine, e
+serve al passaggio dal collaudo al rilascio vero: un volume usato per le
+prove contiene utenze finte con password di prova, e riusarlo significa
+portarsele in produzione senza accorgersene — perché
+`AmministratoreIniziale` agisce **solo** su tabella `utente` vuota, quindi su
+un volume già popolato non fa niente e non lo dice.
+
+**Questo cancella tutti i dati.** Sul server di produzione, con dentro il
+lavoro di qualcuno, la domanda da farsi prima è se esiste un backup e se è
+stato ripristinato almeno una volta (§7).
+
+### Prima: rimettere le credenziali nel `.env`
+
+È il passo che si dimentica, e il motivo per cui ha una sezione sua.
+
+Al passo 5 hai **svuotato** `ADMIN_EMAIL` e `ADMIN_PASSWORD`, giustamente: su
+un database già popolato sono inerti, e tenerle piene vuol dire lasciare una
+password valida dentro `docker inspect` e in `/proc/<pid>/environ`.
+
+Ma su un volume nuovo la tabella `utente` torna vuota, e quelle due righe
+tornano a essere **l'unica porta d'ingresso**. Se le lasci vuote, il
+gestionale riparte senza nessun utente — e il guasto non somiglia a un
+guasto: `docker compose up` riesce, tutti e tre i container diventano
+`healthy`, la pagina di login si apre normalmente, e dentro non entra
+nessuno.
+
+```bash
+cd /opt/gestionale
+grep -E '^(ADMIN_EMAIL|ADMIN_PASSWORD)=' .env     # NON devono finire con '='
+nano .env                                          # rimettile, se sono vuote
+```
+
+La password deve rispettare le regole di sempre: almeno 8 caratteri, almeno
+una cifra, almeno un carattere non alfanumerico; e niente `$`, che compose
+interpreta come riferimento a una variabile.
+
+### Poi: la sequenza
+
+```bash
+cd /opt/gestionale
+docker compose -f compose.prod.yml down            # senza -v: rimuove i container
+docker volume rm gestionale_dati-mysql             # QUI spariscono i dati
+docker compose -f compose.prod.yml up -d
+docker compose -f compose.prod.yml logs -f backend
+```
+
+Il nome del volume è `<nome-progetto>_dati-mysql`, e il nome del progetto lo
+deduce compose dalla cartella: da `/opt/gestionale` è `gestionale`. Se non ne
+sei certo, chiedilo invece di indovinare:
+
+```bash
+docker volume ls | grep dati-mysql
+```
+
+### Infine: che sia ripartito davvero
+
+Nel log cerca **tre** cose, nell'ordine:
+
+1. `Successfully applied 23 migrations` — Flyway ha ricostruito lo schema;
+2. nessuna riga con `dati_sviluppo` — i dati di prova non sono entrati;
+3. `Creato l'amministratore iniziale <email>`.
+
+Se al posto della terza leggi un `WARN` che dice che nessuno può accedere, è
+il `.env`: o le due righe sono ancora vuote, o la password non ha passato le
+regole. Si corregge e si ricrea il container, e funziona perché la tabella è
+ancora vuota:
+
+```bash
+docker compose -f compose.prod.yml up -d --force-recreate backend
+```
+
+Da qui si riprende dal **passo 5**: primo accesso, cambio password, creazione
+delle utenze vere. Questa volta creane **due** amministratori attivi prima di
+disattivare quello iniziale: nessuno può disattivare se stesso, quindi con un
+solo amministratore perdere la password significa rientrare dal database.
