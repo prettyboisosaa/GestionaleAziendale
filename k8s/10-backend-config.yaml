@@ -56,6 +56,22 @@ stringData:
   DB_USERNAME: "CAMBIAMI"
   DB_PASSWORD: "CAMBIAMI"
 
+  # L'utenza con cui gira Flyway, separata da quella dell'applicazione: questa
+  # puo' cambiare lo schema (CREATE, DROP, ALTER), DB_USERNAME solo leggere e
+  # scrivere righe. Entrambe obbligatorie: in application-prod.properties
+  # `spring.flyway.user` e `spring.flyway.password` non hanno valore di
+  # ripiego, perche' un ripiego sull'utenza applicativa disattiverebbe la
+  # separazione in silenzio.
+  #
+  # ⚠️ A differenza di compose.prod.yml, qui NON c'e' niente che crei le due
+  # utenze: `db-init/10-utenze.sh` e' montato dal compose su
+  # /docker-entrypoint-initdb.d, e questi manifest non contengono MySQL
+  # (DB_URL punta a un database che esiste gia'). Le utenze e i loro GRANT
+  # vanno creati sul database esterno prima del primo rollout; l'elenco esatto
+  # dei privilegi sta in quello script.
+  FLYWAY_USERNAME: "gestionale_flyway"
+  FLYWAY_PASSWORD: "CAMBIAMI"
+
   # ⚠️ IL PRIMO UTENTE. Senza queste due righe, al primo avvio su un database
   # vuoto il gestionale parte benissimo e NESSUNO PUO' ENTRARE: il profilo
   # prod esclude db/dev, quindi le migrazioni seminano ruoli, permessi e

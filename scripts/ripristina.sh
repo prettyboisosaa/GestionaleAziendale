@@ -147,20 +147,68 @@ riuscito "Backend fermo."
 # aggiunta da una migrazione successiva al backup. Un ripristino parziale e'
 # peggio di nessun ripristino, perche' sembra riuscito.
 #
-# Il GRANT e' ridondante su alcune versioni di MySQL e necessario su altre, a
+# I GRANT sono ridondanti su alcune versioni di MySQL e necessari su altre, a
 # seconda di come DROP DATABASE tratta i privilegi a livello di database.
-# Battendolo sempre, il dubbio sparisce.
+# Battendoli sempre, il dubbio sparisce.
+#
+# Sono DUE perche' le utenze sono due, e qui sta la trappola: la prima
+# stesura di questo script faceva un unico
+# `GRANT ALL PRIVILEGES ON gestionale.* TO 'gestionale'@'%'`, e dopo
+# l'introduzione delle utenze separate quella riga avrebbe RIMESSO i privilegi
+# DDL all'utenza applicativa a ogni ripristino - annullando la separazione in
+# silenzio, un pezzo alla volta, senza che niente lo segnalasse. Un ripristino
+# deve ricostruire l'assetto, non appiattirlo.
+#
+# L'elenco dei privilegi e' lo stesso di db-init/10-utenze.sh, dove c'e' anche
+# la motivazione di ciascuno. Se cambia uno, cambiano entrambi.
 
 passo "Ricreo il database vuoto..."
 
+# `REVOKE IF EXISTS` e non `REVOKE`: a seconda della versione, DROP DATABASE
+# porta via con se' i privilegi concessi su quello schema, e un REVOKE su un
+# grant che non c'e' piu' e' un errore che fermerebbe il ripristino a metà -
+# col database appena cancellato e il backend fermo. L'IF EXISTS c'e' da
+# MySQL 8.0.16 e qui gira la 8.4.
 compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot' <<'SQL'
 DROP DATABASE IF EXISTS gestionale;
 CREATE DATABASE gestionale CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-GRANT ALL PRIVILEGES ON gestionale.* TO 'gestionale'@'%';
+
+-- L'applicazione: solo righe, non schema.
+REVOKE IF EXISTS ALL PRIVILEGES ON `gestionale`.* FROM 'gestionale'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `gestionale`.* TO 'gestionale'@'%';
+
 FLUSH PRIVILEGES;
 SQL
 
-riuscito "Database vuoto, privilegi a posto."
+# Le migrazioni, a parte: se quell'utenza non esiste, un GRANT fallirebbe e
+# porterebbe giu' tutto il ripristino. E crearla qui non si puo', perche'
+# vorrebbe dire inventarle una password che poi non corrisponderebbe a quella
+# del .env. Quindi si avverte e si va avanti: il ripristino in se' non ha
+# bisogno di quell'utenza, ne avra' bisogno il PROSSIMO aggiornamento, quando
+# Flyway dovra' applicare una migrazione nuova.
+if [ "$(compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot -N -e "SELECT COUNT(*) FROM mysql.user WHERE user = \"gestionale_flyway\""' 2>/dev/null | tr -d '[:space:]')" = "1" ]; then
+    compose exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot' <<'SQL'
+GRANT SELECT, INSERT, UPDATE, DELETE,
+      CREATE, DROP, ALTER, INDEX, REFERENCES,
+      CREATE VIEW, SHOW VIEW
+    ON `gestionale`.* TO 'gestionale_flyway'@'%';
+FLUSH PRIVILEGES;
+SQL
+    riuscito "Database vuoto, privilegi delle due utenze a posto."
+else
+    attenzione "L'utenza 'gestionale_flyway' non esiste su questo database."
+    attenzione ""
+    attenzione "Il ripristino dei DATI va avanti e riuscira': non le serve."
+    attenzione "Ma il backend NON RIPARTIRA', e non al prossimo aggiornamento:"
+    attenzione "subito, a questo riavvio. Flyway apre quella connessione a ogni"
+    attenzione "avvio, anche solo per validare i checksum, e senza l'utenza muore"
+    attenzione "con «Access denied for user 'gestionale_flyway'»."
+    attenzione ""
+    attenzione "Creala con la password che hai nel .env, poi riprova:"
+    attenzione "  CREATE USER 'gestionale_flyway'@'%' IDENTIFIED BY '<FLYWAY_PASSWORD>';"
+    attenzione "  piu' i GRANT elencati in db-init/10-utenze.sh"
+    riuscito "Database vuoto, privilegi dell'utenza applicativa a posto."
+fi
 
 # --- 5. Caricare il dump ----------------------------------------------------
 #
@@ -208,16 +256,41 @@ da_adesso=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 passo "Riavvio il backend..."
 compose start backend >/dev/null
 
-scaduto=$(( $(date +%s) + 180 ))
+# L'attesa guarda lo STATO DEL CONTAINER, non il log.
+#
+# La prima stesura cercava «Started BackendApplication» e, per il fallimento,
+# «APPLICATION FAILED TO START». Quel banner pero' Spring Boot non lo stampa
+# sempre: se e' Flyway a non riuscire a connettersi, l'eccezione arriva
+# durante l'inizializzazione dei bean e nel log c'e' solo uno stack trace.
+# Risultato, visto al collaudo: lo script ha scritto «Ripristino completato» e
+# ha chiuso con stato 0 mentre il backend era in crash loop. Per uno strumento
+# di ripristino e' il difetto peggiore possibile - dice che e' tutto a posto
+# proprio quando non lo e'.
+#
+# Lo stato del container non si puo' fraintendere, e la salute la calcola
+# Docker con l'healthcheck del Dockerfile, che interroga
+# /actuator/health/readiness: `healthy` vuol dire che l'applicazione risponde
+# davvero, non solo che il processo e' vivo.
+contenitore=$(compose ps -q backend)
+riavvii_prima=$(docker inspect "$contenitore" --format '{{.RestartCount}}' 2>/dev/null || echo 0)
+
+scaduto=$(( $(date +%s) + 240 ))
+salito=0
 while [ "$(date +%s)" -lt "$scaduto" ]; do
-    recente=$(compose logs --since "$da_adesso" backend 2>&1 || true)
-    if printf '%s' "$recente" | grep -q 'Started BackendApplication'; then
+    stato=$(docker inspect "$contenitore" --format '{{.State.Status}}' 2>/dev/null || echo assente)
+    salute=$(docker inspect "$contenitore" \
+        --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}assente{{end}}' 2>/dev/null || echo assente)
+    riavvii=$(docker inspect "$contenitore" --format '{{.RestartCount}}' 2>/dev/null || echo 0)
+
+    if [ "$salute" = healthy ]; then
+        salito=1
         break
     fi
-    if printf '%s' "$recente" | grep -q 'APPLICATION FAILED TO START'; then
-        fallito "Il backend non e' ripartito. Il log dice:"
-        compose logs --since "$da_adesso" --tail 40 backend >&2
-        exit 1
+    # `restart: unless-stopped` fa ripartire il container all'infinito, quindi
+    # un fallimento non si vede come "exited" ma come un contatore che cresce.
+    if [ "$stato" = restarting ] || [ "$riavvii" -gt "$riavvii_prima" ]; then
+        fallito "Il backend non riparte: e' in crash loop (riavvii: ${riavvii})."
+        break
     fi
     sleep 3
 done
@@ -227,7 +300,18 @@ passo "Le righe di Flyway dopo il ripristino:"
 compose logs --since "$da_adesso" backend 2>&1 | grep -iE 'flyway|migrat' | tail -5 | sed 's/^/    /'
 echo ""
 
-riuscito "Ripristino completato."
+if [ "$salito" -ne 1 ]; then
+    fallito "I DATI SONO STATI RIPRISTINATI, ma l'applicazione non e' ripartita."
+    fallito "Il database contiene il dump; il problema sta fra l'applicazione e il"
+    fallito "database, non nel backup. Le ultime righe del log:"
+    compose logs --since "$da_adesso" --tail 30 backend 2>&1 | sed 's/^/    /' >&2
+    echo "" >&2
+    fallito "Se parla di «Access denied for user 'gestionale_flyway'», manca"
+    fallito "l'utenza delle migrazioni: vedi l'avviso qui sopra e RILASCIO.md §10."
+    exit 1
+fi
+
+riuscito "Ripristino completato, e il backend risponde."
 echo ""
 echo "Controlla a mano, prima di considerarlo finito:"
 echo "  * che il log qui sopra dica «Successfully validated», non «Migrating schema»;"

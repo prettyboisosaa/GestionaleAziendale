@@ -187,6 +187,18 @@ motivo; quelle che contano di più:
 | primo utente | i sette del seed | creato da `GESTIONALE_AMMINISTRATOREINIZIALE_*`, solo su database vuoto |
 | Swagger | aperto | spento |
 | cookie di sessione | normale | `${COOKIE_SECURE:true}`: protetto se non si dice altro |
+| utenze del database | una, con tutti i privilegi sullo schema | **due**: l'applicazione solo `SELECT/INSERT/UPDATE/DELETE`, le migrazioni anche il DDL |
+
+Le due utenze di produzione nascono con il volume, da `db-init/10-utenze.sh`,
+e Flyway usa la sua tramite `spring.flyway.user`. Il motivo è che
+`ddl-auto=validate` è una promessa mentre i privilegi sono un vincolo: una
+variabile d'ambiente sbagliata rimette Hibernate a `update` — è già successo,
+il 9 novembre 2026 — e senza i privilegi DDL quella distrazione diventa un
+errore all'avvio invece di uno schema riscritto sotto i dati. In sviluppo
+l'utenza resta una sola, perché lì `ddl-auto=update` è il modo di lavorare.
+
+Non protegge i *dati*: con `SELECT` e `UPDATE` si leggono e si falsificano
+tutte le ore e le assenze. Protegge lo *schema*.
 
 Il seed di sviluppo non è escluso soltanto dalla configurazione: `pom.xml` lo
 toglie dall'artefatto (`maven-jar-plugin`, `db/dev/**`). Prima, l'unica difesa

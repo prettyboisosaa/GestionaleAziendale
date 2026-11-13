@@ -151,6 +151,33 @@ jobs:
           name: backend-jar
           path: ./jar
 
+      # In produzione le due utenze nascono da db-init/10-utenze.sh, montato
+      # su /docker-entrypoint-initdb.d. Qui non si puo': i `services:` di
+      # GitHub Actions non accettano `volumes:`. Quindi si fa lo stesso lavoro
+      # a mano, con gli stessi GRANT - e se i due elenchi divergono, questo
+      # job se ne accorge prima del server.
+      #
+      # Non e' solo per far passare il job: e' il controllo che l'applicazione
+      # riesca davvero a partire, migrare e fare login con l'utenza
+      # applicativa ridotta ai soli privilegi DML. Senza questo, la
+      # configurazione che gira in produzione sarebbe l'unica mai provata.
+      - name: separa le utenze del database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot_ci <<'SQL'
+          REVOKE IF EXISTS ALL PRIVILEGES ON `gestionale`.* FROM 'gestionale'@'%';
+          GRANT SELECT, INSERT, UPDATE, DELETE ON `gestionale`.* TO 'gestionale'@'%';
+
+          CREATE USER IF NOT EXISTS 'gestionale_flyway'@'%' IDENTIFIED BY 'flyway_ci';
+          GRANT SELECT, INSERT, UPDATE, DELETE,
+                CREATE, DROP, ALTER, INDEX, REFERENCES,
+                CREATE VIEW, SHOW VIEW
+              ON `gestionale`.* TO 'gestionale_flyway'@'%';
+
+          FLUSH PRIVILEGES;
+          SQL
+          echo "--- privilegi dell'utenza applicativa ---"
+          mysql -h 127.0.0.1 -uroot -proot_ci -N -e "SHOW GRANTS FOR 'gestionale'@'%'"
+
       - name: avvia il backend con il profilo prod
         env:
           SPRING_PROFILES_ACTIVE: prod
@@ -161,6 +188,13 @@ jobs:
           DB_URL: jdbc:mysql://127.0.0.1:3306/gestionale
           DB_USERNAME: gestionale
           DB_PASSWORD: prova_ci
+          # L'utenza con cui gira Flyway, l'unica che puo' cambiare lo schema.
+          # In application-prod.properties non hanno valore di ripiego: se
+          # mancano, l'avvio si ferma dicendo quale - ed e' voluto, perche' un
+          # ripiego sull'utenza applicativa disattiverebbe la separazione
+          # senza dirlo.
+          FLYWAY_USERNAME: gestionale_flyway
+          FLYWAY_PASSWORD: flyway_ci
           GESTIONALE_AMMINISTRATOREINIZIALE_EMAIL: prova@ci.local
           GESTIONALE_AMMINISTRATOREINIZIALE_PASSWORD: ProvaCi1!
           # Il profilo prod lo mette a true per il cookie Secure, ma qui si

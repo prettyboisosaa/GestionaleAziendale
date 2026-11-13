@@ -114,10 +114,10 @@ chmod 600 .env
 Il `chmod` non è cerimoniale: di default il file nasce leggibile da tutti gli
 utenti del server, e dentro ci va la password del database.
 
-Genera i due segreti del database:
+Genera i tre segreti del database:
 
 ```bash
-openssl rand -base64 24 | tr -d '/+=' ; openssl rand -base64 24 | tr -d '/+='
+for i in 1 2 3; do openssl rand -base64 24 | tr -d '/+='; done
 ```
 
 Il `tr` toglie `/`, `+` e `=` e **non è un vezzo**: `docker compose` interpreta
@@ -127,7 +127,7 @@ o vuota. L'errore che ne esce è `Access denied for user 'gestionale'`, che
 manda a cercare nel posto sbagliato per un'ora. Limitati a lettere, cifre e
 `_ - . ! %`.
 
-Poi apri il file e riempi i quattro valori:
+Poi apri il file e riempi i cinque valori:
 
 ```bash
 nano .env
@@ -136,9 +136,19 @@ nano .env
 ```ini
 DB_PASSWORD=<il primo valore generato>
 MYSQL_ROOT_PASSWORD=<il secondo>
+FLYWAY_PASSWORD=<il terzo>
 ADMIN_EMAIL=nome.cognome@azienda.it
 ADMIN_PASSWORD=<password del primo accesso>
 ```
+
+`FLYWAY_PASSWORD` è la password di una **seconda utenza del database**. Il
+gestionale ne usa due, con poteri diversi: `gestionale` può solo leggere e
+scrivere righe, `gestionale_flyway` può anche cambiare lo schema ed è usata
+solo da Flyway, una volta per avvio. Così il processo raggiungibile dalla rete
+— quello che esegue SQL costruito a partire da ciò che scrivono gli utenti —
+non ha il privilegio di cancellare le tabelle. Nascono entrambe al primo
+avvio, da `db-init/10-utenze.sh`. Nessuno la digita mai: è solo un segreto che
+compose passa ai container.
 
 `ADMIN_PASSWORD` deve rispettare le stesse regole di tutte le altre del
 gestionale: **almeno 8 caratteri, almeno una cifra, almeno un carattere non
@@ -432,6 +442,8 @@ Non sono dettagli: sono decisioni ancora aperte.
 |---|---|
 | `required variable DB_PASSWORD is missing a value` | Non sei in `/opt/gestionale`, oppure il `.env` non c'è. Compose cerca il `.env` nella cartella corrente. |
 | `Access denied for user 'gestionale'` | Un `$` nella password dentro il `.env` (vedi passo 2). Oppure hai cambiato `DB_PASSWORD` dopo il primo avvio: MySQL la fissa quando inizializza il volume e non la rilegge più. |
+| `Access denied for user 'gestionale_flyway'`, e il backend in crash loop | Manca l'utenza delle migrazioni, o la sua password non è più quella del `.env`. Flyway apre quella connessione a **ogni** avvio, anche solo per validare i checksum, quindi il backend non parte affatto. Succede se il volume è stato creato prima dell'introduzione delle due utenze, o dopo un ripristino su un database che non le aveva: i comandi per crearla sono nel §10. |
+| `CREATE command denied to user 'gestionale'` nel log del backend | Hibernate sta provando a modificare lo schema, cioè `ddl-auto` non è più `validate`. L'utenza applicativa non ha i privilegi DDL **di proposito**: l'errore è la difesa che funziona, non il problema. Controlla di non avere una `SPRING_JPA_HIBERNATE_DDL_AUTO` nell'ambiente. |
 | Il login risponde 200 ma ogni pagina richiede di nuovo l'accesso | `COOKIE_SECURE` non è `"false"` e non c'è HTTPS. Controlla con `docker compose -f compose.prod.yml exec backend env \| grep COOKIE`. |
 | Il backend resta `unhealthy` | `docker compose -f compose.prod.yml logs backend`. Se parla di `Validate failed` è lo schema divergente (passo 6); se muore senza un errore chiaro durante il build, è la RAM (passo 0). |
 | `Bind for 0.0.0.0:80 failed: port is already allocated` | Qualcosa occupa la 80 (passo 0). **Risolvila subito**: se la lasci lì, il sintomo si trasforma in quello della riga qui sotto e non assomiglia più a un problema di porte. |
@@ -557,8 +569,8 @@ nessuno.
 
 ```bash
 cd /opt/gestionale
-grep -E '^(ADMIN_EMAIL|ADMIN_PASSWORD)=' .env     # NON devono finire con '='
-nano .env                                          # rimettile, se sono vuote
+grep -E '^(ADMIN_EMAIL|ADMIN_PASSWORD|FLYWAY_PASSWORD)=' .env   # NON devono finire con '='
+nano .env                                                        # rimettile, se sono vuote
 ```
 
 La password deve rispettare le regole di sempre: almeno 8 caratteri, almeno
@@ -583,11 +595,39 @@ sei certo, chiedilo invece di indovinare:
 docker volume ls | grep dati-mysql
 ```
 
+Cancellando il volume si cancellano anche **le due utenze del database**, che
+vivono nel datadir insieme ai dati. Non è un problema: nascono di nuovo da
+`db-init/10-utenze.sh`, che l'entrypoint esegue proprio perché il datadir è
+vuoto. È il motivo per cui ricreare il volume è la strada semplice e
+aggiungere le utenze a un database esistente è quella scomoda — su un datadir
+già popolato quello script **non viene letto**, e le utenze vanno create a
+mano:
+
+```bash
+docker compose -f compose.prod.yml exec db \
+  sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot' <<'SQL'
+REVOKE IF EXISTS ALL PRIVILEGES ON `gestionale`.* FROM 'gestionale'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `gestionale`.* TO 'gestionale'@'%';
+CREATE USER IF NOT EXISTS 'gestionale_flyway'@'%' IDENTIFIED BY '<FLYWAY_PASSWORD del .env>';
+GRANT SELECT, INSERT, UPDATE, DELETE,
+      CREATE, DROP, ALTER, INDEX, REFERENCES,
+      CREATE VIEW, SHOW VIEW
+    ON `gestionale`.* TO 'gestionale_flyway'@'%';
+FLUSH PRIVILEGES;
+SQL
+```
+
 ### Infine: che sia ripartito davvero
 
-Nel log cerca **tre** cose, nell'ordine:
+Nel log del **database** cerca la riga dello script di init:
 
-1. `Successfully applied 23 migrations` — Flyway ha ricostruito lo schema;
+```
+[10-utenze] Fatto: 'gestionale' solo DML, 'gestionale_flyway' anche DDL.
+```
+
+Nel log del **backend** cerca **tre** cose, nell'ordine:
+
+1. `Successfully applied 24 migrations` — Flyway ha ricostruito lo schema;
 2. nessuna riga con `dati_sviluppo` — i dati di prova non sono entrati;
 3. `Creato l'amministratore iniziale <email>`.
 
