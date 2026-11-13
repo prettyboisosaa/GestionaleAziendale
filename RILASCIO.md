@@ -28,15 +28,44 @@ giù e nessuno capisce perché. Se risponde `disabled`:
 sudo systemctl enable --now docker
 ```
 
+La porta 80 deve essere libera, e va chiesto a **due** interlocutori diversi,
+perché nessuno dei due vede quello che vede l'altro:
+
 ```bash
-ss -lntp | grep ':80 '           # deve essere VUOTO
+docker ps --filter 'publish=80' --format '{{.Names}}\t{{.Ports}}'   # VUOTO
+ss -lntp | grep ':80 ' || echo 'nessun processo locale sulla 80'    # VUOTO
 ```
 
-Se qualcosa risponde, c'è già un nginx o un Apache sulla 80 e il frontend non
-partirà. Le due scelte sono spegnerlo (`sudo systemctl disable --now nginx`)
-oppure spostare il gestionale su un'altra porta: in `compose.prod.yml`,
-servizio `frontend`, `"80:80"` diventa `"8080:80"` — si cambia **solo** il
-numero di sinistra.
+`ss` interroga il kernel di questa macchina; `docker ps` interroga il demone
+Docker, che può essere **altrove**. La differenza non è teorica: in WSL con
+Docker Desktop il socket in ascolto sta sull'host Windows e non nel namespace
+di rete della WSL, quindi `ss` non mostra niente, la verifica sembra passata,
+e `docker compose up` si schianta comunque con
+
+```
+Bind for 0.0.0.0:80 failed: port is already allocated
+```
+
+Lo stesso vale su un server dove gira più di uno stack compose: il container
+che tiene la porta lo trova solo `docker ps`.
+
+Se qualcosa risponde, le scelte sono due. Se è un container, fermarlo
+(`docker stop <nome>`). Se è un nginx o un Apache di sistema, spegnerlo
+(`sudo systemctl disable --now nginx`) — oppure spostare il gestionale su
+un'altra porta: in `compose.prod.yml`, servizio `frontend`, `"80:80"` diventa
+`"8080:80"`, cambiando **solo** il numero di sinistra.
+
+Un avvertimento se pensavi di lasciare la riga originale e aggiungerne una in
+un file di override: compose **somma** le liste di `ports` invece di
+sostituirle, quindi ti ritrovi con entrambe le porte e di nuovo il conflitto.
+Per sostituire serve il tag `!override`:
+
+```yaml
+services:
+  frontend:
+    ports: !override
+      - "8090:80"
+```
 
 ```bash
 free -m                          # almeno ~2 GB disponibili
@@ -164,21 +193,42 @@ suo healthcheck, dichiarato in `backend/Dockerfile`, concede
 
 ---
 
-## 4. Aprire la porta
+## 4. Il firewall (probabilmente non c'è niente da fare)
+
+Questo passo è più corto di quanto sembri, e la ragione va capita invece che
+saltata.
 
 ```bash
-sudo ufw status
+command -v ufw nft iptables firewall-cmd || echo 'nessun firewall installato'
 ```
 
-Se è `active`, il mondo non vede ancora il gestionale:
+Su una Debian installata da netinst spesso **`ufw` non c'è affatto** — e nella
+WSL di solito non c'è nemmeno `iptables`. `command not found` non è un errore:
+vuol dire che su questa macchina non c'è un firewall locale, e quindi niente
+da aprire. Se invece `ufw` c'è ed è `active`, la regola si aggiunge con
+`sudo ufw allow 80/tcp`.
+
+**Il punto importante, che vale anche se ufw c'è: non è ufw a decidere se la
+porta 80 è raggiungibile.** Docker pubblica le porte con una regola di DNAT e
+infila le proprie catene in testa a `FORWARD`: il traffico verso una porta
+pubblicata non passa da `INPUT`, dove stanno le regole di ufw, e arriva a
+destinazione **anche con `ufw default deny incoming`**. Chi si fida di
+`ufw status` per sapere cosa è esposto legge la risposta a una domanda
+diversa.
+
+La domanda giusta è quali porte Docker sta pubblicando:
 
 ```bash
-sudo ufw allow 80/tcp
+docker ps --format '{{.Names}}\t{{.Ports}}'
 ```
 
-La 3306 del database e la 8080 del backend **non si aprono**: non sono
-pubblicate sull'host di proposito, e si parlano fra container sulla rete
-interna di compose. Se qualcuno te le chiede, la risposta è no.
+Deve comparire **solo** il frontend, con `0.0.0.0:80->80/tcp`. Il database e
+il backend non hanno `ports` in `compose.prod.yml`, quindi non sono
+raggiungibili da fuori: non per una regola di firewall, ma perché non sono
+pubblicati. È quella la protezione, ed è più solida di una regola che Docker
+può scavalcare. Se un domani qualcuno aggiunge `"3306:3306"` al servizio `db`
+«tanto c'è il firewall», il database finisce sulla rete aziendale e ufw non lo
+fermerà.
 
 Da qui il gestionale è raggiungibile su `http://<indirizzo-del-server>`.
 
