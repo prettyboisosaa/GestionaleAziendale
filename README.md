@@ -213,18 +213,12 @@ login risponde 200 e ogni richiesta successiva è anonima, senza nessun errore
 che lo spieghi. Il valore predefinito resta quello protetto, quindi il giorno
 che arriva un certificato non si tocca il jar: si toglie quella riga.
 
-Tre cose che `compose.prod.yml` **non** fa, e che restano da decidere:
+Due cose che `compose.prod.yml` **non** fa, e che restano da decidere:
 
 - **HTTPS.** Finché non c'è, il cookie di sessione viaggia in chiaro: su una
   rete dove qualcuno può ascoltare, rubarlo vale quanto rubare la password.
   Con il certificato vanno insieme `COOKIE_SECURE` a `"true"` e
   `Strict-Transport-Security` in `frontend/nginx.conf`.
-- **I backup fuori dal server.** Quelli locali ci sono: `scripts/backup.sh`,
-  un timer systemd, 7 giornalieri più 4 settimanali in `/var/backups`, con
-  `scripts/ripristina.sh` per rimetterli dentro — installazione e prova di
-  ripristino in [RILASCIO.md §7](RILASCIO.md). Vivono però sullo stesso disco
-  dei dati: coprono la cancellazione per sbaglio e la migrazione andata male,
-  non il guasto hardware. Una copia su un'altra macchina resta da fare.
 - **L'avvio automatico.** `restart: unless-stopped` riavvia i container, non
   Docker. Su Linux basta `systemctl enable docker` (da verificare: è il passo
   che si salta); su Windows con Docker Desktop serve una sessione utente

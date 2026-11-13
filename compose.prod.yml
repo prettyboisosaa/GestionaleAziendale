@@ -50,12 +50,9 @@
 #   "true" o cancellata - il valore predefinito nelle properties e' il sicuro.
 #   Il cookie in chiaro e' una decisione, non una svista: su una rete dove
 #   qualcuno puo' ascoltare, rubarlo vale quanto rubare la password.
-# * Non fa backup da se'. Li fa `scripts/backup.sh`, lanciato dal timer
-#   systemd in `scripts/systemd/`: vedi RILASCIO.md §7 per l'installazione e
-#   per la prova di ripristino, che non e' facoltativa. I dump finiscono pero'
-#   sullo STESSO disco del volume `dati-mysql`: coprono il `down -v` di troppo
-#   e la migrazione andata male, non il guasto hardware. Una copia su
-#   un'altra macchina resta la cosa da aggiungere.
+# * Non mette al sicuro i dati. Vivono nel volume `dati-mysql` e li' restano:
+#   copiarli altrove, e provare che si rimettano dentro, e' lavoro
+#   dell'amministratore di sistema, non di questo file.
 # * Non espone phpMyAdmin, che in sviluppo serve a guardare dentro il
 #   database e in produzione e' una porta aperta sui dati di tutti.
 # =============================================================================
