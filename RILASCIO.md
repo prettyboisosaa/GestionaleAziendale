@@ -250,20 +250,107 @@ non risponde.
 **Le migrazioni non tornano indietro.** `git checkout` del commit precedente
 rimette il codice di ieri, non lo schema di ieri: una migrazione che ha
 cancellato una colonna l'ha cancellata. Per un rollback vero serve il dump
-preso **prima** dell'aggiornamento. Che è il motivo per cui il punto qui sotto
-non è rimandabile a lungo.
+preso **prima** dell'aggiornamento, e quel dump è un comando:
+
+```bash
+sudo /opt/gestionale/scripts/backup.sh
+```
+
+Battilo **prima** del `git pull`, non dopo. Costa pochi secondi e si ritrova
+nella cartella dei giornalieri, pronto per `scripts/ripristina.sh` se
+l'aggiornamento va storto.
 
 ---
 
-## 7. Quello che questa procedura non copre
+## 7. I backup
+
+Il backup notturno del database: `scripts/backup.sh` lanciato da un timer
+systemd, con i dump in `/var/backups/gestionale`.
+
+**Il limite, dichiarato subito**: i dump stanno sullo **stesso filesystem dei
+dati**. Ti salvano da un `down -v` battuto nella cartella sbagliata, da una
+migrazione andata male e da una cancellazione per sbaglio — cioè dalle tre
+cose che succedono davvero. **Non** ti salvano dal guasto del disco né dalla
+perdita del server: lì se ne vanno insieme ai dati. È un primo passo, e il
+secondo è portarne una copia su un'altra macchina.
+
+### Installazione
+
+```bash
+cd /opt/gestionale
+sudo cp scripts/systemd/gestionale-backup.* /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gestionale-backup.timer
+```
+
+Se il progetto non sta in `/opt/gestionale`, va cambiato `Environment=` dentro
+`gestionale-backup.service`, non lo script.
+
+Poi **la prima esecuzione a mano**, senza aspettare la notte, perché un timer
+che fallirà alle 02:30 è meglio scoprirlo adesso:
+
+```bash
+sudo /opt/gestionale/scripts/backup.sh
+ls -lh /var/backups/gestionale/giornalieri/
+cat /var/backups/gestionale/ultimo-esito.txt
+```
+
+### La prova di ripristino, che non è facoltativa
+
+Un backup mai ripristinato è una speranza, non un backup. Fallo **ora**, che
+nel database ci sono solo le utenze appena create e sbagliare non costa
+niente — non il giorno in cui serve davvero.
+
+```bash
+sudo /opt/gestionale/scripts/ripristina.sh \
+  /var/backups/gestionale/giornalieri/<il file di prima>
+```
+
+Lo script chiede conferma (si scrive `RIPRISTINA`), ferma il backend, ricrea
+il database, carica il dump e riavvia. Alla fine mostra le righe di Flyway: se
+dicono **«Successfully validated 23 migrations»** e non «Migrating schema», lo
+schema ripristinato e il codice sono d'accordo. Poi rientra dal browser e
+controlla di vedere i tuoi utenti.
+
+### Com'è fatto
+
+| | |
+|---|---|
+| Quando | ogni notte alle 02:30, con `Persistent=true`: se il server era spento, parte al boot successivo |
+| Dove | `/var/backups/gestionale/giornalieri/` e `/settimanali/`, cartella `700` di root |
+| Quante copie | gli ultimi 7 giorni, più una copia a settimana per 4 settimane |
+| Formato | `mysqldump --single-transaction` compresso con gzip; il gestionale resta su durante il dump |
+| Verifica | ogni dump è controllato prima di ruotare: non vuoto, gzip valido, finisce con `-- Dump completed`, almeno 10 tabelle, contiene `flyway_schema_history`. Se un controllo fallisce il file viene cancellato, **nessun backup vecchio viene toccato** e il servizio va in `failed` |
+
+### Controllare che funzioni
+
+È il punto debole di questo assetto: nessuno ti avvisa. Lo stato c'è, ma va
+guardato — **mettilo in agenda una volta al mese**.
+
+```bash
+systemctl list-timers gestionale-backup.timer      # quando tocchera' di nuovo
+systemctl status gestionale-backup.service         # com'e' andata l'ultima volta
+cat /var/backups/gestionale/ultimo-esito.txt       # la risposta breve
+journalctl -u gestionale-backup.service --since '7 days ago'
+du -sh /var/backups/gestionale                     # quanto spazio occupa
+```
+
+Se `ultimo-esito.txt` ha una data di una settimana fa, il backup è morto una
+settimana fa. Il passo successivo, quando vorrai toglierti il controllo
+manuale, è un *dead man's switch*: lo script chiama un URL a fine corsa e un
+servizio esterno ti manda una mail quando le chiamate smettono.
+
+---
+
+## 8. Quello che questa procedura non copre
 
 Non sono dettagli: sono decisioni ancora aperte.
 
-- **I backup.** Il volume `dati-mysql` vive su questo server e basta. Un disco
-  che si rompe, o un `docker compose down -v` battuto nella cartella
-  sbagliata, e i dati non esistono più. Un `mysqldump` schedulato **su un
-  disco diverso** va messo prima del primo dato vero, e il ripristino va
-  provato una volta: un backup mai ripristinato è una speranza, non un backup.
+- **I backup fuori dal server.** Quelli locali ci sono (§7), ma vivono sullo
+  stesso disco dei dati: un guasto hardware se li porta via insieme a quello
+  che dovevano proteggere. Una copia su un'altra macchina — `rsync` su SSH, o
+  un bucket — è il prossimo passo, e il momento giusto per farlo è prima che
+  il database diventi importante.
 - **HTTPS.** Oggi il gestionale è in HTTP e `compose.prod.yml` imposta
   `COOKIE_SECURE: "false"`, perché con `true` e senza TLS il login risponde
   200 e ogni richiesta successiva è anonima, senza nessun errore che lo
@@ -283,7 +370,7 @@ Non sono dettagli: sono decisioni ancora aperte.
 
 ---
 
-## 8. Se qualcosa non va
+## 9. Se qualcosa non va
 
 | Sintomo | Causa quasi sempre |
 |---|---|
