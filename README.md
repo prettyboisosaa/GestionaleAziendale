@@ -167,6 +167,10 @@ nel menu di assegnazione.
 
 ## In produzione
 
+**La procedura completa è in [RILASCIO.md](RILASCIO.md)**: l'SSH sul server,
+il `.env`, il primo avvio, il giro delle utenze, gli aggiornamenti e cosa
+guardare quando qualcosa non va. Quello che segue è il riassunto.
+
 ```bash
 cp .env.example .env            # poi si riempiono i valori
 docker compose -f compose.prod.yml up -d --build
@@ -178,24 +182,39 @@ motivo; quelle che contano di più:
 
 | | sviluppo | produzione |
 |---|---|---|
-| dati di prova (`db/dev`) | caricati | **esclusi** |
+| dati di prova (`db/dev`) | caricati | **esclusi**, e nemmeno presenti nel jar |
 | schema | `ddl-auto=update` | `validate`: non parte se le entità divergono |
 | primo utente | i sette del seed | creato da `GESTIONALE_AMMINISTRATOREINIZIALE_*`, solo su database vuoto |
 | Swagger | aperto | spento |
-| cookie di sessione | normale | `Secure`: **pretende HTTPS** |
+| cookie di sessione | normale | `${COOKIE_SECURE:true}`: protetto se non si dice altro |
+
+Il seed di sviluppo non è escluso soltanto dalla configurazione: `pom.xml` lo
+toglie dall'artefatto (`maven-jar-plugin`, `db/dev/**`). Prima, l'unica difesa
+era la riga `spring.flyway.locations` del profilo prod, e dimenticare
+`SPRING_PROFILES_ACTIVE=prod` su un database vuoto seminava sette utenti con
+una password nota, uno dei quali amministratore. Una difesa che si disarma per
+distrazione non è una difesa.
+
+Il cookie di sessione è una variabile perché il primo rilascio è in **HTTP**:
+`compose.prod.yml` imposta `COOKIE_SECURE: "false"`. Con `true` e senza TLS il
+login risponde 200 e ogni richiesta successiva è anonima, senza nessun errore
+che lo spieghi. Il valore predefinito resta quello protetto, quindi il giorno
+che arriva un certificato non si tocca il jar: si toglie quella riga.
 
 Tre cose che `compose.prod.yml` **non** fa, e che restano da decidere:
 
-- **HTTPS.** Senza, il cookie `Secure` impedisce l'accesso in modo silenzioso:
-  il login risponde 200 e ogni richiesta successiva è anonima. O si mette un
-  certificato, o si toglie quella riga sapendo che il cookie viaggia in chiaro.
+- **HTTPS.** Finché non c'è, il cookie di sessione viaggia in chiaro: su una
+  rete dove qualcuno può ascoltare, rubarlo vale quanto rubare la password.
+  Con il certificato vanno insieme `COOKIE_SECURE` a `"true"` e
+  `Strict-Transport-Security` in `frontend/nginx.conf`.
 - **I backup.** Il volume `dati-mysql` vive sul server e basta. Un `mysqldump`
   schedulato su un disco diverso va messo **prima** del primo dato vero, e il
   ripristino va provato una volta.
 - **L'avvio automatico.** `restart: unless-stopped` riavvia i container, non
-  Docker: su Windows con Docker Desktop serve una sessione utente aperta,
-  quindi dopo un riavvio del server l'applicazione resta giù finché qualcuno
-  non fa il login.
+  Docker. Su Linux basta `systemctl enable docker` (da verificare: è il passo
+  che si salta); su Windows con Docker Desktop serve una sessione utente
+  aperta, quindi dopo un riavvio del server l'applicazione resta giù finché
+  qualcuno non fa il login.
 
 ---
 
